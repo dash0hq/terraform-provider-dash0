@@ -1,8 +1,8 @@
 terraform {
   required_providers {
     dash0 = {
-      source  = "dash0/dash0"
-      version = "0.0.1"
+      source  = "dash0hq/dash0"
+      version = "0.0.3"
     }
   }
 }
