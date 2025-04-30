@@ -9,27 +9,8 @@ The Dash0 provider allows Terraform to manage resources such as dashboards and c
 ## Usage
 Learn how to use this Terraform provider by heading to the docs hosted on the [Terraform Registry](https://registry.terraform.io/providers/dash0hq/dash0/latest/docs).
 
-## Developing the Provider
-
-### Requirements
-
-- [Go](https://golang.org/doc/install) 1.24 or higher
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) 1.5.7 or higher
-
-### Building
-
-```shell
-make build
-```
-
-### Installing
-
-For local development and testing, you can install the provider to your local Terraform plugin directory:
-
-```shell
-mkdir -p ~/.terraform.d/plugins/registry.terraform.io/dash0/dash0/dev/$(go env GOOS)_$(go env GOARCH)/
-cp terraform-provider-dash0 ~/.terraform.d/plugins/registry.terraform.io/dash0/dash0/dev/$(go env GOOS)_$(go env GOARCH)/
-```
+## Contributing
+Check out our [contribution guidelines](./CONTRIBUTING.md).
 
 ## License
 

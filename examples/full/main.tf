@@ -14,6 +14,6 @@ provider "dash0" {
 
 resource "dash0_dashboard" "system_overview" {
   dataset        = "default"
-  dashboard_yaml = file("${path.module}/dashboards/system-overview.yaml")
+  dashboard_yaml = file("${path.module}/dashboards.yaml")
 }
 
