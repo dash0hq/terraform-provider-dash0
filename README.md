@@ -1,57 +1,22 @@
+<a href="https://terraform.io">
+  <img src="https://www.datocms-assets.com/2885/1629941242-logo-terraform-main.svg" title="Terraform" align="right" height="40px" />
+</a>
+
 # Terraform Provider for Dash0
 
-The Dash0 provider allows Terraform to manage resources on [Dash0](https://dash0.com) observability platform. This provider can be used to define dashboards in Perses dashboard format.
-
-## Example Usage
-
-```hcl
-# Configure the Dash0 provider
-provider "dash0" {
-  # No configuration needed in the provider block
-  # Authentication is handled via environment variables
-  # DASH0_URL and DASH0_AUTH_TOKEN
-}
-
-# Create a dashboard by loading YAML from a file
-resource "dash0_dashboard" "example" {
-  name        = "example-dashboard"
-  description = "Example dashboard created via Terraform"
-  dataset     = "default"  # Optional, defaults to "default" if not specified
-
-  # Load the dashboard definition from a local YAML file
-  dashboard_yaml = file("${path.module}/dashboards/example-dashboard.yaml")
-}
-
-```
-
-## Authentication
-
-The Dash0 provider authenticates using environment variables:
-
-```shell
-export DASH0_AUTH_TOKEN="auth_xxxx"
-export DASH0_URL="https://api.us-west-2.aws.dash0.com"  # Optional, defaults to https://api.us-west-2.aws.dash0.com
-```
-
-```hcl
-provider "dash0" {}
-```
-
-## Resources
-
-- `dash0_dashboard` - Manages a Dash0 Dashboard in Perses format
+The Dash0 provider allows Terraform to manage resources such as dashboards and check rules within [Dash0](https://dash0.com).
 
 ## Developing the Provider
 
 ### Requirements
 
-- [Go](https://golang.org/doc/install) 1.21 or higher
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) 1.0.0 or higher
+- [Go](https://golang.org/doc/install) 1.24 or higher
+- [Terraform](https://developer.hashicorp.com/terraform/downloads) 1.5.7 or higher
 
 ### Building
 
 ```shell
-go build -o terraform-provider-dash0
+make build
 ```
 
 ### Installing

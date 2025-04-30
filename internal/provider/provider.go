@@ -49,7 +49,11 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 	authToken := os.Getenv("DASH0_AUTH_TOKEN")
 
 	if url == "" {
-		url = "https://api.us-west-2.aws.dash0.com"
+		resp.Diagnostics.AddError(
+			"Missing Dash0 URL",
+			"The provider cannot create the Dash0 API client as there is a missing or empty value for the Dash0 URL. "+
+				"Set the DASH0_URL environment variable.",
+		)
 	}
 
 	if authToken == "" {

@@ -2,7 +2,7 @@ terraform {
   required_providers {
     dash0 = {
       source  = "dash0hq/dash0"
-      version = "0.0.3"
+      version = "0.0.4"
     }
   }
 }
@@ -13,7 +13,7 @@ provider "dash0" {
 }
 
 resource "dash0_dashboard" "system_overview" {
-  dataset     = "default"
+  dataset        = "default"
   dashboard_yaml = file("${path.module}/dashboards/system-overview.yaml")
 }
 

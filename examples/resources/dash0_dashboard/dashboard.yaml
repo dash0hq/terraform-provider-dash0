@@ -1,0 +1,72 @@
+{
+  "apiVersion": "perses.dev/v1alpha1",
+  "kind": "PersesDashboard",
+  "metadata": {
+    "name": "hello-world",
+    "labels": {}
+  },
+  "spec": {
+    "duration": "30m",
+    "display": {
+      "description": "",
+      "name": "Hello World 👋"
+    },
+    "layouts": [
+      {
+        "kind": "Grid",
+        "spec": {
+          "items": [
+            {
+              "content": {
+                "$ref": "#/spec/panels/7044d931-2996-40f1-bac4-209fdf4af378"
+              },
+              "height": 10,
+              "width": 16,
+              "x": 0,
+              "y": 0
+            }
+          ]
+        }
+      }
+    ],
+    "panels": {
+      "7044d931-2996-40f1-bac4-209fdf4af378": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "description": "",
+            "name": "Ben: Pie Chart"
+          },
+          "plugin": {
+            "kind": "PieChart",
+            "spec": {
+              "calculation": "last-number",
+              "format": {
+                "decimalPlaces": 2,
+                "enforceMinimumFractionDigits": false,
+                "shortValues": false,
+                "signDisplay": "auto",
+                "unit": "decimal"
+              },
+              "thresholds": {}
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "PrometheusTimeSeriesQuery",
+                  "spec": {
+                    "query": "sum by (service_name) (increase({otel_metric_name = \"dash0.spans\"}[$__interval])) > 0",
+                    "seriesNameFormat": "{{service_name}}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
