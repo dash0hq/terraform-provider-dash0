@@ -23,8 +23,16 @@ func (c *dash0Client) CreateDashboard(ctx context.Context, dashboard dashboardRe
 	q.Set("dataset", dashboard.Dataset.ValueString())
 	u.RawQuery = q.Encode()
 
-	// Make the API request
-	resp, err := c.doRequest(ctx, http.MethodPut, u.String(), dashboard.DashboardDefinitionYaml.ValueString())
+	// Convert YAML to JSON
+	jsonBody, err := ConvertYAMLToJSON(dashboard.DashboardYaml.ValueString())
+	if err != nil {
+		return fmt.Errorf("error converting dashboard YAML to JSON: %w", err)
+	}
+	
+	tflog.Debug(ctx, fmt.Sprintf("Creating dashboard with JSON payload: %s", jsonBody))
+
+	// Make the API request with JSON
+	resp, err := c.doRequest(ctx, http.MethodPut, u.String(), jsonBody)
 	if err != nil {
 		return err
 	}
@@ -52,9 +60,9 @@ func (c *dash0Client) GetDashboard(ctx context.Context, dataset string, origin s
 	}
 
 	dashboard := &dashboardResourceModel{
-		Origin:                  types.StringValue(origin),
-		Dataset:                 types.StringValue(dataset),
-		DashboardDefinitionYaml: types.StringValue(string(resp)),
+		Origin:        types.StringValue(origin),
+		Dataset:       types.StringValue(dataset),
+		DashboardYaml: types.StringValue(string(resp)),
 	}
 	return dashboard, nil
 }
@@ -76,7 +84,16 @@ func (c *dash0Client) UpdateDashboard(ctx context.Context, dashboard dashboardRe
 
 	tflog.Debug(ctx, fmt.Sprintf("Updating dashboard in dataset: %s", dataset))
 
-	_, err = c.doRequest(ctx, http.MethodPut, u.String(), dashboard.DashboardDefinitionYaml.ValueString())
+	// Convert YAML to JSON
+	jsonBody, err := ConvertYAMLToJSON(dashboard.DashboardYaml.ValueString())
+	if err != nil {
+		return fmt.Errorf("error converting dashboard YAML to JSON: %w", err)
+	}
+	
+	tflog.Debug(ctx, fmt.Sprintf("Updating dashboard with JSON payload: %s", jsonBody))
+
+	// Make the API request with JSON
+	_, err = c.doRequest(ctx, http.MethodPut, u.String(), jsonBody)
 	if err != nil {
 		return err
 	}

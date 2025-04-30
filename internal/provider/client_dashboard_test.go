@@ -19,10 +19,14 @@ func TestDashboardOperations(t *testing.T) {
 	testDataset := "test-dataset"
 	testYaml := "kind: Dashboard\nmetadata:\n  name: system-overview\nspec:\n  title: System Overview"
 
+	// Convert YAML to expected JSON for requests
+	expectedJSON, err := ConvertYAMLToJSON(testYaml)
+	require.NoError(t, err)
+
 	dashboardModel := dashboardResourceModel{
-		Origin:                  types.StringValue(testOrigin),
-		Dataset:                 types.StringValue(testDataset),
-		DashboardDefinitionYaml: types.StringValue(testYaml),
+		Origin:        types.StringValue(testOrigin),
+		Dataset:       types.StringValue(testDataset),
+		DashboardYaml: types.StringValue(testYaml),
 	}
 
 	tests := []struct {
@@ -42,7 +46,7 @@ func TestDashboardOperations(t *testing.T) {
 			expectedMethod: http.MethodPut,
 			expectedPath:   "/api/dashboards/" + testOrigin,
 			expectedQuery:  "dataset=" + testDataset,
-			expectedBody:   testYaml,
+			expectedBody:   expectedJSON,
 			serverResponse: `{"status":"created"}`,
 			serverStatus:   http.StatusOK,
 			expectError:    false,
@@ -64,7 +68,7 @@ func TestDashboardOperations(t *testing.T) {
 			expectedMethod: http.MethodPut,
 			expectedPath:   "/api/dashboards/" + testOrigin,
 			expectedQuery:  "dataset=" + testDataset,
-			expectedBody:   testYaml,
+			expectedBody:   expectedJSON,
 			serverResponse: `{"status":"updated"}`,
 			serverStatus:   http.StatusOK,
 			expectError:    false,
@@ -138,7 +142,7 @@ func TestDashboardOperations(t *testing.T) {
 				if err == nil {
 					assert.Equal(t, testOrigin, dashboard.Origin.ValueString())
 					assert.Equal(t, testDataset, dashboard.Dataset.ValueString())
-					assert.Equal(t, testYaml, dashboard.DashboardDefinitionYaml.ValueString())
+					assert.Equal(t, testYaml, dashboard.DashboardYaml.ValueString())
 				}
 			case "update":
 				err = client.UpdateDashboard(ctx, dashboardModel)
@@ -218,10 +222,12 @@ func TestDashboardOperations_IntegrationStyle(t *testing.T) {
 	testDataset := "test-dataset"
 	testYaml := "kind: Dashboard\nmetadata:\n  name: system-overview\nspec:\n  title: System Overview"
 
+	// We don't need to check the exact JSON since we validate structure in the test
+
 	dashboardModel := dashboardResourceModel{
-		Origin:                  types.StringValue(testOrigin),
-		Dataset:                 types.StringValue(testDataset),
-		DashboardDefinitionYaml: types.StringValue(testYaml),
+		Origin:        types.StringValue(testOrigin),
+		Dataset:       types.StringValue(testDataset),
+		DashboardYaml: types.StringValue(testYaml),
 	}
 
 	// Execute a complete CRUD workflow
@@ -237,7 +243,17 @@ func TestDashboardOperations_IntegrationStyle(t *testing.T) {
 		assert.Equal(t, http.MethodPut, lastReq.Method)
 		assert.Equal(t, "/api/dashboards/"+testOrigin, lastReq.URL.Path)
 		assert.Equal(t, testDataset, lastReq.URL.Query().Get("dataset"))
-		assert.Equal(t, testYaml, receivedBodies[len(receivedBodies)-1])
+		
+		// Verify the request body is valid JSON (converted from YAML)
+		jsonBody := receivedBodies[len(receivedBodies)-1]
+		var jsonObj map[string]interface{}
+		err = json.Unmarshal([]byte(jsonBody), &jsonObj)
+		assert.NoError(t, err, "Body should be valid JSON")
+		
+		// Verify JSON contains expected fields
+		assert.Equal(t, "Dashboard", jsonObj["kind"])
+		assert.Contains(t, jsonObj, "metadata")
+		assert.Contains(t, jsonObj, "spec")
 	})
 
 	// 2. Get dashboard
@@ -254,7 +270,7 @@ func TestDashboardOperations_IntegrationStyle(t *testing.T) {
 		// Check response parsing
 		assert.Equal(t, testOrigin, dashboard.Origin.ValueString())
 		assert.Equal(t, testDataset, dashboard.Dataset.ValueString())
-		assert.Equal(t, testYaml, dashboard.DashboardDefinitionYaml.ValueString())
+		assert.Equal(t, testYaml, dashboard.DashboardYaml.ValueString())
 	})
 
 	// 3. Update dashboard
@@ -262,7 +278,7 @@ func TestDashboardOperations_IntegrationStyle(t *testing.T) {
 		// Update dashboard YAML
 		updatedYaml := testYaml + "\n  description: Updated dashboard"
 		updatedModel := dashboardModel
-		updatedModel.DashboardDefinitionYaml = types.StringValue(updatedYaml)
+		updatedModel.DashboardYaml = types.StringValue(updatedYaml)
 
 		err := client.UpdateDashboard(ctx, updatedModel)
 		require.NoError(t, err)
@@ -272,7 +288,18 @@ func TestDashboardOperations_IntegrationStyle(t *testing.T) {
 		assert.Equal(t, http.MethodPut, lastReq.Method)
 		assert.Equal(t, "/api/dashboards/"+testOrigin, lastReq.URL.Path)
 		assert.Equal(t, testDataset, lastReq.URL.Query().Get("dataset"))
-		assert.Equal(t, updatedYaml, receivedBodies[len(receivedBodies)-1])
+		
+		// Verify the request body is valid JSON (converted from YAML)
+		jsonBody := receivedBodies[len(receivedBodies)-1]
+		var jsonObj map[string]interface{}
+		err = json.Unmarshal([]byte(jsonBody), &jsonObj)
+		assert.NoError(t, err, "Body should be valid JSON")
+		
+		// Verify JSON contains expected fields
+		assert.Equal(t, "Dashboard", jsonObj["kind"])
+		assert.Contains(t, jsonObj, "metadata")
+		assert.Contains(t, jsonObj, "spec")
+		assert.Contains(t, jsonObj["spec"].(map[string]interface{}), "description")
 	})
 
 	// 4. Delete dashboard

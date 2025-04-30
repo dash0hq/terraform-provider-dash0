@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -16,8 +18,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &dashboardResource{}
-	_ resource.ResourceWithConfigure = &dashboardResource{}
+	_ resource.Resource                = &dashboardResource{}
+	_ resource.ResourceWithConfigure   = &dashboardResource{}
+	_ resource.ResourceWithImportState = &dashboardResource{}
 )
 
 // NewDashboardResource is a helper function to simplify the provider implementation.
@@ -31,9 +34,9 @@ type dashboardResource struct {
 }
 
 type dashboardResourceModel struct {
-	Origin                  types.String `tfsdk:"origin"`
-	Dataset                 types.String `tfsdk:"dataset"`
-	DashboardDefinitionYaml types.String `tfsdk:"dashboard_yaml"`
+	Origin        types.String `tfsdk:"origin"`
+	Dataset       types.String `tfsdk:"dataset"`
+	DashboardYaml types.String `tfsdk:"dashboard_yaml"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -93,7 +96,7 @@ func (r *dashboardResource) Create(ctx context.Context, req resource.CreateReque
 
 	// Validate YAML format
 	var dashboardYaml interface{}
-	err := yaml.Unmarshal([]byte(model.DashboardDefinitionYaml.ValueString()), &dashboardYaml)
+	err := yaml.Unmarshal([]byte(model.DashboardYaml.ValueString()), &dashboardYaml)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Invalid YAML",
@@ -133,8 +136,29 @@ func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 	tflog.Trace(ctx, "read a dashboard resource")
 
-	// Set refreshed state
-	state.DashboardDefinitionYaml = dashboard.DashboardDefinitionYaml
+	// Compare the current state with the retrieved dashboard
+	// Only update state if there's a significant change (ignoring certain fields)
+	if state.DashboardYaml.ValueString() != "" {
+		equivalent, err := DashboardsEquivalent(state.DashboardYaml.ValueString(), dashboard.DashboardYaml.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddWarning(
+				"Dashboard Comparison Error",
+				fmt.Sprintf("Error comparing dashboards: %s. Using API response as source of truth.", err),
+			)
+			// Fall back to updating with API response on error
+			state.DashboardYaml = dashboard.DashboardYaml
+		} else if !equivalent {
+			// Only update if dashboards are not equivalent
+			tflog.Debug(ctx, "Dashboard has changed, updating state")
+			state.DashboardYaml = dashboard.DashboardYaml
+		} else {
+			tflog.Debug(ctx, "Dashboard is equivalent, ignoring changes in metadata fields")
+			// Keep the current state since the dashboards are equivalent
+		}
+	} else {
+		// If there's no current dashboard YAML, use the one from the API
+		state.DashboardYaml = dashboard.DashboardYaml
+	}
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, &state)
@@ -160,7 +184,7 @@ func (r *dashboardResource) Update(ctx context.Context, req resource.UpdateReque
 
 	// Validate YAML format
 	var dashboardYaml interface{}
-	err := yaml.Unmarshal([]byte(plan.DashboardDefinitionYaml.ValueString()), &dashboardYaml)
+	err := yaml.Unmarshal([]byte(plan.DashboardYaml.ValueString()), &dashboardYaml)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Invalid YAML",
@@ -225,4 +249,35 @@ func (r *dashboardResource) Delete(ctx context.Context, req resource.DeleteReque
 	}
 
 	tflog.Trace(ctx, "deleted a dashboard resource")
+}
+
+// ImportState function is required for resources that support import
+func (r *dashboardResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	// Expect the import ID in the format "origin,dataset"
+	idParts := strings.Split(req.ID, ",")
+	if len(idParts) != 2 {
+		resp.Diagnostics.AddError(
+			"Invalid Import ID",
+			fmt.Sprintf("Expected import ID in the format 'dataset,origin'. Got: %s", req.ID),
+		)
+		return
+	}
+
+	dataset := idParts[0]
+	origin := idParts[1]
+
+	// Retrieve the dashboard using the client
+	dashboard, err := r.client.GetDashboard(ctx, dataset, origin)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error Importing Dashboard",
+			fmt.Sprintf("Could not get dashboard with origin=%s, dataset=%s: %s", origin, dataset, err),
+		)
+		return
+	}
+
+	// Set the state with values from the imported dashboard
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dashboard_yaml"), dashboard.DashboardYaml)...)
 }

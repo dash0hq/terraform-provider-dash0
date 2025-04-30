@@ -20,4 +20,7 @@ jobs:
         run: |
           go mod download
           make build
-          make test
+          make testacc
+        env:
+          DASH0_URL: ${{ secrets.DASH0_URL }}
+          DASH0_AUTH_TOKEN: ${{ secrets.DASH0_AUTH_TOKEN }}

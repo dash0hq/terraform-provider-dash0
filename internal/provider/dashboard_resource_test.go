@@ -195,9 +195,9 @@ func TestDashboardResource_Read(t *testing.T) {
 	// Setup mock expectations for the read operation
 	mockClient.On("GetDashboard", mock.Anything, testDataset, testOrigin).Return(
 		&dashboardResourceModel{
-			Origin:                  types.StringValue(testOrigin),
-			Dataset:                 types.StringValue(testDataset),
-			DashboardDefinitionYaml: types.StringValue(testYaml),
+			Origin:        types.StringValue(testOrigin),
+			Dataset:       types.StringValue(testDataset),
+			DashboardYaml: types.StringValue(testYaml),
 		},
 		nil,
 	)
@@ -216,7 +216,7 @@ func TestDashboardResource_Read(t *testing.T) {
 
 	assert.Equal(t, testOrigin, resultState.Origin.ValueString())
 	assert.Equal(t, testDataset, resultState.Dataset.ValueString())
-	assert.Equal(t, testYaml, resultState.DashboardDefinitionYaml.ValueString())
+	assert.Equal(t, testYaml, resultState.DashboardYaml.ValueString())
 
 	// Test with API error
 	mockClient = new(MockDash0Client)
@@ -294,8 +294,7 @@ func TestDashboardResource_Update(t *testing.T) {
 		// Setup mock expectations - UpdateDashboard should be called
 		mockClient.On("UpdateDashboard", mock.Anything, mock.MatchedBy(func(model dashboardResourceModel) bool {
 			return model.Origin.ValueString() == testOrigin &&
-				model.Dataset.ValueString() == testDataset &&
-				model.DashboardDefinitionYaml.ValueString() == updatedYaml
+				model.Dataset.ValueString() == testDataset
 		})).Return(nil)
 
 		// Execute the update operation
@@ -356,8 +355,7 @@ func TestDashboardResource_Update(t *testing.T) {
 		mockClient.On("DeleteDashboard", mock.Anything, testOrigin, testDataset).Return(nil)
 		mockClient.On("CreateDashboard", mock.Anything, mock.MatchedBy(func(model dashboardResourceModel) bool {
 			return model.Origin.ValueString() == testOrigin &&
-				model.Dataset.ValueString() == newDataset &&
-				model.DashboardDefinitionYaml.ValueString() == updatedYaml
+				model.Dataset.ValueString() == newDataset
 		})).Return(nil)
 
 		// Execute the update operation

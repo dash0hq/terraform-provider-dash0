@@ -30,3 +30,17 @@ resource "dash0_dashboard" "my_dashboard" {
 ### Read-Only
 
 - `origin` (String) Identifier of the dashboard.
+
+## Import
+
+Dashboard resources can be imported using a comma-separated value of the origin and dataset:
+
+```bash
+terraform import dash0_dashboard.my_dashboard origin_value,dataset_name
+```
+
+For example:
+
+```bash
+terraform import dash0_dashboard.my_dashboard tf_12345678-1234-1234-1234-123456789abc,default
+```
