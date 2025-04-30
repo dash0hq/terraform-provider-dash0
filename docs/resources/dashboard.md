@@ -33,14 +33,8 @@ resource "dash0_dashboard" "my_dashboard" {
 
 ## Import
 
-Dashboard resources can be imported using a comma-separated value of the origin and dataset:
+Import is supported using the following syntax:
 
-```bash
-terraform import dash0_dashboard.my_dashboard origin_value,dataset_name
-```
-
-For example:
-
-```bash
-terraform import dash0_dashboard.my_dashboard tf_12345678-1234-1234-1234-123456789abc,default
+```shell
+terraform import dash0_dashboard.name "{{ dataset }},{{ id_or_origin }}"
 ```
