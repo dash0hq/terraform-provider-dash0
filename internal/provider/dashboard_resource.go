@@ -27,7 +27,7 @@ func NewDashboardResource() resource.Resource {
 
 // dashboardResource is the resource implementation.
 type dashboardResource struct {
-	client *dash0Client
+	client dash0ClientInterface
 }
 
 type dashboardResourceModel struct {
@@ -42,11 +42,11 @@ func (r *dashboardResource) Configure(_ context.Context, req resource.ConfigureR
 		return
 	}
 
-	client, ok := req.ProviderData.(*dash0Client)
+	client, ok := req.ProviderData.(dash0ClientInterface)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected *dash0Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected dash0ClientInterface, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 		return
 	}
