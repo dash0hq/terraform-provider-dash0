@@ -52,6 +52,17 @@ archives:
 release:
   prerelease: "false"
 
+signs:
+  - artifacts: checksum
+    args:
+      - "--batch"
+      - "--local-user"
+      - "{{ .Env.GPG_FINGERPRINT }}"
+      - "--output"
+      - "${signature}"
+      - "--detach-sign"
+      - "${artifact}"
+
 changelog:
   sort: asc
   filters:
