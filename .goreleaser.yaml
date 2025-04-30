@@ -41,10 +41,7 @@ checksum:
 archives:
   - formats: [ 'tar.gz' ]
     name_template: >-
-      {{ .ProjectName }}_{{ .Version }}_
-      {{- if eq .Os "darwin" }}macos
-      {{- else }}{{ .Os }}{{ end }}_
-      {{- .Arch }}
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
     format_overrides:
       - goos: windows
         formats: [ 'zip' ]
