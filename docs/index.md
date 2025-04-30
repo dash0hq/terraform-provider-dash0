@@ -23,8 +23,8 @@ provider "dash0" {
 resource "dash0_dashboard" "example" {
   name        = "example-dashboard"
   description = "Example dashboard created via Terraform"
-  
-  dashboard_definition_yaml = <<-EOT
+
+  dashboard_yaml = <<-EOT
     kind: Dashboard
     metadata:
       name: example-dashboard

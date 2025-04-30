@@ -3,12 +3,11 @@ package provider
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -17,9 +16,8 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &dashboardResource{}
-	_ resource.ResourceWithConfigure   = &dashboardResource{}
-	_ resource.ResourceWithImportState = &dashboardResource{}
+	_ resource.Resource              = &dashboardResource{}
+	_ resource.ResourceWithConfigure = &dashboardResource{}
 )
 
 // NewDashboardResource is a helper function to simplify the provider implementation.
@@ -32,11 +30,10 @@ type dashboardResource struct {
 	client *dash0Client
 }
 
-// dashboardResourceModel maps the resource schema data.
 type dashboardResourceModel struct {
-	ID                      types.String `tfsdk:"id"`
+	Origin                  types.String `tfsdk:"origin"`
 	Dataset                 types.String `tfsdk:"dataset"`
-	DashboardDefinitionYaml types.String `tfsdk:"dashboard_definition_yaml"`
+	DashboardDefinitionYaml types.String `tfsdk:"dashboard_yaml"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -57,17 +54,15 @@ func (r *dashboardResource) Configure(_ context.Context, req resource.ConfigureR
 	r.client = client
 }
 
-// Metadata returns the resource type name.
 func (r *dashboardResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_dashboard"
 }
 
-// Schema defines the schema for the resource.
 func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a Dash0 Dashboard (in Perses format).",
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
+			"origin": schema.StringAttribute{
 				Description: "Identifier of the dashboard.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
@@ -76,11 +71,9 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			},
 			"dataset": schema.StringAttribute{
 				Description: "The dataset for which the dashboard is created.",
-				Optional:    true,
-				Computed:    true,
-				Default:     stringdefault.StaticString("default"),
+				Required:    true,
 			},
-			"dashboard_definition_yaml": schema.StringAttribute{
+			"dashboard_yaml": schema.StringAttribute{
 				Description: "The dashboard definition in YAML format (Perses Dashboard format).",
 				Required:    true,
 			},
@@ -88,19 +81,19 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 	}
 }
 
-// Create creates the resource and sets the initial Terraform state.
 func (r *dashboardResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	// Retrieve values from plan
-	var plan dashboardResourceModel
-	diags := req.Plan.Get(ctx, &plan)
+	var model dashboardResourceModel
+	diags := req.Plan.Get(ctx, &model)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	model.Origin = types.StringValue("tf_" + uuid.New().String())
+
 	// Validate YAML format
 	var dashboardYaml interface{}
-	err := yaml.Unmarshal([]byte(plan.DashboardDefinitionYaml.ValueString()), &dashboardYaml)
+	err := yaml.Unmarshal([]byte(model.DashboardDefinitionYaml.ValueString()), &dashboardYaml)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Invalid YAML",
@@ -109,26 +102,19 @@ func (r *dashboardResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	// ID will be set by CreateDashboard from API response
-
-	// API call to create the dashboard
-	id, err := r.client.CreateDashboard(ctx, plan)
+	err = r.client.CreateDashboard(ctx, model)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create dashboard, got error: %s", err))
 		return
 	}
-	
-	// Set the ID returned from the API
-	plan.ID = types.StringValue(id)
 
 	tflog.Trace(ctx, "created a dashboard resource")
 
 	// Set state to fully populated data
-	diags = resp.State.Set(ctx, plan)
+	diags = resp.State.Set(ctx, model)
 	resp.Diagnostics.Append(diags...)
 }
 
-// Read refreshes the Terraform state with the latest data.
 func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
 	var state dashboardResourceModel
@@ -138,8 +124,7 @@ func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
-	// API call to get the dashboard details
-	dashboard, err := r.client.GetDashboard(ctx, state.ID.ValueString())
+	dashboard, err := r.client.GetDashboard(ctx, state.Dataset.ValueString(), state.Origin.ValueString())
 	if err != nil {
 		// Handle 404 case by returning an empty state
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read dashboard, got error: %s", err))
@@ -156,11 +141,18 @@ func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 	resp.Diagnostics.Append(diags...)
 }
 
-// Update updates the resource and sets the updated Terraform state on success.
 func (r *dashboardResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	// Get current state
+	var state dashboardResourceModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	// Retrieve values from plan
 	var plan dashboardResourceModel
-	diags := req.Plan.Get(ctx, &plan)
+	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -177,26 +169,48 @@ func (r *dashboardResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	// API call to update the dashboard
-	id, err := r.client.UpdateDashboard(ctx, plan)
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update dashboard, got error: %s", err))
-		return
-	}
-	
-	// Set the ID returned from the API
-	plan.ID = types.StringValue(id)
+	// Check if dataset has changed
+	datasetChanged := state.Dataset.ValueString() != plan.Dataset.ValueString()
 
-	tflog.Trace(ctx, "updated a dashboard resource")
+	if datasetChanged {
+		tflog.Info(ctx, fmt.Sprintf("Dataset changed from %s to %s, recreating dashboard",
+			state.Dataset.ValueString(), plan.Dataset.ValueString()))
+
+		// Delete the existing dashboard
+		err := r.client.DeleteDashboard(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Client Error",
+				fmt.Sprintf("Unable to delete old dashboard when changing dataset, got error: %s", err))
+			return
+		}
+
+		// Create a new dashboard in the new dataset
+		err = r.client.CreateDashboard(ctx, plan)
+		if err != nil {
+			resp.Diagnostics.AddError("Client Error",
+				fmt.Sprintf("Unable to create dashboard in new dataset, got error: %s", err))
+			return
+		}
+
+		tflog.Trace(ctx, "recreated dashboard resource in new dataset")
+	} else {
+		// Standard update (same dataset)
+		err := r.client.UpdateDashboard(ctx, plan)
+		if err != nil {
+			resp.Diagnostics.AddError("Client Error",
+				fmt.Sprintf("Unable to update dashboard, got error: %s", err))
+			return
+		}
+
+		tflog.Trace(ctx, "updated dashboard resource")
+	}
 
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 }
 
-// Delete deletes the resource and removes the Terraform state on success.
 func (r *dashboardResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	// Retrieve values from state
 	var state dashboardResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -204,17 +218,11 @@ func (r *dashboardResource) Delete(ctx context.Context, req resource.DeleteReque
 		return
 	}
 
-	// API call to delete the dashboard
-	_, err := r.client.DeleteDashboard(ctx, state.ID.ValueString())
+	err := r.client.DeleteDashboard(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete dashboard, got error: %s", err))
 		return
 	}
 
 	tflog.Trace(ctx, "deleted a dashboard resource")
-}
-
-// ImportState imports an existing resource into Terraform state.
-func (r *dashboardResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

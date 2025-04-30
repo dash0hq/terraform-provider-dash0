@@ -17,9 +17,9 @@ resource "dash0_dashboard" "example" {
   name        = "example-dashboard"
   description = "Example dashboard created via Terraform"
   dataset     = "default"  # Optional, defaults to "default" if not specified
-  
+
   # Load the dashboard definition from a local YAML file
-  dashboard_definition_yaml = file("${path.module}/dashboards/example-dashboard.yaml")
+  dashboard_yaml = file("${path.module}/dashboards/example-dashboard.yaml")
 }
 
 ```

@@ -48,8 +48,8 @@ resource "dash0_dashboard" "example" {
   name        = "example-dashboard"
   description = "Example dashboard created via Terraform"
   dataset     = "default"  # Optional, defaults to "default" if not specified
-  
-  dashboard_definition_yaml = <<-EOT
+
+  dashboard_yaml = <<-EOT
     kind: Dashboard
     metadata:
       name: example-dashboard
@@ -77,9 +77,9 @@ resource "dash0_dashboard" "example" {
   name        = "example-dashboard"
   description = "Example dashboard created via Terraform"
   dataset     = "production"  # Optional, defaults to "default" if not specified
-  
+
   # Load the dashboard definition from a local YAML file
-  dashboard_definition_yaml = file("${path.module}/dashboards/example-dashboard.yaml")
+  dashboard_yaml = file("${path.module}/dashboards/example-dashboard.yaml")
 }
 ```
 
@@ -123,9 +123,9 @@ resource "dash0_dashboard" "system_overview" {
   name        = "system-overview"
   description = "System overview dashboard with key metrics"
   dataset     = "default"  # Optional, defaults to "default" if not specified
-  
+
   # Load the dashboard definition from a local YAML file
-  dashboard_definition_yaml = file("${path.module}/dashboards/system-overview.yaml")
+  dashboard_yaml = file("${path.module}/dashboards/system-overview.yaml")
 }
 
 ```
