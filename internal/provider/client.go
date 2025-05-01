@@ -49,6 +49,9 @@ func (c *dash0Client) doRequest(ctx context.Context, method, path string, body s
 
 	tflog.Debug(ctx, fmt.Sprintf("Making request to Dash0 API: %s %s", method, path))
 
+	// Add small delay to avoid rate limiting
+	time.Sleep(100 * time.Millisecond)
+
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error making request: %w", err)
