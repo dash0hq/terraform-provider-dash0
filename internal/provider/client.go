@@ -24,7 +24,7 @@ func newDash0Client(url, authToken string) *dash0Client {
 		url:       url,
 		authToken: authToken,
 		client: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: 120 * time.Second,
 		},
 	}
 }
@@ -48,6 +48,9 @@ func (c *dash0Client) doRequest(ctx context.Context, method, path string, body s
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.authToken))
 
 	tflog.Debug(ctx, fmt.Sprintf("Making request to Dash0 API: %s %s", method, path))
+
+	// Add small delay to avoid rate limiting
+	time.Sleep(100 * time.Millisecond)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
