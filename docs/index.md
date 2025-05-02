@@ -9,10 +9,11 @@ description: |-
 
 The Dash0 provider provides dashboard, check rule and more resources for [Dash0](https://dash0.com/).
 
-The changelog for this provider can be found here: <https://github.com/dash0/terraform-provider-dash0/releases>.
+The changelog for this provider can be found [on GitHub](https://github.com/dash0/terraform-provider-dash0/releases).
 
 ## Authentication
-The Dash0 provider authenticates using environment variables:
+The Dash0 provider authenticates using environment variables. You can get the value for these environment variables
+through [Dash0's settings screens](https://www.dash0.com/documentation/dash0/key-concepts/auth-tokens).
 
 ```sh
 export DASH0_URL="https://api.us-west-2.aws.dash0.com"
@@ -27,11 +28,6 @@ export DASH0_AUTH_TOKEN="auth_xxxx"
 provider "dash0" {
   # Configuration can be provided via environment variables:
   # DASH0_URL and DASH0_AUTH_TOKEN
-}
-
-resource "dash0_dashboard" "my_dashboard" {
-  dataset        = "default"
-  dashboard_yaml = file("${path.module}/dashboard.yaml")
 }
 ```
 
