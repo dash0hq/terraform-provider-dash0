@@ -92,5 +92,6 @@ func (p *dash0Provider) DataSources(_ context.Context) []func() datasource.DataS
 func (p *dash0Provider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewDashboardResource,
+		NewCheckRuleResource,
 	}
 }
