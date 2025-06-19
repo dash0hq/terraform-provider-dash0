@@ -9,7 +9,7 @@ description: |-
 
 The Dash0 provider provides dashboard, check rule and more resources for [Dash0](https://dash0.com/).
 
-The changelog for this provider can be found [on GitHub](https://github.com/dash0/terraform-provider-dash0/releases).
+The changelog for this provider can be found [on GitHub](https://github.com/dash0hq/terraform-provider-dash0/releases).
 
 ## Authentication
 The Dash0 provider authenticates using environment variables. You can get the value for these environment variables
