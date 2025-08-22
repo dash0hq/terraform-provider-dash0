@@ -43,6 +43,29 @@ func (m *MockDash0Client) DeleteDashboard(ctx context.Context, origin string, da
 	return args.Error(0)
 }
 
+func (m *MockDash0Client) CreateSyntheticCheck(ctx context.Context, check syntheticCheckResourceModel) error {
+	args := m.Called(ctx, check)
+	return args.Error(0)
+}
+
+func (m *MockDash0Client) GetSyntheticCheck(ctx context.Context, dataset string, origin string) (*syntheticCheckResourceModel, error) {
+	args := m.Called(ctx, dataset, origin)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*syntheticCheckResourceModel), args.Error(1)
+}
+
+func (m *MockDash0Client) UpdateSyntheticCheck(ctx context.Context, check syntheticCheckResourceModel) error {
+	args := m.Called(ctx, check)
+	return args.Error(0)
+}
+
+func (m *MockDash0Client) DeleteSyntheticCheck(ctx context.Context, origin string, dataset string) error {
+	args := m.Called(ctx, origin, dataset)
+	return args.Error(0)
+}
+
 // Tests for dashboardResource
 
 func TestDashboardResource_Metadata(t *testing.T) {

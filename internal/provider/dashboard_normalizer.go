@@ -11,6 +11,7 @@ import (
 var ignoredFields = []string{
 	"apiVersion",
 	"kind",
+	"metadata.labels",
 	"metadata.createdAt",
 	"metadata.updatedAt",
 	"metadata.version",

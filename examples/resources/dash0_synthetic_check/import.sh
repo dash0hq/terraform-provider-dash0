@@ -1,0 +1,1 @@
+terraform import dash0_synthetic_check.name "{{ dataset }},{{ id_or_origin }}"
