@@ -1,0 +1,51 @@
+kind: Dash0SyntheticCheck
+metadata:
+  name: examplecom
+  labels: {}
+spec:
+  enabled: true
+  notifications:
+    channels: []
+  plugin:
+    display:
+      name: example.com
+    kind: http
+    spec:
+      assertions:
+        criticalAssertions:
+          - kind: status_code
+            spec:
+              value: "200"
+              operator: is
+          - kind: timing
+            spec:
+              type: response
+              value: 5000ms
+              operator: lt
+        degradedAssertions:
+          - kind: timing
+            spec:
+              type: response
+              value: 2000ms
+              operator: lt
+      request:
+        method: get
+        url: https://www.example.com
+        queryParameters: []
+        headers: []
+        redirects: follow
+        tls:
+          allowInsecure: false
+        tracing:
+          addTracingHeaders: true
+  retries:
+    kind: fixed
+    spec:
+      attempts: 3
+      delay: 1s
+  schedule:
+    interval: 1m
+    locations:
+      - gcp-europe-west3
+      - gcp-us-west1
+    strategy: all_locations

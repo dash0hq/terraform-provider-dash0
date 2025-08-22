@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-const resourceName = "dash0_dashboard.test"
+const dashboardResourceName = "dash0_dashboard.test"
 
 const basicDashboardYaml = `
 apiVersion: perses.dev/v1alpha1
@@ -59,20 +59,20 @@ func TestAccDashboardResource(t *testing.T) {
 				Config: testAccDashboardResourceConfig("default", basicDashboardYaml),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify the dashboard exists
-					testAccCheckDashboardExists(resourceName),
+					testAccCheckDashboardExists(dashboardResourceName),
 					// Verify attributes
-					resource.TestCheckResourceAttr(resourceName, "dataset", "default"),
-					resource.TestCheckResourceAttr(resourceName, "dashboard_yaml", basicDashboardYaml),
-					resource.TestCheckResourceAttrSet(resourceName, "origin"),
+					resource.TestCheckResourceAttr(dashboardResourceName, "dataset", "default"),
+					resource.TestCheckResourceAttr(dashboardResourceName, "dashboard_yaml", basicDashboardYaml),
+					resource.TestCheckResourceAttrSet(dashboardResourceName, "origin"),
 				),
 			},
 			// ImportState testing
 			{
-				ResourceName:      resourceName,
+				ResourceName:      dashboardResourceName,
 				ImportState:       true,
 				ImportStateVerify: false,
 				// The import uses both origin and dataset to identify the dashboard
-				ImportStateIdFunc: testAccDashboardImportStateIdFunc(resourceName),
+				ImportStateIdFunc: testAccDashboardImportStateIdFunc(dashboardResourceName),
 				ImportStateCheck: func(states []*terraform.InstanceState) error {
 					// Verify we have exactly one state
 					if len(states) != 1 {
@@ -101,25 +101,25 @@ func TestAccDashboardResource(t *testing.T) {
 			{
 				Config: testAccDashboardResourceConfig("default", updatedDashboardYaml),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					testAccCheckDashboardExists(resourceName),
-					resource.TestCheckResourceAttr(resourceName, "dataset", "default"),
-					resource.TestCheckResourceAttr(resourceName, "dashboard_yaml", updatedDashboardYaml),
+					testAccCheckDashboardExists(dashboardResourceName),
+					resource.TestCheckResourceAttr(dashboardResourceName, "dataset", "default"),
+					resource.TestCheckResourceAttr(dashboardResourceName, "dashboard_yaml", updatedDashboardYaml),
 				),
 			},
 			// Test changing dataset (should force recreation)
 			{
-				Config: testAccDashboardResourceConfig("another-dataset", updatedDashboardYaml),
+				Config: testAccDashboardResourceConfig("terraform-test", updatedDashboardYaml),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					testAccCheckDashboardExists(resourceName),
-					resource.TestCheckResourceAttr(resourceName, "dataset", "another-dataset"),
-					resource.TestCheckResourceAttr(resourceName, "dashboard_yaml", updatedDashboardYaml),
+					testAccCheckDashboardExists(dashboardResourceName),
+					resource.TestCheckResourceAttr(dashboardResourceName, "dataset", "terraform-test"),
+					resource.TestCheckResourceAttr(dashboardResourceName, "dashboard_yaml", updatedDashboardYaml),
 				),
 			},
 			// Test deleting
 			{
 				Config: `provider "dash0" {}`,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					testAccCheckDashboardDoesNotExists(resourceName),
+					testAccCheckDashboardDoesNotExists(dashboardResourceName),
 				),
 			},
 		},
