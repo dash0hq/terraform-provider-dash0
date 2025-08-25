@@ -9,7 +9,7 @@ require (
 	github.com/hashicorp/terraform-plugin-go v0.26.0
 	github.com/hashicorp/terraform-plugin-log v0.9.0
 	github.com/hashicorp/terraform-plugin-testing v1.12.0
-	github.com/stretchr/testify v1.8.3
+	github.com/stretchr/testify v1.11.0
 	golang.org/x/sync v0.12.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -66,7 +66,7 @@ require (
 	github.com/posener/complete v1.2.3 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
-	github.com/stretchr/objx v0.5.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/vmihailenco/msgpack v4.0.4+incompatible // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
