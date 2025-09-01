@@ -1,0 +1,1 @@
+terraform import dash0_view.name "{{ dataset }},{{ id_or_origin }}"
