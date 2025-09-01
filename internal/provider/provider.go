@@ -93,5 +93,6 @@ func (p *dash0Provider) Resources(_ context.Context) []func() resource.Resource 
 	return []func() resource.Resource{
 		NewDashboardResource,
 		NewSyntheticCheckResource,
+		NewViewResource,
 	}
 }

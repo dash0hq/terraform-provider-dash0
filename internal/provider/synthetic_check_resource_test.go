@@ -64,6 +64,29 @@ func (m *MockSyntheticCheckClient) DeleteSyntheticCheck(ctx context.Context, ori
 	return args.Error(0)
 }
 
+func (m *MockSyntheticCheckClient) CreateView(ctx context.Context, check viewResourceModel) error {
+	args := m.Called(ctx, check)
+	return args.Error(0)
+}
+
+func (m *MockSyntheticCheckClient) GetView(ctx context.Context, dataset string, origin string) (*viewResourceModel, error) {
+	args := m.Called(ctx, dataset, origin)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*viewResourceModel), args.Error(1)
+}
+
+func (m *MockSyntheticCheckClient) UpdateView(ctx context.Context, check viewResourceModel) error {
+	args := m.Called(ctx, check)
+	return args.Error(0)
+}
+
+func (m *MockSyntheticCheckClient) DeleteView(ctx context.Context, origin string, dataset string) error {
+	args := m.Called(ctx, origin, dataset)
+	return args.Error(0)
+}
+
 // Tests for syntheticCheckResource
 
 func TestSyntheticCheckResource_Metadata(t *testing.T) {
@@ -87,21 +110,21 @@ func TestSyntheticCheckResource_Schema(t *testing.T) {
 
 	assert.NotNil(t, resp.Schema)
 	assert.Equal(t, "Manages a Dash0 Synthetic Check.", resp.Schema.Description)
-	
+
 	// Check attributes
 	attrs := resp.Schema.Attributes
 	assert.Contains(t, attrs, "origin")
 	assert.Contains(t, attrs, "dataset")
 	assert.Contains(t, attrs, "synthetic_check_yaml")
-	
+
 	// Check origin is computed
 	originAttr := attrs["origin"].(schema.StringAttribute)
 	assert.True(t, originAttr.Computed)
-	
+
 	// Check dataset is required
 	datasetAttr := attrs["dataset"].(schema.StringAttribute)
 	assert.True(t, datasetAttr.Required)
-	
+
 	// Check synthetic_check_yaml is required
 	checkYamlAttr := attrs["synthetic_check_yaml"].(schema.StringAttribute)
 	assert.True(t, checkYamlAttr.Required)
@@ -110,7 +133,7 @@ func TestSyntheticCheckResource_Schema(t *testing.T) {
 func TestSyntheticCheckResource_Create(t *testing.T) {
 	ctx := context.Background()
 	mockClient := new(MockSyntheticCheckClient)
-	
+
 	r := &syntheticCheckResource{
 		client: mockClient,
 	}
@@ -125,8 +148,8 @@ func TestSyntheticCheckResource_Create(t *testing.T) {
 					"synthetic_check_yaml": tftypes.String,
 				},
 			}, map[string]tftypes.Value{
-				"origin":               tftypes.NewValue(tftypes.String, nil),
-				"dataset":              tftypes.NewValue(tftypes.String, "test-dataset"),
+				"origin":  tftypes.NewValue(tftypes.String, nil),
+				"dataset": tftypes.NewValue(tftypes.String, "test-dataset"),
 				"synthetic_check_yaml": tftypes.NewValue(tftypes.String, `
 kind: Dash0SyntheticCheck
 metadata:
@@ -167,7 +190,7 @@ spec:
 func TestSyntheticCheckResource_CreateWithError(t *testing.T) {
 	ctx := context.Background()
 	mockClient := new(MockSyntheticCheckClient)
-	
+
 	r := &syntheticCheckResource{
 		client: mockClient,
 	}
@@ -182,8 +205,8 @@ func TestSyntheticCheckResource_CreateWithError(t *testing.T) {
 					"synthetic_check_yaml": tftypes.String,
 				},
 			}, map[string]tftypes.Value{
-				"origin":               tftypes.NewValue(tftypes.String, nil),
-				"dataset":              tftypes.NewValue(tftypes.String, "test-dataset"),
+				"origin":  tftypes.NewValue(tftypes.String, nil),
+				"dataset": tftypes.NewValue(tftypes.String, "test-dataset"),
 				"synthetic_check_yaml": tftypes.NewValue(tftypes.String, `
 kind: Dash0SyntheticCheck
 metadata:
@@ -213,7 +236,7 @@ metadata:
 func TestSyntheticCheckResource_Delete(t *testing.T) {
 	ctx := context.Background()
 	mockClient := new(MockSyntheticCheckClient)
-	
+
 	r := &syntheticCheckResource{
 		client: mockClient,
 	}
@@ -269,7 +292,7 @@ func testSyntheticCheckSchema() schema.Schema {
 func TestSyntheticCheckResource_Update(t *testing.T) {
 	ctx := context.Background()
 	mockClient := new(MockSyntheticCheckClient)
-	
+
 	r := &syntheticCheckResource{
 		client: mockClient,
 	}
@@ -299,8 +322,8 @@ func TestSyntheticCheckResource_Update(t *testing.T) {
 						"synthetic_check_yaml": tftypes.String,
 					},
 				}, map[string]tftypes.Value{
-					"origin":               tftypes.NewValue(tftypes.String, "test-origin"),
-					"dataset":              tftypes.NewValue(tftypes.String, "test-dataset"),
+					"origin":  tftypes.NewValue(tftypes.String, "test-origin"),
+					"dataset": tftypes.NewValue(tftypes.String, "test-dataset"),
 					"synthetic_check_yaml": tftypes.NewValue(tftypes.String, `
 kind: Dash0SyntheticCheck
 metadata:
