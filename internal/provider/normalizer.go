@@ -7,7 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Fields to ignore when comparing dashboards
+// Fields to ignore when comparing resource YAMLs
 var ignoredFields = []string{
 	"apiVersion",
 	"kind",
@@ -18,13 +18,13 @@ var ignoredFields = []string{
 	"metadata.dash0Extensions",
 }
 
-// NormalizeDashboardYAML normalizes a dashboard YAML by removing the fields we want to ignore
+// NormalizeYAML normalizes a YAML by removing the fields we want to ignore
 // when comparing for drift detection.
-func NormalizeDashboardYAML(yamlStr string) (string, error) {
+func NormalizeYAML(yamlStr string) (string, error) {
 	// Parse YAML into an interface
 	var parsedYaml map[string]interface{}
 	if err := yaml.Unmarshal([]byte(yamlStr), &parsedYaml); err != nil {
-		return "", fmt.Errorf("error parsing dashboard YAML: %w", err)
+		return "", fmt.Errorf("error parsing resource YAML: %w", err)
 	}
 
 	// Remove ignored fields
@@ -35,7 +35,7 @@ func NormalizeDashboardYAML(yamlStr string) (string, error) {
 	// Marshal back to YAML
 	normalizedYaml, err := yaml.Marshal(parsedYaml)
 	if err != nil {
-		return "", fmt.Errorf("error marshalling normalized dashboard YAML: %w", err)
+		return "", fmt.Errorf("error marshalling normalized resource YAML: %w", err)
 	}
 
 	return string(normalizedYaml), nil
@@ -92,27 +92,27 @@ func removeField(data map[string]interface{}, path string) {
 	}
 }
 
-// DashboardsEquivalent checks if two dashboard YAMLs are equivalent,
+// ResourceYAMLEquivalent checks if two resource YAMLs are equivalent,
 // ignoring fields we don't care about for drift detection
-func DashboardsEquivalent(yamlA, yamlB string) (bool, error) {
+func ResourceYAMLEquivalent(yamlA, yamlB string) (bool, error) {
 	// Normalize both YAMLs
-	normalizedA, err := NormalizeDashboardYAML(yamlA)
+	normalizedA, err := NormalizeYAML(yamlA)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("error normalizing first resource yaml: %w", err)
 	}
 
-	normalizedB, err := NormalizeDashboardYAML(yamlB)
+	normalizedB, err := NormalizeYAML(yamlB)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("error normalizing second resource yaml: %w", err)
 	}
 
 	// Parse both normalized YAMLs into interfaces
 	var parsedA, parsedB interface{}
 	if err := yaml.Unmarshal([]byte(normalizedA), &parsedA); err != nil {
-		return false, err
+		return false, fmt.Errorf("error parsing first normalized resource yaml: %w", err)
 	}
 	if err := yaml.Unmarshal([]byte(normalizedB), &parsedB); err != nil {
-		return false, err
+		return false, fmt.Errorf("error parsing second normalized resource yaml: %w", err)
 	}
 
 	// Compare the parsed structures

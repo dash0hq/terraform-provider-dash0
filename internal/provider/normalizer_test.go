@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNormalizeSyntheticCheckYAML(t *testing.T) {
+func TestNormalizeYAML(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -152,8 +152,8 @@ spec:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := NormalizeSyntheticCheckYAML(tt.input)
-			
+			result, err := NormalizeYAML(tt.input)
+
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -164,7 +164,7 @@ spec:
 	}
 }
 
-func TestSyntheticChecksEquivalent(t *testing.T) {
+func TestResourceYAMLEquivalent(t *testing.T) {
 	tests := []struct {
 		name       string
 		yaml1      string
@@ -331,8 +331,8 @@ spec:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := SyntheticChecksEquivalent(tt.yaml1, tt.yaml2)
-			
+			result, err := ResourceYAMLEquivalent(tt.yaml1, tt.yaml2)
+
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -343,7 +343,7 @@ spec:
 	}
 }
 
-func TestRemoveSyntheticCheckField(t *testing.T) {
+func TestRemoveYAMLField(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    map[string]interface{}
@@ -412,7 +412,7 @@ func TestRemoveSyntheticCheckField(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			removeSyntheticCheckField(tt.input, tt.path)
+			removeField(tt.input, tt.path)
 			assert.Equal(t, tt.expected, tt.input)
 		})
 	}

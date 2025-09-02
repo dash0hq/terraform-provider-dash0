@@ -35,9 +35,9 @@ type syntheticCheckResource struct {
 }
 
 type syntheticCheckResourceModel struct {
-	Origin              types.String `tfsdk:"origin"`
-	Dataset             types.String `tfsdk:"dataset"`
-	SyntheticCheckYaml  types.String `tfsdk:"synthetic_check_yaml"`
+	Origin             types.String `tfsdk:"origin"`
+	Dataset            types.String `tfsdk:"dataset"`
+	SyntheticCheckYaml types.String `tfsdk:"synthetic_check_yaml"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -140,7 +140,7 @@ func (r *syntheticCheckResource) Read(ctx context.Context, req resource.ReadRequ
 	// Compare the current state with the retrieved synthetic check
 	// Only update state if there's a significant change (ignoring certain fields)
 	if state.SyntheticCheckYaml.ValueString() != "" {
-		equivalent, err := SyntheticChecksEquivalent(state.SyntheticCheckYaml.ValueString(), check.SyntheticCheckYaml.ValueString())
+		equivalent, err := ResourceYAMLEquivalent(state.SyntheticCheckYaml.ValueString(), check.SyntheticCheckYaml.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Synthetic Check Comparison Error",
