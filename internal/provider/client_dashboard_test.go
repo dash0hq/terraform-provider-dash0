@@ -243,13 +243,13 @@ func TestDashboardOperations_IntegrationStyle(t *testing.T) {
 		assert.Equal(t, http.MethodPut, lastReq.Method)
 		assert.Equal(t, "/api/dashboards/"+testOrigin, lastReq.URL.Path)
 		assert.Equal(t, testDataset, lastReq.URL.Query().Get("dataset"))
-		
+
 		// Verify the request body is valid JSON (converted from YAML)
 		jsonBody := receivedBodies[len(receivedBodies)-1]
 		var jsonObj map[string]interface{}
 		err = json.Unmarshal([]byte(jsonBody), &jsonObj)
 		assert.NoError(t, err, "Body should be valid JSON")
-		
+
 		// Verify JSON contains expected fields
 		assert.Equal(t, "Dashboard", jsonObj["kind"])
 		assert.Contains(t, jsonObj, "metadata")
@@ -288,13 +288,13 @@ func TestDashboardOperations_IntegrationStyle(t *testing.T) {
 		assert.Equal(t, http.MethodPut, lastReq.Method)
 		assert.Equal(t, "/api/dashboards/"+testOrigin, lastReq.URL.Path)
 		assert.Equal(t, testDataset, lastReq.URL.Query().Get("dataset"))
-		
+
 		// Verify the request body is valid JSON (converted from YAML)
 		jsonBody := receivedBodies[len(receivedBodies)-1]
 		var jsonObj map[string]interface{}
 		err = json.Unmarshal([]byte(jsonBody), &jsonObj)
 		assert.NoError(t, err, "Body should be valid JSON")
-		
+
 		// Verify JSON contains expected fields
 		assert.Equal(t, "Dashboard", jsonObj["kind"])
 		assert.Contains(t, jsonObj, "metadata")

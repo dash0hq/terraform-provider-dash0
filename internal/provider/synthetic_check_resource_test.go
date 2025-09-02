@@ -13,82 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// MockSyntheticCheckClient mocks the dash0ClientInterface for synthetic checks
-type MockSyntheticCheckClient struct {
-	mock.Mock
-}
-
-func (m *MockSyntheticCheckClient) CreateDashboard(ctx context.Context, dashboard dashboardResourceModel) error {
-	args := m.Called(ctx, dashboard)
-	return args.Error(0)
-}
-
-func (m *MockSyntheticCheckClient) GetDashboard(ctx context.Context, dataset string, origin string) (*dashboardResourceModel, error) {
-	args := m.Called(ctx, dataset, origin)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dashboardResourceModel), args.Error(1)
-}
-
-func (m *MockSyntheticCheckClient) UpdateDashboard(ctx context.Context, dashboard dashboardResourceModel) error {
-	args := m.Called(ctx, dashboard)
-	return args.Error(0)
-}
-
-func (m *MockSyntheticCheckClient) DeleteDashboard(ctx context.Context, origin string, dataset string) error {
-	args := m.Called(ctx, origin, dataset)
-	return args.Error(0)
-}
-
-func (m *MockSyntheticCheckClient) CreateSyntheticCheck(ctx context.Context, check syntheticCheckResourceModel) error {
-	args := m.Called(ctx, check)
-	return args.Error(0)
-}
-
-func (m *MockSyntheticCheckClient) GetSyntheticCheck(ctx context.Context, dataset string, origin string) (*syntheticCheckResourceModel, error) {
-	args := m.Called(ctx, dataset, origin)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*syntheticCheckResourceModel), args.Error(1)
-}
-
-func (m *MockSyntheticCheckClient) UpdateSyntheticCheck(ctx context.Context, check syntheticCheckResourceModel) error {
-	args := m.Called(ctx, check)
-	return args.Error(0)
-}
-
-func (m *MockSyntheticCheckClient) DeleteSyntheticCheck(ctx context.Context, origin string, dataset string) error {
-	args := m.Called(ctx, origin, dataset)
-	return args.Error(0)
-}
-
-func (m *MockSyntheticCheckClient) CreateView(ctx context.Context, check viewResourceModel) error {
-	args := m.Called(ctx, check)
-	return args.Error(0)
-}
-
-func (m *MockSyntheticCheckClient) GetView(ctx context.Context, dataset string, origin string) (*viewResourceModel, error) {
-	args := m.Called(ctx, dataset, origin)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*viewResourceModel), args.Error(1)
-}
-
-func (m *MockSyntheticCheckClient) UpdateView(ctx context.Context, check viewResourceModel) error {
-	args := m.Called(ctx, check)
-	return args.Error(0)
-}
-
-func (m *MockSyntheticCheckClient) DeleteView(ctx context.Context, origin string, dataset string) error {
-	args := m.Called(ctx, origin, dataset)
-	return args.Error(0)
-}
-
 // Tests for syntheticCheckResource
-
 func TestSyntheticCheckResource_Metadata(t *testing.T) {
 	r := &syntheticCheckResource{}
 	resp := &resource.MetadataResponse{}
@@ -132,7 +57,7 @@ func TestSyntheticCheckResource_Schema(t *testing.T) {
 
 func TestSyntheticCheckResource_Create(t *testing.T) {
 	ctx := context.Background()
-	mockClient := new(MockSyntheticCheckClient)
+	mockClient := new(MockClient)
 
 	r := &syntheticCheckResource{
 		client: mockClient,
@@ -189,7 +114,7 @@ spec:
 
 func TestSyntheticCheckResource_CreateWithError(t *testing.T) {
 	ctx := context.Background()
-	mockClient := new(MockSyntheticCheckClient)
+	mockClient := new(MockClient)
 
 	r := &syntheticCheckResource{
 		client: mockClient,
@@ -235,7 +160,7 @@ metadata:
 
 func TestSyntheticCheckResource_Delete(t *testing.T) {
 	ctx := context.Background()
-	mockClient := new(MockSyntheticCheckClient)
+	mockClient := new(MockClient)
 
 	r := &syntheticCheckResource{
 		client: mockClient,
@@ -291,7 +216,7 @@ func testSyntheticCheckSchema() schema.Schema {
 
 func TestSyntheticCheckResource_Update(t *testing.T) {
 	ctx := context.Background()
-	mockClient := new(MockSyntheticCheckClient)
+	mockClient := new(MockClient)
 
 	r := &syntheticCheckResource{
 		client: mockClient,

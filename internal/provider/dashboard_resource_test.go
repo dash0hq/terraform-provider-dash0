@@ -15,82 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// MockDash0Client mocks the dash0ClientInterface
-type MockDash0Client struct {
-	mock.Mock
-}
-
-func (m *MockDash0Client) CreateDashboard(ctx context.Context, dashboard dashboardResourceModel) error {
-	args := m.Called(ctx, dashboard)
-	return args.Error(0)
-}
-
-func (m *MockDash0Client) GetDashboard(ctx context.Context, dataset string, origin string) (*dashboardResourceModel, error) {
-	args := m.Called(ctx, dataset, origin)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dashboardResourceModel), args.Error(1)
-}
-
-func (m *MockDash0Client) UpdateDashboard(ctx context.Context, dashboard dashboardResourceModel) error {
-	args := m.Called(ctx, dashboard)
-	return args.Error(0)
-}
-
-func (m *MockDash0Client) DeleteDashboard(ctx context.Context, origin string, dataset string) error {
-	args := m.Called(ctx, origin, dataset)
-	return args.Error(0)
-}
-
-func (m *MockDash0Client) CreateSyntheticCheck(ctx context.Context, check syntheticCheckResourceModel) error {
-	args := m.Called(ctx, check)
-	return args.Error(0)
-}
-
-func (m *MockDash0Client) GetSyntheticCheck(ctx context.Context, dataset string, origin string) (*syntheticCheckResourceModel, error) {
-	args := m.Called(ctx, dataset, origin)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*syntheticCheckResourceModel), args.Error(1)
-}
-
-func (m *MockDash0Client) UpdateSyntheticCheck(ctx context.Context, check syntheticCheckResourceModel) error {
-	args := m.Called(ctx, check)
-	return args.Error(0)
-}
-
-func (m *MockDash0Client) DeleteSyntheticCheck(ctx context.Context, origin string, dataset string) error {
-	args := m.Called(ctx, origin, dataset)
-	return args.Error(0)
-}
-
-func (m *MockDash0Client) CreateView(ctx context.Context, check viewResourceModel) error {
-	args := m.Called(ctx, check)
-	return args.Error(0)
-}
-
-func (m *MockDash0Client) GetView(ctx context.Context, dataset string, origin string) (*viewResourceModel, error) {
-	args := m.Called(ctx, dataset, origin)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*viewResourceModel), args.Error(1)
-}
-
-func (m *MockDash0Client) UpdateView(ctx context.Context, check viewResourceModel) error {
-	args := m.Called(ctx, check)
-	return args.Error(0)
-}
-
-func (m *MockDash0Client) DeleteView(ctx context.Context, origin string, dataset string) error {
-	args := m.Called(ctx, origin, dataset)
-	return args.Error(0)
-}
-
-// Tests for dashboardResource
-
 func TestDashboardResource_Metadata(t *testing.T) {
 	r := &dashboardResource{}
 	resp := &resource.MetadataResponse{}
@@ -120,7 +44,7 @@ func TestDashboardResource_Schema(t *testing.T) {
 
 func TestDashboardResource_Configure(t *testing.T) {
 	r := &dashboardResource{}
-	client := &MockDash0Client{}
+	client := &MockClient{}
 
 	// Test with nil provider data
 	resp := &resource.ConfigureResponse{}
@@ -141,7 +65,7 @@ func TestDashboardResource_Configure(t *testing.T) {
 }
 
 func TestDashboardResource_Create(t *testing.T) {
-	mockClient := new(MockDash0Client)
+	mockClient := new(MockClient)
 	r := &dashboardResource{client: mockClient}
 
 	// Setup test data
@@ -196,7 +120,7 @@ func TestDashboardResource_Create(t *testing.T) {
 }
 
 func TestDashboardResource_Read(t *testing.T) {
-	mockClient := new(MockDash0Client)
+	mockClient := new(MockClient)
 	r := &dashboardResource{client: mockClient}
 
 	// Setup test data
@@ -265,7 +189,7 @@ func TestDashboardResource_Read(t *testing.T) {
 	assert.Equal(t, testYaml, resultState.DashboardYaml.ValueString())
 
 	// Test with API error
-	mockClient = new(MockDash0Client)
+	mockClient = new(MockClient)
 	r = &dashboardResource{client: mockClient}
 	mockClient.On("GetDashboard", mock.Anything, testDataset, testOrigin).Return(
 		nil,
@@ -281,7 +205,7 @@ func TestDashboardResource_Read(t *testing.T) {
 }
 
 func TestDashboardResource_Update(t *testing.T) {
-	mockClient := new(MockDash0Client)
+	mockClient := new(MockClient)
 	_ = mockClient
 
 	// Setup test data
@@ -293,7 +217,7 @@ func TestDashboardResource_Update(t *testing.T) {
 
 	// Test 1: Update dashboard YAML only (no dataset change)
 	t.Run("update yaml only", func(t *testing.T) {
-		mockClient := new(MockDash0Client)
+		mockClient := new(MockClient)
 		r := &dashboardResource{client: mockClient}
 
 		// Create state
@@ -353,7 +277,7 @@ func TestDashboardResource_Update(t *testing.T) {
 
 	// Test 2: Change dataset (should delete and recreate)
 	t.Run("change dataset", func(t *testing.T) {
-		mockClient := new(MockDash0Client)
+		mockClient := new(MockClient)
 		r := &dashboardResource{client: mockClient}
 
 		// Create state
@@ -414,7 +338,7 @@ func TestDashboardResource_Update(t *testing.T) {
 
 	// Test 3: Invalid YAML
 	t.Run("invalid yaml", func(t *testing.T) {
-		mockClient := new(MockDash0Client)
+		mockClient := new(MockClient)
 		r := &dashboardResource{client: mockClient}
 		_ = r
 
@@ -468,7 +392,7 @@ func TestDashboardResource_Update(t *testing.T) {
 }
 
 func TestDashboardResource_Delete(t *testing.T) {
-	mockClient := new(MockDash0Client)
+	mockClient := new(MockClient)
 	r := &dashboardResource{client: mockClient}
 
 	// Setup test data
@@ -515,7 +439,7 @@ func TestDashboardResource_Delete(t *testing.T) {
 	assert.False(t, resp.Diagnostics.HasError())
 
 	// Test with API error
-	mockClient = new(MockDash0Client)
+	mockClient = new(MockClient)
 	r = &dashboardResource{client: mockClient}
 	mockClient.On("DeleteDashboard", mock.Anything, testOrigin, testDataset).Return(errors.New("API error"))
 
