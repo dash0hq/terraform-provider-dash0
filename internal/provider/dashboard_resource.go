@@ -3,9 +3,10 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -139,7 +140,7 @@ func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 	// Compare the current state with the retrieved dashboard
 	// Only update state if there's a significant change (ignoring certain fields)
 	if state.DashboardYaml.ValueString() != "" {
-		equivalent, err := DashboardsEquivalent(state.DashboardYaml.ValueString(), dashboard.DashboardYaml.ValueString())
+		equivalent, err := ResourceYAMLEquivalent(state.DashboardYaml.ValueString(), dashboard.DashboardYaml.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Dashboard Comparison Error",

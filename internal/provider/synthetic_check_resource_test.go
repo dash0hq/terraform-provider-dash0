@@ -13,59 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// MockSyntheticCheckClient mocks the dash0ClientInterface for synthetic checks
-type MockSyntheticCheckClient struct {
-	mock.Mock
-}
-
-func (m *MockSyntheticCheckClient) CreateDashboard(ctx context.Context, dashboard dashboardResourceModel) error {
-	args := m.Called(ctx, dashboard)
-	return args.Error(0)
-}
-
-func (m *MockSyntheticCheckClient) GetDashboard(ctx context.Context, dataset string, origin string) (*dashboardResourceModel, error) {
-	args := m.Called(ctx, dataset, origin)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dashboardResourceModel), args.Error(1)
-}
-
-func (m *MockSyntheticCheckClient) UpdateDashboard(ctx context.Context, dashboard dashboardResourceModel) error {
-	args := m.Called(ctx, dashboard)
-	return args.Error(0)
-}
-
-func (m *MockSyntheticCheckClient) DeleteDashboard(ctx context.Context, origin string, dataset string) error {
-	args := m.Called(ctx, origin, dataset)
-	return args.Error(0)
-}
-
-func (m *MockSyntheticCheckClient) CreateSyntheticCheck(ctx context.Context, check syntheticCheckResourceModel) error {
-	args := m.Called(ctx, check)
-	return args.Error(0)
-}
-
-func (m *MockSyntheticCheckClient) GetSyntheticCheck(ctx context.Context, dataset string, origin string) (*syntheticCheckResourceModel, error) {
-	args := m.Called(ctx, dataset, origin)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*syntheticCheckResourceModel), args.Error(1)
-}
-
-func (m *MockSyntheticCheckClient) UpdateSyntheticCheck(ctx context.Context, check syntheticCheckResourceModel) error {
-	args := m.Called(ctx, check)
-	return args.Error(0)
-}
-
-func (m *MockSyntheticCheckClient) DeleteSyntheticCheck(ctx context.Context, origin string, dataset string) error {
-	args := m.Called(ctx, origin, dataset)
-	return args.Error(0)
-}
-
 // Tests for syntheticCheckResource
-
 func TestSyntheticCheckResource_Metadata(t *testing.T) {
 	r := &syntheticCheckResource{}
 	resp := &resource.MetadataResponse{}
@@ -87,21 +35,21 @@ func TestSyntheticCheckResource_Schema(t *testing.T) {
 
 	assert.NotNil(t, resp.Schema)
 	assert.Equal(t, "Manages a Dash0 Synthetic Check.", resp.Schema.Description)
-	
+
 	// Check attributes
 	attrs := resp.Schema.Attributes
 	assert.Contains(t, attrs, "origin")
 	assert.Contains(t, attrs, "dataset")
 	assert.Contains(t, attrs, "synthetic_check_yaml")
-	
+
 	// Check origin is computed
 	originAttr := attrs["origin"].(schema.StringAttribute)
 	assert.True(t, originAttr.Computed)
-	
+
 	// Check dataset is required
 	datasetAttr := attrs["dataset"].(schema.StringAttribute)
 	assert.True(t, datasetAttr.Required)
-	
+
 	// Check synthetic_check_yaml is required
 	checkYamlAttr := attrs["synthetic_check_yaml"].(schema.StringAttribute)
 	assert.True(t, checkYamlAttr.Required)
@@ -109,8 +57,8 @@ func TestSyntheticCheckResource_Schema(t *testing.T) {
 
 func TestSyntheticCheckResource_Create(t *testing.T) {
 	ctx := context.Background()
-	mockClient := new(MockSyntheticCheckClient)
-	
+	mockClient := new(MockClient)
+
 	r := &syntheticCheckResource{
 		client: mockClient,
 	}
@@ -125,8 +73,8 @@ func TestSyntheticCheckResource_Create(t *testing.T) {
 					"synthetic_check_yaml": tftypes.String,
 				},
 			}, map[string]tftypes.Value{
-				"origin":               tftypes.NewValue(tftypes.String, nil),
-				"dataset":              tftypes.NewValue(tftypes.String, "test-dataset"),
+				"origin":  tftypes.NewValue(tftypes.String, nil),
+				"dataset": tftypes.NewValue(tftypes.String, "test-dataset"),
 				"synthetic_check_yaml": tftypes.NewValue(tftypes.String, `
 kind: Dash0SyntheticCheck
 metadata:
@@ -166,8 +114,8 @@ spec:
 
 func TestSyntheticCheckResource_CreateWithError(t *testing.T) {
 	ctx := context.Background()
-	mockClient := new(MockSyntheticCheckClient)
-	
+	mockClient := new(MockClient)
+
 	r := &syntheticCheckResource{
 		client: mockClient,
 	}
@@ -182,8 +130,8 @@ func TestSyntheticCheckResource_CreateWithError(t *testing.T) {
 					"synthetic_check_yaml": tftypes.String,
 				},
 			}, map[string]tftypes.Value{
-				"origin":               tftypes.NewValue(tftypes.String, nil),
-				"dataset":              tftypes.NewValue(tftypes.String, "test-dataset"),
+				"origin":  tftypes.NewValue(tftypes.String, nil),
+				"dataset": tftypes.NewValue(tftypes.String, "test-dataset"),
 				"synthetic_check_yaml": tftypes.NewValue(tftypes.String, `
 kind: Dash0SyntheticCheck
 metadata:
@@ -212,8 +160,8 @@ metadata:
 
 func TestSyntheticCheckResource_Delete(t *testing.T) {
 	ctx := context.Background()
-	mockClient := new(MockSyntheticCheckClient)
-	
+	mockClient := new(MockClient)
+
 	r := &syntheticCheckResource{
 		client: mockClient,
 	}
@@ -268,8 +216,8 @@ func testSyntheticCheckSchema() schema.Schema {
 
 func TestSyntheticCheckResource_Update(t *testing.T) {
 	ctx := context.Background()
-	mockClient := new(MockSyntheticCheckClient)
-	
+	mockClient := new(MockClient)
+
 	r := &syntheticCheckResource{
 		client: mockClient,
 	}
@@ -299,8 +247,8 @@ func TestSyntheticCheckResource_Update(t *testing.T) {
 						"synthetic_check_yaml": tftypes.String,
 					},
 				}, map[string]tftypes.Value{
-					"origin":               tftypes.NewValue(tftypes.String, "test-origin"),
-					"dataset":              tftypes.NewValue(tftypes.String, "test-dataset"),
+					"origin":  tftypes.NewValue(tftypes.String, "test-origin"),
+					"dataset": tftypes.NewValue(tftypes.String, "test-dataset"),
 					"synthetic_check_yaml": tftypes.NewValue(tftypes.String, `
 kind: Dash0SyntheticCheck
 metadata:

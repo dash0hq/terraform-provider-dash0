@@ -15,35 +15,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDashboardResource_Metadata(t *testing.T) {
-	r := &dashboardResource{}
+func TestViewResource_Metadata(t *testing.T) {
+	r := &viewResource{}
 	resp := &resource.MetadataResponse{}
 	r.Metadata(context.Background(), resource.MetadataRequest{ProviderTypeName: "dash0"}, resp)
 
-	assert.Equal(t, "dash0_dashboard", resp.TypeName)
+	assert.Equal(t, "dash0_view", resp.TypeName)
 }
 
-func TestDashboardResource_Schema(t *testing.T) {
-	r := &dashboardResource{}
+func TestViewResource_Schema(t *testing.T) {
+	r := &viewResource{}
 	resp := &resource.SchemaResponse{}
 	r.Schema(context.Background(), resource.SchemaRequest{}, resp)
 
 	assert.NotNil(t, resp.Schema)
-	assert.Equal(t, "Manages a Dash0 Dashboard (in Perses format).", resp.Schema.Description)
+	assert.Equal(t, "Manages a Dash0 View.", resp.Schema.Description)
 
 	// Verify schema attributes
 	assert.Contains(t, resp.Schema.Attributes, "origin")
 	assert.Contains(t, resp.Schema.Attributes, "dataset")
-	assert.Contains(t, resp.Schema.Attributes, "dashboard_yaml")
+	assert.Contains(t, resp.Schema.Attributes, "view_yaml")
 
 	// Check specific attribute properties
 	assert.True(t, resp.Schema.Attributes["origin"].(schema.StringAttribute).Computed)
 	assert.True(t, resp.Schema.Attributes["dataset"].(schema.StringAttribute).Required)
-	assert.True(t, resp.Schema.Attributes["dashboard_yaml"].(schema.StringAttribute).Required)
+	assert.True(t, resp.Schema.Attributes["view_yaml"].(schema.StringAttribute).Required)
 }
 
-func TestDashboardResource_Configure(t *testing.T) {
-	r := &dashboardResource{}
+func TestViewResource_Configure(t *testing.T) {
+	r := &viewResource{}
 	client := &MockClient{}
 
 	// Test with nil provider data
@@ -64,20 +64,20 @@ func TestDashboardResource_Configure(t *testing.T) {
 	assert.True(t, resp.Diagnostics.HasError())
 }
 
-func TestDashboardResource_Create(t *testing.T) {
+func TestViewResource_Create(t *testing.T) {
 	mockClient := new(MockClient)
-	r := &dashboardResource{client: mockClient}
+	r := &viewResource{client: mockClient}
 
 	// Setup test data
-	testYaml := "kind: Dashboard\nmetadata:\n  name: system-overview\nspec:\n  title: System Overview"
+	testYaml := "kind: View\nmetadata:\n  name: example-view\nspec:\n  title: Example View"
 	testDataset := "test-dataset"
 
 	// Setup plan
 	plan := tfsdk.Plan{
 		Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
-			"origin":         tftypes.NewValue(tftypes.String, ""),
-			"dataset":        tftypes.NewValue(tftypes.String, testDataset),
-			"dashboard_yaml": tftypes.NewValue(tftypes.String, testYaml),
+			"origin":    tftypes.NewValue(tftypes.String, ""),
+			"dataset":   tftypes.NewValue(tftypes.String, testDataset),
+			"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
 		}),
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
@@ -87,7 +87,7 @@ func TestDashboardResource_Create(t *testing.T) {
 				"dataset": schema.StringAttribute{
 					Required: true,
 				},
-				"dashboard_yaml": schema.StringAttribute{
+				"view_yaml": schema.StringAttribute{
 					Required: true,
 				},
 			},
@@ -107,9 +107,8 @@ func TestDashboardResource_Create(t *testing.T) {
 		State: state,
 	}
 
-	// Setup mock expectations - using a more lenient matcher since the test framework might not be
-	// unmarshalling the exact object we expect
-	mockClient.On("CreateDashboard", mock.Anything, mock.Anything).Return(nil)
+	// Setup mock expectations
+	mockClient.On("CreateView", mock.Anything, mock.Anything).Return(nil)
 
 	// Execute the create operation
 	r.Create(context.Background(), req, &resp)
@@ -119,17 +118,16 @@ func TestDashboardResource_Create(t *testing.T) {
 	assert.False(t, resp.Diagnostics.HasError())
 }
 
-func TestDashboardResource_Read(t *testing.T) {
+func TestViewResource_Read(t *testing.T) {
 	mockClient := new(MockClient)
-	r := &dashboardResource{client: mockClient}
+	r := &viewResource{client: mockClient}
 
 	// Setup test data
 	testOrigin := "test-origin"
 	testDataset := "test-dataset"
-	testYaml := "kind: Dashboard\nmetadata:\n  name: system-overview\nspec:\n  title: System Overview"
+	testYaml := "kind: View\nmetadata:\n  name: example-view\nspec:\n  title: Example View"
 
 	// Create state schema
-
 	stateSchema := schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
@@ -138,7 +136,7 @@ func TestDashboardResource_Read(t *testing.T) {
 			"dataset": schema.StringAttribute{
 				Required: true,
 			},
-			"dashboard_yaml": schema.StringAttribute{
+			"view_yaml": schema.StringAttribute{
 				Required: true,
 			},
 		},
@@ -147,9 +145,9 @@ func TestDashboardResource_Read(t *testing.T) {
 	// Setup state
 	state := tfsdk.State{
 		Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
-			"origin":         tftypes.NewValue(tftypes.String, testOrigin),
-			"dataset":        tftypes.NewValue(tftypes.String, testDataset),
-			"dashboard_yaml": tftypes.NewValue(tftypes.String, "old yaml"),
+			"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+			"dataset":   tftypes.NewValue(tftypes.String, testDataset),
+			"view_yaml": tftypes.NewValue(tftypes.String, "old yaml"),
 		}),
 		Schema: stateSchema,
 	}
@@ -163,11 +161,11 @@ func TestDashboardResource_Read(t *testing.T) {
 	}
 
 	// Setup mock expectations for the read operation
-	mockClient.On("GetDashboard", mock.Anything, testDataset, testOrigin).Return(
-		&dashboardResourceModel{
-			Origin:        types.StringValue(testOrigin),
-			Dataset:       types.StringValue(testDataset),
-			DashboardYaml: types.StringValue(testYaml),
+	mockClient.On("GetView", mock.Anything, testDataset, testOrigin).Return(
+		&viewResourceModel{
+			Origin:   types.StringValue(testOrigin),
+			Dataset:  types.StringValue(testDataset),
+			ViewYaml: types.StringValue(testYaml),
 		},
 		nil,
 	)
@@ -180,18 +178,18 @@ func TestDashboardResource_Read(t *testing.T) {
 	assert.False(t, resp.Diagnostics.HasError())
 
 	// Create a new state object to verify
-	var resultState dashboardResourceModel
+	var resultState viewResourceModel
 	diags := resp.State.Get(context.Background(), &resultState)
 	require.False(t, diags.HasError(), "state cannot be unmarshalled")
 
 	assert.Equal(t, testOrigin, resultState.Origin.ValueString())
 	assert.Equal(t, testDataset, resultState.Dataset.ValueString())
-	assert.Equal(t, testYaml, resultState.DashboardYaml.ValueString())
+	assert.Equal(t, testYaml, resultState.ViewYaml.ValueString())
 
 	// Test with API error
 	mockClient = new(MockClient)
-	r = &dashboardResource{client: mockClient}
-	mockClient.On("GetDashboard", mock.Anything, testDataset, testOrigin).Return(
+	r = &viewResource{client: mockClient}
+	mockClient.On("GetView", mock.Anything, testDataset, testOrigin).Return(
 		nil,
 		errors.New("API error"),
 	)
@@ -204,7 +202,7 @@ func TestDashboardResource_Read(t *testing.T) {
 	mockClient.AssertExpectations(t)
 }
 
-func TestDashboardResource_Update(t *testing.T) {
+func TestViewResource_Update(t *testing.T) {
 	mockClient := new(MockClient)
 	_ = mockClient
 
@@ -212,20 +210,20 @@ func TestDashboardResource_Update(t *testing.T) {
 	testOrigin := "test-origin"
 	testDataset := "test-dataset"
 	newDataset := "new-dataset"
-	testYaml := "kind: Dashboard\nmetadata:\n  name: system-overview\nspec:\n  title: System Overview"
-	updatedYaml := testYaml + "\n  description: Updated dashboard"
+	testYaml := "kind: View\nmetadata:\n  name: example-view\nspec:\n  title: Example View"
+	updatedYaml := testYaml + "\n  description: Updated view"
 
-	// Test 1: Update dashboard YAML only (no dataset change)
+	// Test 1: Update view YAML only (no dataset change)
 	t.Run("update yaml only", func(t *testing.T) {
 		mockClient := new(MockClient)
-		r := &dashboardResource{client: mockClient}
+		r := &viewResource{client: mockClient}
 
 		// Create state
 		state := tfsdk.State{
 			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
-				"origin":         tftypes.NewValue(tftypes.String, testOrigin),
-				"dataset":        tftypes.NewValue(tftypes.String, testDataset),
-				"dashboard_yaml": tftypes.NewValue(tftypes.String, testYaml),
+				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
+				"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
 			}),
 			Schema: schema.Schema{
 				Attributes: map[string]schema.Attribute{
@@ -235,7 +233,7 @@ func TestDashboardResource_Update(t *testing.T) {
 					"dataset": schema.StringAttribute{
 						Required: true,
 					},
-					"dashboard_yaml": schema.StringAttribute{
+					"view_yaml": schema.StringAttribute{
 						Required: true,
 					},
 				},
@@ -245,9 +243,9 @@ func TestDashboardResource_Update(t *testing.T) {
 		// Create plan with updated YAML
 		plan := tfsdk.Plan{
 			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
-				"origin":         tftypes.NewValue(tftypes.String, testOrigin),
-				"dataset":        tftypes.NewValue(tftypes.String, testDataset),
-				"dashboard_yaml": tftypes.NewValue(tftypes.String, updatedYaml),
+				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
+				"view_yaml": tftypes.NewValue(tftypes.String, updatedYaml),
 			}),
 			Schema: state.Schema,
 		}
@@ -261,8 +259,8 @@ func TestDashboardResource_Update(t *testing.T) {
 			State: state,
 		}
 
-		// Setup mock expectations - UpdateDashboard should be called
-		mockClient.On("UpdateDashboard", mock.Anything, mock.MatchedBy(func(model dashboardResourceModel) bool {
+		// Setup mock expectations - UpdateView should be called
+		mockClient.On("UpdateView", mock.Anything, mock.MatchedBy(func(model viewResourceModel) bool {
 			return model.Origin.ValueString() == testOrigin &&
 				model.Dataset.ValueString() == testDataset
 		})).Return(nil)
@@ -278,14 +276,14 @@ func TestDashboardResource_Update(t *testing.T) {
 	// Test 2: Change dataset (should delete and recreate)
 	t.Run("change dataset", func(t *testing.T) {
 		mockClient := new(MockClient)
-		r := &dashboardResource{client: mockClient}
+		r := &viewResource{client: mockClient}
 
 		// Create state
 		state := tfsdk.State{
 			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
-				"origin":         tftypes.NewValue(tftypes.String, testOrigin),
-				"dataset":        tftypes.NewValue(tftypes.String, testDataset),
-				"dashboard_yaml": tftypes.NewValue(tftypes.String, testYaml),
+				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
+				"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
 			}),
 			Schema: schema.Schema{
 				Attributes: map[string]schema.Attribute{
@@ -295,7 +293,7 @@ func TestDashboardResource_Update(t *testing.T) {
 					"dataset": schema.StringAttribute{
 						Required: true,
 					},
-					"dashboard_yaml": schema.StringAttribute{
+					"view_yaml": schema.StringAttribute{
 						Required: true,
 					},
 				},
@@ -305,9 +303,9 @@ func TestDashboardResource_Update(t *testing.T) {
 		// Create plan with new dataset
 		plan := tfsdk.Plan{
 			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
-				"origin":         tftypes.NewValue(tftypes.String, testOrigin),
-				"dataset":        tftypes.NewValue(tftypes.String, newDataset),
-				"dashboard_yaml": tftypes.NewValue(tftypes.String, updatedYaml),
+				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+				"dataset":   tftypes.NewValue(tftypes.String, newDataset),
+				"view_yaml": tftypes.NewValue(tftypes.String, updatedYaml),
 			}),
 			Schema: state.Schema,
 		}
@@ -321,9 +319,9 @@ func TestDashboardResource_Update(t *testing.T) {
 			State: state,
 		}
 
-		// Setup mock expectations - DeleteDashboard followed by CreateDashboard
-		mockClient.On("DeleteDashboard", mock.Anything, testOrigin, testDataset).Return(nil)
-		mockClient.On("CreateDashboard", mock.Anything, mock.MatchedBy(func(model dashboardResourceModel) bool {
+		// Setup mock expectations - DeleteView followed by CreateView
+		mockClient.On("DeleteView", mock.Anything, testOrigin, testDataset).Return(nil)
+		mockClient.On("CreateView", mock.Anything, mock.MatchedBy(func(model viewResourceModel) bool {
 			return model.Origin.ValueString() == testOrigin &&
 				model.Dataset.ValueString() == newDataset
 		})).Return(nil)
@@ -339,15 +337,15 @@ func TestDashboardResource_Update(t *testing.T) {
 	// Test 3: Invalid YAML
 	t.Run("invalid yaml", func(t *testing.T) {
 		mockClient := new(MockClient)
-		r := &dashboardResource{client: mockClient}
+		r := &viewResource{client: mockClient}
 		_ = r
 
 		// Create state
 		state := tfsdk.State{
 			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
-				"origin":         tftypes.NewValue(tftypes.String, testOrigin),
-				"dataset":        tftypes.NewValue(tftypes.String, testDataset),
-				"dashboard_yaml": tftypes.NewValue(tftypes.String, testYaml),
+				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
+				"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
 			}),
 			Schema: schema.Schema{
 				Attributes: map[string]schema.Attribute{
@@ -357,7 +355,7 @@ func TestDashboardResource_Update(t *testing.T) {
 					"dataset": schema.StringAttribute{
 						Required: true,
 					},
-					"dashboard_yaml": schema.StringAttribute{
+					"view_yaml": schema.StringAttribute{
 						Required: true,
 					},
 				},
@@ -367,9 +365,9 @@ func TestDashboardResource_Update(t *testing.T) {
 		// Create plan with invalid YAML
 		plan := tfsdk.Plan{
 			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
-				"origin":         tftypes.NewValue(tftypes.String, testOrigin),
-				"dataset":        tftypes.NewValue(tftypes.String, testDataset),
-				"dashboard_yaml": tftypes.NewValue(tftypes.String, "invalid: yaml: : :"),
+				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
+				"view_yaml": tftypes.NewValue(tftypes.String, "invalid: yaml: : :"),
 			}),
 			Schema: state.Schema,
 		}
@@ -391,21 +389,21 @@ func TestDashboardResource_Update(t *testing.T) {
 	})
 }
 
-func TestDashboardResource_Delete(t *testing.T) {
+func TestViewResource_Delete(t *testing.T) {
 	mockClient := new(MockClient)
-	r := &dashboardResource{client: mockClient}
+	r := &viewResource{client: mockClient}
 
 	// Setup test data
 	testOrigin := "test-origin"
 	testDataset := "test-dataset"
-	testYaml := "kind: Dashboard\nmetadata:\n  name: system-overview\nspec:\n  title: System Overview"
+	testYaml := "kind: View\nmetadata:\n  name: example-view\nspec:\n  title: Example View"
 
 	// Create a state with test data
 	state := tfsdk.State{
 		Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
-			"origin":         tftypes.NewValue(tftypes.String, testOrigin),
-			"dataset":        tftypes.NewValue(tftypes.String, testDataset),
-			"dashboard_yaml": tftypes.NewValue(tftypes.String, testYaml),
+			"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+			"dataset":   tftypes.NewValue(tftypes.String, testDataset),
+			"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
 		}),
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
@@ -415,7 +413,7 @@ func TestDashboardResource_Delete(t *testing.T) {
 				"dataset": schema.StringAttribute{
 					Required: true,
 				},
-				"dashboard_yaml": schema.StringAttribute{
+				"view_yaml": schema.StringAttribute{
 					Required: true,
 				},
 			},
@@ -429,7 +427,7 @@ func TestDashboardResource_Delete(t *testing.T) {
 	resp := resource.DeleteResponse{}
 
 	// Setup mock expectations for the delete operation
-	mockClient.On("DeleteDashboard", mock.Anything, testOrigin, testDataset).Return(nil)
+	mockClient.On("DeleteView", mock.Anything, testOrigin, testDataset).Return(nil)
 
 	// Execute the delete operation
 	r.Delete(context.Background(), req, &resp)
@@ -440,8 +438,8 @@ func TestDashboardResource_Delete(t *testing.T) {
 
 	// Test with API error
 	mockClient = new(MockClient)
-	r = &dashboardResource{client: mockClient}
-	mockClient.On("DeleteDashboard", mock.Anything, testOrigin, testDataset).Return(errors.New("API error"))
+	r = &viewResource{client: mockClient}
+	mockClient.On("DeleteView", mock.Anything, testOrigin, testDataset).Return(errors.New("API error"))
 
 	resp = resource.DeleteResponse{}
 	r.Delete(context.Background(), req, &resp)

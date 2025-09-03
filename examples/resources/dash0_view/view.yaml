@@ -1,0 +1,54 @@
+kind: Dash0View
+metadata:
+  name: sync-jobs
+  labels: 
+    "dash0.com/dataset": "terraform-test"
+spec:
+  display:
+    name: Sync Jobs
+    folder: []
+  type: spans
+  permissions:
+    - actions: 
+        - "views:read"
+        - "views:delete"
+      role: "admin"
+    - actions:
+        - "views:read"
+      role: "basic_member"
+  filter:
+  - key: dash0.span.name
+    operator: is
+    value: sync
+  table:
+    columns:
+    - colSize: minmax(auto, 2fr)
+      key: dash0.span.name
+      label: Name
+    - colSize: min-content
+      key: service.name
+      label: Service
+    - colSize: min-content
+      key: otel.span.start_time
+      label: Start Time
+    - colSize: 8.5rem
+      key: otel.span.duration
+      label: Duration
+    - colSize: 6rem
+      key: otel.parent.id
+      label: Root
+    - colSize: 8rem
+      key: dash0.span.type
+      label: Type
+    - colSize: 7rem
+      key: otel.span.kind
+      label: Kind
+    - colSize: minmax(5rem, max-content)
+      key: dash0.view.builtin.span_events
+      label: Span events
+    - colSize: minmax(5rem, max-content)
+      key: dash0.view.builtin.span_links
+      label: Links
+    sort:
+    - direction: ascending
+      key: otel.span.duration

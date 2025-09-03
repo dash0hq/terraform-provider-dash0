@@ -7,8 +7,83 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
+
+// MockClient mocks the dash0ClientInterface for synthetic checks
+type MockClient struct {
+	mock.Mock
+}
+
+func (m *MockClient) CreateDashboard(ctx context.Context, dashboard dashboardResourceModel) error {
+	args := m.Called(ctx, dashboard)
+	return args.Error(0)
+}
+
+func (m *MockClient) GetDashboard(ctx context.Context, dataset string, origin string) (*dashboardResourceModel, error) {
+	args := m.Called(ctx, dataset, origin)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dashboardResourceModel), args.Error(1)
+}
+
+func (m *MockClient) UpdateDashboard(ctx context.Context, dashboard dashboardResourceModel) error {
+	args := m.Called(ctx, dashboard)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteDashboard(ctx context.Context, origin string, dataset string) error {
+	args := m.Called(ctx, origin, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) CreateSyntheticCheck(ctx context.Context, check syntheticCheckResourceModel) error {
+	args := m.Called(ctx, check)
+	return args.Error(0)
+}
+
+func (m *MockClient) GetSyntheticCheck(ctx context.Context, dataset string, origin string) (*syntheticCheckResourceModel, error) {
+	args := m.Called(ctx, dataset, origin)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*syntheticCheckResourceModel), args.Error(1)
+}
+
+func (m *MockClient) UpdateSyntheticCheck(ctx context.Context, check syntheticCheckResourceModel) error {
+	args := m.Called(ctx, check)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteSyntheticCheck(ctx context.Context, origin string, dataset string) error {
+	args := m.Called(ctx, origin, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) CreateView(ctx context.Context, check viewResourceModel) error {
+	args := m.Called(ctx, check)
+	return args.Error(0)
+}
+
+func (m *MockClient) GetView(ctx context.Context, dataset string, origin string) (*viewResourceModel, error) {
+	args := m.Called(ctx, dataset, origin)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*viewResourceModel), args.Error(1)
+}
+
+func (m *MockClient) UpdateView(ctx context.Context, check viewResourceModel) error {
+	args := m.Called(ctx, check)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteView(ctx context.Context, origin string, dataset string) error {
+	args := m.Called(ctx, origin, dataset)
+	return args.Error(0)
+}
 
 func TestDoRequest(t *testing.T) {
 	tests := []struct {

@@ -9,7 +9,7 @@ description: |-
 
 The Dash0 provider provides dashboard, check rule and more resources for [Dash0](https://dash0.com/).
 
-The changelog for this provider can be found [on GitHub](https://github.com/dash0hq/terraform-provider-dash0/releases).
+The changelog for this provider can be found [on GitHub](https://github.com/dash0/terraform-provider-dash0/releases).
 
 ## Authentication
 The Dash0 provider authenticates using environment variables. You can get the value for these environment variables
@@ -46,5 +46,14 @@ resource "dash0_dashboard" "my_dashboard" {
 resource "dash0_synthetic_check" "my_check" {
   dataset              = "default"
   synthetic_check_yaml = file("${path.module}/synthetic_check.yaml")
+}
+```
+
+### Managing a View
+
+```terraform
+resource "dash0_view" "my_check" {
+  dataset   = "default"
+  view_yaml = file("${path.module}/view.yaml")
 }
 ```

@@ -22,3 +22,4 @@ terraform-provider-dash0
 # Local development settings
 .envrc
 .direnv/
+.env
