@@ -19,6 +19,11 @@ type dash0ClientInterface interface {
 	GetView(ctx context.Context, dataset string, origin string) (*viewResourceModel, error)
 	UpdateView(ctx context.Context, check viewResourceModel) error
 	DeleteView(ctx context.Context, origin string, dataset string) error
+
+	CreateCheckRule(ctx context.Context, checkRule checkRuleResourceModel) error
+	GetCheckRule(ctx context.Context, dataset string, origin string) (*checkRuleResourceModel, error)
+	UpdateCheckRule(ctx context.Context, checkRule checkRuleResourceModel) error
+	DeleteCheckRule(ctx context.Context, origin string, dataset string) error
 }
 
 // Ensure dash0Client implements dash0ClientInterface

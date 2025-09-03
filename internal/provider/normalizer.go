@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -17,6 +18,7 @@ var ignoredFields = []string{
 	"metadata.updatedAt",
 	"metadata.version",
 	"metadata.dash0Extensions",
+	"metadata.name",
 }
 
 // NormalizeYAML normalizes a YAML by removing the fields we want to ignore
@@ -33,13 +35,20 @@ func NormalizeYAML(yamlStr string) (string, error) {
 		removeField(parsedYaml, field)
 	}
 
-	// Marshal back to YAML
-	normalizedYaml, err := yaml.Marshal(parsedYaml)
-	if err != nil {
-		return "", fmt.Errorf("error marshalling normalized resource YAML: %w", err)
-	}
+	// Create a new encoder with consistent settings
+	var buf strings.Builder
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2) // Use consistent 2-space indentation
 
-	return string(normalizedYaml), nil
+	if err := encoder.Encode(parsedYaml); err != nil {
+		return "", fmt.Errorf("error encoding YAML: %w", err)
+	}
+	encoder.Close()
+
+	// Remove the trailing newline that yaml.Marshal adds
+	result := strings.TrimSuffix(buf.String(), "\n")
+
+	return string(result), nil
 }
 
 // removeField removes a field from a map by path (e.g., "metadata.createdAt")
