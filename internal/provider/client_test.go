@@ -84,6 +84,28 @@ func (m *MockClient) DeleteView(ctx context.Context, origin string, dataset stri
 	args := m.Called(ctx, origin, dataset)
 	return args.Error(0)
 }
+func (m *MockClient) CreateCheckRule(ctx context.Context, checkRule checkRuleResourceModel) error {
+	args := m.Called(ctx, checkRule)
+	return args.Error(0)
+}
+
+func (m *MockClient) GetCheckRule(ctx context.Context, dataset string, origin string) (*checkRuleResourceModel, error) {
+	args := m.Called(ctx, dataset, origin)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*checkRuleResourceModel), args.Error(1)
+}
+
+func (m *MockClient) UpdateCheckRule(ctx context.Context, checkRule checkRuleResourceModel) error {
+	args := m.Called(ctx, checkRule)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteCheckRule(ctx context.Context, origin string, dataset string) error {
+	args := m.Called(ctx, origin, dataset)
+	return args.Error(0)
+}
 
 func TestDoRequest(t *testing.T) {
 	tests := []struct {
