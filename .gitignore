@@ -23,3 +23,4 @@ terraform-provider-dash0
 .envrc
 .direnv/
 .env
+.claude/

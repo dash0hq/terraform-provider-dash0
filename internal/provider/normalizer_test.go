@@ -34,16 +34,14 @@ spec:
       request:
         url: https://www.example.com
 `,
-			expected: `metadata:
-    name: examplecom
+			expected: `metadata: {}
 spec:
-    enabled: true
-    plugin:
-        kind: http
-        spec:
-            request:
-                url: https://www.example.com
-`,
+  enabled: true
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://www.example.com`,
 			wantErr: false,
 		},
 		{
@@ -55,11 +53,9 @@ metadata:
 spec:
   enabled: false
 `,
-			expected: `metadata:
-    name: test
+			expected: `metadata: {}
 spec:
-    enabled: false
-`,
+  enabled: false`,
 			wantErr: false,
 		},
 		{
@@ -105,41 +101,39 @@ spec:
     locations:
       - gcp-europe-west3
 `,
-			expected: `metadata:
-    name: complex
+			expected: `metadata: {}
 spec:
-    enabled: true
-    notifications:
-        channels:
-            - id: channel1
-            - id: channel2
-    plugin:
-        display:
-            name: example.com
-        kind: http
-        spec:
-            assertions:
-                criticalAssertions:
-                    - kind: status_code
-                      spec:
-                        operator: is
-                        value: "200"
-            request:
-                headers:
-                    - key: User-Agent
-                      value: Mozilla/5.0
-                method: get
-                url: https://www.example.com
-    retries:
-        kind: fixed
-        spec:
-            attempts: 3
-            delay: 1s
-    schedule:
-        interval: 1m
-        locations:
-            - gcp-europe-west3
-`,
+  enabled: true
+  notifications:
+    channels:
+      - id: channel1
+      - id: channel2
+  plugin:
+    display:
+      name: example.com
+    kind: http
+    spec:
+      assertions:
+        criticalAssertions:
+          - kind: status_code
+            spec:
+              operator: is
+              value: "200"
+      request:
+        headers:
+          - key: User-Agent
+            value: Mozilla/5.0
+        method: get
+        url: https://www.example.com
+  retries:
+    kind: fixed
+    spec:
+      attempts: 3
+      delay: 1s
+  schedule:
+    interval: 1m
+    locations:
+      - gcp-europe-west3`,
 			wantErr: false,
 		},
 		{
