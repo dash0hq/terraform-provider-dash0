@@ -2,8 +2,9 @@ package provider
 
 import (
 	"fmt"
-	"reflect"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"gopkg.in/yaml.v3"
 )
 
@@ -115,6 +116,10 @@ func ResourceYAMLEquivalent(yamlA, yamlB string) (bool, error) {
 		return false, fmt.Errorf("error parsing second normalized resource yaml: %w", err)
 	}
 
+	// make sure that the order of slices deeper in the structure does not matter
+	cmpOptions := []cmp.Option{cmpopts.SortSlices(func(x, y interface{}) bool {
+		return fmt.Sprint(x) < fmt.Sprint(y)
+	})}
 	// Compare the parsed structures
-	return reflect.DeepEqual(parsedA, parsedB), nil
+	return cmp.Equal(parsedA, parsedB, cmpOptions...), nil
 }

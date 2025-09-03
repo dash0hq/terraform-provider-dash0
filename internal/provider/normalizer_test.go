@@ -327,6 +327,35 @@ spec:
 			equivalent: false,
 			wantErr:    true,
 		},
+		{
+			name: "ignore different order in slices",
+			yaml1: `
+kind: Dash0SyntheticCheck
+spec:
+  permissions:
+    - actions: 
+        - "views:read"
+        - "views:delete"
+      role: "admin"
+    - actions:
+        - "views:read"
+      role: "basic_member"
+`,
+			yaml2: `
+kind: Dash0SyntheticCheck
+spec:
+  permissions:
+    - actions:
+        - "views:read"
+      role: "basic_member"
+    - actions: 
+        - "views:delete"
+        - "views:read"
+      role: "admin"
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
 	}
 
 	for _, tt := range tests {
