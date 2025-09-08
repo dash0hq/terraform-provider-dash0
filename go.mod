@@ -1,6 +1,6 @@
 module github.com/dash0/terraform-provider-dash0
 
-go 1.24
+go 1.24.0
 
 require (
 	github.com/google/go-cmp v0.7.0
@@ -11,7 +11,7 @@ require (
 	github.com/hashicorp/terraform-plugin-log v0.9.0
 	github.com/hashicorp/terraform-plugin-testing v1.13.3
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/sync v0.16.0
+	golang.org/x/sync v0.17.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
