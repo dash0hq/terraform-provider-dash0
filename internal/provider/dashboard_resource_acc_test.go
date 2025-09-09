@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/dash0/terraform-provider-dash0/internal/provider/client"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -169,14 +170,14 @@ func testAccCheckDashboardExists(resourceName string) resource.TestCheckFunc {
 		origin := rs.Primary.Attributes["origin"]
 		dataset := rs.Primary.Attributes["dataset"]
 
-		// Create a new client to verify the dashboard exists
-		client := newDash0Client(
+		// Create a new c to verify the dashboard exists
+		c := client.NewDash0Client(
 			os.Getenv("DASH0_URL"),
 			os.Getenv("DASH0_AUTH_TOKEN"),
 		)
 
 		// Attempt to retrieve the dashboard
-		_, err := client.GetDashboard(context.Background(), dataset, origin)
+		_, err := c.GetDashboard(context.Background(), dataset, origin)
 		if err != nil {
 			return fmt.Errorf("Error retrieving dashboard: %s", err)
 		}

@@ -1,4 +1,4 @@
-package provider
+package client
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 )
 
-type dash0ClientInterface interface {
+type Client interface {
 	CreateDashboard(ctx context.Context, dashboard model.DashboardResourceModel) error
 	GetDashboard(ctx context.Context, dataset string, origin string) (*model.DashboardResourceModel, error)
 	UpdateDashboard(ctx context.Context, dashboard model.DashboardResourceModel) error
@@ -29,4 +29,4 @@ type dash0ClientInterface interface {
 }
 
 // Ensure dash0Client implements dash0ClientInterface
-var _ dash0ClientInterface = &dash0Client{}
+var _ Client = &dash0Client{}

@@ -1,4 +1,4 @@
-package provider
+package client
 
 import (
 	"context"
@@ -15,24 +15,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestViewOperations(t *testing.T) {
-	// Test view data
-	testOrigin := "test-view"
+func TestDashboardOperations(t *testing.T) {
+	// Test dashboard data
+	testOrigin := "test-dashboard"
 	testDataset := "test-dataset"
-	testYaml := `kind: View
-metadata:
-  name: example-view
-spec:
-  title: Example View`
+	testYaml := "kind: Dashboard\nmetadata:\n  name: system-overview\nspec:\n  title: System Overview"
 
 	// Convert YAML to expected JSON for requests
 	expectedJSON, err := converter.ConvertYAMLToJSON(testYaml)
 	require.NoError(t, err)
 
-	viewModel := model.ViewResourceModel{
-		Origin:   types.StringValue(testOrigin),
-		Dataset:  types.StringValue(testDataset),
-		ViewYaml: types.StringValue(testYaml),
+	dashboardModel := model.DashboardResourceModel{
+		Origin:        types.StringValue(testOrigin),
+		Dataset:       types.StringValue(testDataset),
+		DashboardYaml: types.StringValue(testYaml),
 	}
 
 	tests := []struct {
@@ -47,10 +43,10 @@ spec:
 		expectError    bool
 	}{
 		{
-			name:           "create view",
+			name:           "create dashboard",
 			operation:      "create",
 			expectedMethod: http.MethodPut,
-			expectedPath:   "/api/views/" + testOrigin,
+			expectedPath:   "/api/dashboards/" + testOrigin,
 			expectedQuery:  "dataset=" + testDataset,
 			expectedBody:   expectedJSON,
 			serverResponse: `{"status":"created"}`,
@@ -58,10 +54,10 @@ spec:
 			expectError:    false,
 		},
 		{
-			name:           "get view",
+			name:           "get dashboard",
 			operation:      "get",
 			expectedMethod: http.MethodGet,
-			expectedPath:   "/api/views/" + testOrigin,
+			expectedPath:   "/api/dashboards/" + testOrigin,
 			expectedQuery:  "dataset=" + testDataset,
 			expectedBody:   "",
 			serverResponse: testYaml,
@@ -69,10 +65,10 @@ spec:
 			expectError:    false,
 		},
 		{
-			name:           "update view",
+			name:           "update dashboard",
 			operation:      "update",
 			expectedMethod: http.MethodPut,
-			expectedPath:   "/api/views/" + testOrigin,
+			expectedPath:   "/api/dashboards/" + testOrigin,
 			expectedQuery:  "dataset=" + testDataset,
 			expectedBody:   expectedJSON,
 			serverResponse: `{"status":"updated"}`,
@@ -80,10 +76,10 @@ spec:
 			expectError:    false,
 		},
 		{
-			name:           "delete view",
+			name:           "delete dashboard",
 			operation:      "delete",
 			expectedMethod: http.MethodDelete,
-			expectedPath:   "/api/views/" + testOrigin,
+			expectedPath:   "/api/dashboards/" + testOrigin,
 			expectedQuery:  "dataset=" + testDataset,
 			expectedBody:   "",
 			serverResponse: `{"status":"deleted"}`,
@@ -91,13 +87,13 @@ spec:
 			expectError:    false,
 		},
 		{
-			name:           "get view - not found",
+			name:           "get dashboard - not found",
 			operation:      "get",
 			expectedMethod: http.MethodGet,
-			expectedPath:   "/api/views/" + testOrigin,
+			expectedPath:   "/api/dashboards/" + testOrigin,
 			expectedQuery:  "dataset=" + testDataset,
 			expectedBody:   "",
-			serverResponse: `{"error":"view not found"}`,
+			serverResponse: `{"error":"dashboard not found"}`,
 			serverStatus:   http.StatusNotFound,
 			expectError:    true,
 		},
@@ -134,26 +130,26 @@ spec:
 			defer server.Close()
 
 			// Create client
-			client := newDash0Client(server.URL, "test-token")
+			client := NewDash0Client(server.URL, "test-token")
 			ctx := context.Background()
 			var err error
 
 			// Execute the operation based on the test case
 			switch tc.operation {
 			case "create":
-				err = client.CreateView(ctx, viewModel)
+				err = client.CreateDashboard(ctx, dashboardModel)
 			case "get":
-				var view *model.ViewResourceModel
-				view, err = client.GetView(ctx, testDataset, testOrigin)
+				var dashboard *model.DashboardResourceModel
+				dashboard, err = client.GetDashboard(ctx, testDataset, testOrigin)
 				if err == nil {
-					assert.Equal(t, testOrigin, view.Origin.ValueString())
-					assert.Equal(t, testDataset, view.Dataset.ValueString())
-					assert.Equal(t, testYaml, view.ViewYaml.ValueString())
+					assert.Equal(t, testOrigin, dashboard.Origin.ValueString())
+					assert.Equal(t, testDataset, dashboard.Dataset.ValueString())
+					assert.Equal(t, testYaml, dashboard.DashboardYaml.ValueString())
 				}
 			case "update":
-				err = client.UpdateView(ctx, viewModel)
+				err = client.UpdateDashboard(ctx, dashboardModel)
 			case "delete":
-				err = client.DeleteView(ctx, testOrigin, testDataset)
+				err = client.DeleteDashboard(ctx, testOrigin, testDataset)
 			}
 
 			// Assert results
@@ -166,7 +162,7 @@ spec:
 	}
 }
 
-func TestViewOperations_IntegrationStyle(t *testing.T) {
+func TestDashboardOperations_IntegrationStyle(t *testing.T) {
 	// This test uses a more realistic HTTP server that records requests and returns
 	// predefined responses based on the request path and method.
 
@@ -193,19 +189,19 @@ func TestViewOperations_IntegrationStyle(t *testing.T) {
 		}
 
 		// Customize response based on the request
-		if r.URL.Path == "/api/views/test-view" {
+		if r.URL.Path == "/api/dashboards/test-dashboard" {
 			if r.Method == http.MethodGet {
-				// Return a view YAML for GET requests
+				// Return a dashboard YAML for GET requests
 				w.Header().Set("Content-Type", "application/yaml")
 				w.WriteHeader(status)
-				_, _ = w.Write([]byte("kind: View\nmetadata:\n  name: example-view\nspec:\n  title: Example View"))
+				_, _ = w.Write([]byte("kind: Dashboard\nmetadata:\n  name: system-overview\nspec:\n  title: System Overview"))
 				return
 			} else if r.Method == http.MethodDelete {
 				response["status"] = "deleted"
 			} else if r.Method == http.MethodPut {
 				response["status"] = "created_or_updated"
 			}
-		} else if r.URL.Path == "/api/views/non-existent" {
+		} else if r.URL.Path == "/api/dashboards/non-existent" {
 			status = http.StatusNotFound
 			response = map[string]interface{}{
 				"status":  "error",
@@ -221,31 +217,33 @@ func TestViewOperations_IntegrationStyle(t *testing.T) {
 	defer server.Close()
 
 	// Create client
-	client := newDash0Client(server.URL, "test-token")
+	client := NewDash0Client(server.URL, "test-token")
 
-	// Test view data
-	testOrigin := "test-view"
+	// Test dashboard data
+	testOrigin := "test-dashboard"
 	testDataset := "test-dataset"
-	testYaml := "kind: View\nmetadata:\n  name: example-view\nspec:\n  title: Example View"
+	testYaml := "kind: Dashboard\nmetadata:\n  name: system-overview\nspec:\n  title: System Overview"
 
-	viewModel := model.ViewResourceModel{
-		Origin:   types.StringValue(testOrigin),
-		Dataset:  types.StringValue(testDataset),
-		ViewYaml: types.StringValue(testYaml),
+	// We don't need to check the exact JSON since we validate structure in the test
+
+	dashboardModel := model.DashboardResourceModel{
+		Origin:        types.StringValue(testOrigin),
+		Dataset:       types.StringValue(testDataset),
+		DashboardYaml: types.StringValue(testYaml),
 	}
 
 	// Execute a complete CRUD workflow
 	ctx := context.Background()
 
-	// 1. Create view
-	t.Run("create view", func(t *testing.T) {
-		err := client.CreateView(ctx, viewModel)
+	// 1. Create dashboard
+	t.Run("create dashboard", func(t *testing.T) {
+		err := client.CreateDashboard(ctx, dashboardModel)
 		require.NoError(t, err)
 
 		// Check last request
 		lastReq := receivedRequests[len(receivedRequests)-1]
 		assert.Equal(t, http.MethodPut, lastReq.Method)
-		assert.Equal(t, "/api/views/"+testOrigin, lastReq.URL.Path)
+		assert.Equal(t, "/api/dashboards/"+testOrigin, lastReq.URL.Path)
 		assert.Equal(t, testDataset, lastReq.URL.Query().Get("dataset"))
 
 		// Verify the request body is valid JSON (converted from YAML)
@@ -255,42 +253,42 @@ func TestViewOperations_IntegrationStyle(t *testing.T) {
 		assert.NoError(t, err, "Body should be valid JSON")
 
 		// Verify JSON contains expected fields
-		assert.Equal(t, "View", jsonObj["kind"])
+		assert.Equal(t, "Dashboard", jsonObj["kind"])
 		assert.Contains(t, jsonObj, "metadata")
 		assert.Contains(t, jsonObj, "spec")
 	})
 
-	// 2. Get view
-	t.Run("get view", func(t *testing.T) {
-		view, err := client.GetView(ctx, testDataset, testOrigin)
+	// 2. Get dashboard
+	t.Run("get dashboard", func(t *testing.T) {
+		dashboard, err := client.GetDashboard(ctx, testDataset, testOrigin)
 		require.NoError(t, err)
 
 		// Check request
 		lastReq := receivedRequests[len(receivedRequests)-1]
 		assert.Equal(t, http.MethodGet, lastReq.Method)
-		assert.Equal(t, "/api/views/"+testOrigin, lastReq.URL.Path)
+		assert.Equal(t, "/api/dashboards/"+testOrigin, lastReq.URL.Path)
 		assert.Equal(t, testDataset, lastReq.URL.Query().Get("dataset"))
 
 		// Check response parsing
-		assert.Equal(t, testOrigin, view.Origin.ValueString())
-		assert.Equal(t, testDataset, view.Dataset.ValueString())
-		assert.Equal(t, testYaml, view.ViewYaml.ValueString())
+		assert.Equal(t, testOrigin, dashboard.Origin.ValueString())
+		assert.Equal(t, testDataset, dashboard.Dataset.ValueString())
+		assert.Equal(t, testYaml, dashboard.DashboardYaml.ValueString())
 	})
 
-	// 3. Update view
-	t.Run("update view", func(t *testing.T) {
-		// Update view YAML
-		updatedYaml := testYaml + "\n  description: Updated view"
-		updatedModel := viewModel
-		updatedModel.ViewYaml = types.StringValue(updatedYaml)
+	// 3. Update dashboard
+	t.Run("update dashboard", func(t *testing.T) {
+		// Update dashboard YAML
+		updatedYaml := testYaml + "\n  description: Updated dashboard"
+		updatedModel := dashboardModel
+		updatedModel.DashboardYaml = types.StringValue(updatedYaml)
 
-		err := client.UpdateView(ctx, updatedModel)
+		err := client.UpdateDashboard(ctx, updatedModel)
 		require.NoError(t, err)
 
 		// Check request
 		lastReq := receivedRequests[len(receivedRequests)-1]
 		assert.Equal(t, http.MethodPut, lastReq.Method)
-		assert.Equal(t, "/api/views/"+testOrigin, lastReq.URL.Path)
+		assert.Equal(t, "/api/dashboards/"+testOrigin, lastReq.URL.Path)
 		assert.Equal(t, testDataset, lastReq.URL.Query().Get("dataset"))
 
 		// Verify the request body is valid JSON (converted from YAML)
@@ -300,49 +298,28 @@ func TestViewOperations_IntegrationStyle(t *testing.T) {
 		assert.NoError(t, err, "Body should be valid JSON")
 
 		// Verify JSON contains expected fields
-		assert.Equal(t, "View", jsonObj["kind"])
+		assert.Equal(t, "Dashboard", jsonObj["kind"])
 		assert.Contains(t, jsonObj, "metadata")
 		assert.Contains(t, jsonObj, "spec")
 		assert.Contains(t, jsonObj["spec"].(map[string]interface{}), "description")
 	})
 
-	// 4. Delete view
-	t.Run("delete view", func(t *testing.T) {
-		err := client.DeleteView(ctx, testOrigin, testDataset)
+	// 4. Delete dashboard
+	t.Run("delete dashboard", func(t *testing.T) {
+		err := client.DeleteDashboard(ctx, testOrigin, testDataset)
 		require.NoError(t, err)
 
 		// Check request
 		lastReq := receivedRequests[len(receivedRequests)-1]
 		assert.Equal(t, http.MethodDelete, lastReq.Method)
-		assert.Equal(t, "/api/views/"+testOrigin, lastReq.URL.Path)
+		assert.Equal(t, "/api/dashboards/"+testOrigin, lastReq.URL.Path)
 		assert.Equal(t, testDataset, lastReq.URL.Query().Get("dataset"))
 	})
 
-	// 5. Test error handling with non-existent view
-	t.Run("get non-existent view", func(t *testing.T) {
-		_, err := client.GetView(ctx, testDataset, "non-existent")
+	// 5. Test error handling with non-existent dashboard
+	t.Run("get non-existent dashboard", func(t *testing.T) {
+		_, err := client.GetDashboard(ctx, testDataset, "non-existent")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "API error (404)")
 	})
-}
-
-func TestViewClient_InvalidYAML(t *testing.T) {
-	ctx := context.Background()
-	client := newDash0Client("http://localhost", "test-token")
-
-	viewModel := model.ViewResourceModel{
-		Origin:   types.StringValue("test-origin"),
-		Dataset:  types.StringValue("test-dataset"),
-		ViewYaml: types.StringValue("invalid: : : yaml"),
-	}
-
-	// Test create with invalid YAML
-	err := client.CreateView(ctx, viewModel)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "error converting view YAML to JSON")
-
-	// Test update with invalid YAML
-	err = client.UpdateView(ctx, viewModel)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "error converting view YAML to JSON")
 }

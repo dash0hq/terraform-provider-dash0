@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 
+	"github.com/dash0/terraform-provider-dash0/internal/provider/client"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -74,11 +75,11 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	tflog.Debug(ctx, "Creating Dash0 client")
 
-	// Create client configuration for data sources and resources
-	client := newDash0Client(url, authToken)
+	// Create dash0Client configuration for data sources and resources
+	dash0Client := client.NewDash0Client(url, authToken)
 
-	resp.DataSourceData = client
-	resp.ResourceData = client
+	resp.DataSourceData = dash0Client
+	resp.ResourceData = dash0Client
 
 	tflog.Info(ctx, "Configured Dash0 client", map[string]any{"success": true})
 }
