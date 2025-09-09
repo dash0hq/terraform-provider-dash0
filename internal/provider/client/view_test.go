@@ -29,7 +29,7 @@ spec:
 	expectedJSON, err := converter.ConvertYAMLToJSON(testYaml)
 	require.NoError(t, err)
 
-	viewModel := model.ViewResourceModel{
+	viewModel := model.ViewResource{
 		Origin:   types.StringValue(testOrigin),
 		Dataset:  types.StringValue(testDataset),
 		ViewYaml: types.StringValue(testYaml),
@@ -143,7 +143,7 @@ spec:
 			case "create":
 				err = client.CreateView(ctx, viewModel)
 			case "get":
-				var view *model.ViewResourceModel
+				var view *model.ViewResource
 				view, err = client.GetView(ctx, testDataset, testOrigin)
 				if err == nil {
 					assert.Equal(t, testOrigin, view.Origin.ValueString())
@@ -228,7 +228,7 @@ func TestViewOperations_IntegrationStyle(t *testing.T) {
 	testDataset := "test-dataset"
 	testYaml := "kind: View\nmetadata:\n  name: example-view\nspec:\n  title: Example View"
 
-	viewModel := model.ViewResourceModel{
+	viewModel := model.ViewResource{
 		Origin:   types.StringValue(testOrigin),
 		Dataset:  types.StringValue(testDataset),
 		ViewYaml: types.StringValue(testYaml),
@@ -330,7 +330,7 @@ func TestViewClient_InvalidYAML(t *testing.T) {
 	ctx := context.Background()
 	client := NewDash0Client("http://localhost", "test-token")
 
-	viewModel := model.ViewResourceModel{
+	viewModel := model.ViewResource{
 		Origin:   types.StringValue("test-origin"),
 		Dataset:  types.StringValue("test-dataset"),
 		ViewYaml: types.StringValue("invalid: : : yaml"),

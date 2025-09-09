@@ -16,11 +16,11 @@ import (
 // Custom mock client implementation for this test
 type testSyntheticCheckClient struct {
 	client.Client
-	getResponse *model.SyntheticCheckResourceModel
+	getResponse *model.SyntheticCheck
 	getError    error
 }
 
-func (c *testSyntheticCheckClient) GetSyntheticCheck(_ context.Context, _, _ string) (*model.SyntheticCheckResourceModel, error) {
+func (c *testSyntheticCheckClient) GetSyntheticCheck(_ context.Context, _, _ string) (*model.SyntheticCheck, error) {
 	return c.getResponse, c.getError
 }
 
@@ -104,7 +104,7 @@ spec:
 
 			// Create mock client
 			mockClient := &testSyntheticCheckClient{
-				getResponse: &model.SyntheticCheckResourceModel{
+				getResponse: &model.SyntheticCheck{
 					Origin:             types.StringValue("test-origin"),
 					Dataset:            types.StringValue("test-dataset"),
 					SyntheticCheckYaml: types.StringValue(tt.apiResponse),
@@ -154,7 +154,7 @@ spec:
 
 			// Verify state update behavior
 			if !resp.Diagnostics.HasError() {
-				var state model.SyntheticCheckResourceModel
+				var state model.SyntheticCheck
 				resp.State.Get(ctx, &state)
 
 				if tt.expectStateUpdate {

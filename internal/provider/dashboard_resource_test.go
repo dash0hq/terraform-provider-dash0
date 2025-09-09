@@ -165,7 +165,7 @@ func TestDashboardResource_Read(t *testing.T) {
 
 	// Setup mock expectations for the read operation
 	mockClient.On("GetDashboard", mock.Anything, testDataset, testOrigin).Return(
-		&model.DashboardResourceModel{
+		&model.Dashboard{
 			Origin:        types.StringValue(testOrigin),
 			Dataset:       types.StringValue(testDataset),
 			DashboardYaml: types.StringValue(testYaml),
@@ -181,7 +181,7 @@ func TestDashboardResource_Read(t *testing.T) {
 	assert.False(t, resp.Diagnostics.HasError())
 
 	// Create a new state object to verify
-	var resultState model.DashboardResourceModel
+	var resultState model.Dashboard
 	diags := resp.State.Get(context.Background(), &resultState)
 	require.False(t, diags.HasError(), "state cannot be unmarshalled")
 
@@ -263,7 +263,7 @@ func TestDashboardResource_Update(t *testing.T) {
 		}
 
 		// Setup mock expectations - UpdateDashboard should be called
-		mockClient.On("UpdateDashboard", mock.Anything, mock.MatchedBy(func(dashboardModel model.DashboardResourceModel) bool {
+		mockClient.On("UpdateDashboard", mock.Anything, mock.MatchedBy(func(dashboardModel model.Dashboard) bool {
 			return dashboardModel.Origin.ValueString() == testOrigin &&
 				dashboardModel.Dataset.ValueString() == testDataset
 		})).Return(nil)
@@ -324,7 +324,7 @@ func TestDashboardResource_Update(t *testing.T) {
 
 		// Setup mock expectations - DeleteDashboard followed by CreateDashboard
 		mockClient.On("DeleteDashboard", mock.Anything, testOrigin, testDataset).Return(nil)
-		mockClient.On("CreateDashboard", mock.Anything, mock.MatchedBy(func(m model.DashboardResourceModel) bool {
+		mockClient.On("CreateDashboard", mock.Anything, mock.MatchedBy(func(m model.Dashboard) bool {
 			return m.Origin.ValueString() == testOrigin &&
 				m.Dataset.ValueString() == newDataset
 		})).Return(nil)

@@ -163,7 +163,7 @@ func TestViewResource_Read(t *testing.T) {
 
 	// Setup mock expectations for the read operation
 	mockClient.On("GetView", mock.Anything, testDataset, testOrigin).Return(
-		&model.ViewResourceModel{
+		&model.ViewResource{
 			Origin:   types.StringValue(testOrigin),
 			Dataset:  types.StringValue(testDataset),
 			ViewYaml: types.StringValue(testYaml),
@@ -179,7 +179,7 @@ func TestViewResource_Read(t *testing.T) {
 	assert.False(t, resp.Diagnostics.HasError())
 
 	// Create a new state object to verify
-	var resultState model.ViewResourceModel
+	var resultState model.ViewResource
 	diags := resp.State.Get(context.Background(), &resultState)
 	require.False(t, diags.HasError(), "state cannot be unmarshalled")
 
@@ -261,7 +261,7 @@ func TestViewResource_Update(t *testing.T) {
 		}
 
 		// Setup mock expectations - UpdateView should be called
-		mockClient.On("UpdateView", mock.Anything, mock.MatchedBy(func(m model.ViewResourceModel) bool {
+		mockClient.On("UpdateView", mock.Anything, mock.MatchedBy(func(m model.ViewResource) bool {
 			return m.Origin.ValueString() == testOrigin &&
 				m.Dataset.ValueString() == testDataset
 		})).Return(nil)
@@ -322,7 +322,7 @@ func TestViewResource_Update(t *testing.T) {
 
 		// Setup mock expectations - DeleteView followed by CreateView
 		mockClient.On("DeleteView", mock.Anything, testOrigin, testDataset).Return(nil)
-		mockClient.On("CreateView", mock.Anything, mock.MatchedBy(func(viewModel model.ViewResourceModel) bool {
+		mockClient.On("CreateView", mock.Anything, mock.MatchedBy(func(viewModel model.ViewResource) bool {
 			return viewModel.Origin.ValueString() == testOrigin &&
 				viewModel.Dataset.ValueString() == newDataset
 		})).Return(nil)

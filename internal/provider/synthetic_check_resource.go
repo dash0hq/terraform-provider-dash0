@@ -83,7 +83,7 @@ func (r *SyntheticCheckResource) Schema(_ context.Context, _ resource.SchemaRequ
 }
 
 func (r *SyntheticCheckResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var m model.SyntheticCheckResourceModel
+	var m model.SyntheticCheck
 	diags := req.Plan.Get(ctx, &m)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -118,7 +118,7 @@ func (r *SyntheticCheckResource) Create(ctx context.Context, req resource.Create
 
 func (r *SyntheticCheckResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state model.SyntheticCheckResourceModel
+	var state model.SyntheticCheck
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -165,7 +165,7 @@ func (r *SyntheticCheckResource) Read(ctx context.Context, req resource.ReadRequ
 
 func (r *SyntheticCheckResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Get current state
-	var state model.SyntheticCheckResourceModel
+	var state model.SyntheticCheck
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -173,7 +173,7 @@ func (r *SyntheticCheckResource) Update(ctx context.Context, req resource.Update
 	}
 
 	// Retrieve values from plan
-	var plan model.SyntheticCheckResourceModel
+	var plan model.SyntheticCheck
 	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -227,7 +227,7 @@ func (r *SyntheticCheckResource) Update(ctx context.Context, req resource.Update
 
 func (r *SyntheticCheckResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Get current state
-	var state model.SyntheticCheckResourceModel
+	var state model.SyntheticCheck
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

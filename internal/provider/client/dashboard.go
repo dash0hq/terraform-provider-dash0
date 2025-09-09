@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-func (c *dash0Client) CreateDashboard(ctx context.Context, dashboard model.DashboardResourceModel) error {
+func (c *dash0Client) CreateDashboard(ctx context.Context, dashboard model.Dashboard) error {
 	// Build URL with dataset query parameter
 	apiPath := fmt.Sprintf("/api/dashboards/%s", dashboard.Origin.ValueString())
 	u, err := url.Parse(apiPath)
@@ -44,7 +44,7 @@ func (c *dash0Client) CreateDashboard(ctx context.Context, dashboard model.Dashb
 	return nil
 }
 
-func (c *dash0Client) GetDashboard(ctx context.Context, dataset string, origin string) (*model.DashboardResourceModel, error) {
+func (c *dash0Client) GetDashboard(ctx context.Context, dataset string, origin string) (*model.Dashboard, error) {
 	apiPath := fmt.Sprintf("/api/dashboards/%s", origin)
 	u, err := url.Parse(apiPath)
 	if err != nil {
@@ -61,7 +61,7 @@ func (c *dash0Client) GetDashboard(ctx context.Context, dataset string, origin s
 		return nil, err
 	}
 
-	dashboard := &model.DashboardResourceModel{
+	dashboard := &model.Dashboard{
 		Origin:        types.StringValue(origin),
 		Dataset:       types.StringValue(dataset),
 		DashboardYaml: types.StringValue(string(resp)),
@@ -69,7 +69,7 @@ func (c *dash0Client) GetDashboard(ctx context.Context, dataset string, origin s
 	return dashboard, nil
 }
 
-func (c *dash0Client) UpdateDashboard(ctx context.Context, dashboard model.DashboardResourceModel) error {
+func (c *dash0Client) UpdateDashboard(ctx context.Context, dashboard model.Dashboard) error {
 	dataset := dashboard.Dataset.ValueString()
 
 	// Build URL with dataset query parameter
