@@ -83,7 +83,7 @@ func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 }
 
 func (r *DashboardResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var model model.DashboardResourceModel
+	var model model.Dashboard
 	diags := req.Plan.Get(ctx, &model)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -118,7 +118,7 @@ func (r *DashboardResource) Create(ctx context.Context, req resource.CreateReque
 
 func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state model.DashboardResourceModel
+	var state model.Dashboard
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -165,7 +165,7 @@ func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Get current state
-	var state model.DashboardResourceModel
+	var state model.Dashboard
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -173,7 +173,7 @@ func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	// Retrieve values from plan
-	var plan model.DashboardResourceModel
+	var plan model.Dashboard
 	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -233,7 +233,7 @@ func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateReque
 }
 
 func (r *DashboardResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state model.DashboardResourceModel
+	var state model.Dashboard
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

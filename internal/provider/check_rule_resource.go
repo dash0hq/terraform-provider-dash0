@@ -83,7 +83,7 @@ func (r *CheckRuleResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 }
 
 func (r *CheckRuleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var checkRuleModel model.CheckRuleResourceModel
+	var checkRuleModel model.CheckRule
 	diags := req.Plan.Get(ctx, &checkRuleModel)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -118,7 +118,7 @@ func (r *CheckRuleResource) Create(ctx context.Context, req resource.CreateReque
 
 func (r *CheckRuleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state model.CheckRuleResourceModel
+	var state model.CheckRule
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -165,7 +165,7 @@ func (r *CheckRuleResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 func (r *CheckRuleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Get current state
-	var state model.CheckRuleResourceModel
+	var state model.CheckRule
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -173,7 +173,7 @@ func (r *CheckRuleResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	// Retrieve values from plan
-	var plan model.CheckRuleResourceModel
+	var plan model.CheckRule
 	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -227,7 +227,7 @@ func (r *CheckRuleResource) Update(ctx context.Context, req resource.UpdateReque
 
 func (r *CheckRuleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Get current state
-	var state model.CheckRuleResourceModel
+	var state model.CheckRule
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

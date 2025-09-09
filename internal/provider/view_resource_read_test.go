@@ -17,11 +17,11 @@ import (
 // Custom mock client implementation for this test
 type testViewClient struct {
 	client.Client
-	getResponse *model.ViewResourceModel
+	getResponse *model.ViewResource
 	getError    error
 }
 
-func (c *testViewClient) GetView(_ context.Context, _, _ string) (*model.ViewResourceModel, error) {
+func (c *testViewClient) GetView(_ context.Context, _, _ string) (*model.ViewResource, error) {
 	return c.getResponse, c.getError
 }
 
@@ -110,7 +110,7 @@ spec:
 
 			// Create a test client
 			testClient := &testViewClient{
-				getResponse: &model.ViewResourceModel{
+				getResponse: &model.ViewResource{
 					Origin:   types.StringValue(testOrigin),
 					Dataset:  types.StringValue(testDataset),
 					ViewYaml: types.StringValue(tc.apiResponseYaml),
@@ -157,7 +157,7 @@ spec:
 			r.Read(ctx, req, &resp)
 
 			// Extract the resulting state
-			var resultState model.ViewResourceModel
+			var resultState model.ViewResource
 			resp.State.Get(ctx, &resultState)
 
 			// Check if the result matches expectations

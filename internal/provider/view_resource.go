@@ -83,7 +83,7 @@ func (r *ViewResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 }
 
 func (r *ViewResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var m model.ViewResourceModel
+	var m model.ViewResource
 	diags := req.Plan.Get(ctx, &m)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -118,7 +118,7 @@ func (r *ViewResource) Create(ctx context.Context, req resource.CreateRequest, r
 
 func (r *ViewResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state model.ViewResourceModel
+	var state model.ViewResource
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -165,7 +165,7 @@ func (r *ViewResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 
 func (r *ViewResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// get current state
-	var state model.ViewResourceModel
+	var state model.ViewResource
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -173,7 +173,7 @@ func (r *ViewResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 
 	// Retrieve values from plan
-	var plan model.ViewResourceModel
+	var plan model.ViewResource
 	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -227,7 +227,7 @@ func (r *ViewResource) Update(ctx context.Context, req resource.UpdateRequest, r
 
 func (r *ViewResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Get current state
-	var state model.ViewResourceModel
+	var state model.ViewResource
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

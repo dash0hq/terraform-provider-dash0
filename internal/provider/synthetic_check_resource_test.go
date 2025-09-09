@@ -99,7 +99,7 @@ spec:
 	}
 
 	// Setup mock expectations
-	mockClient.On("CreateSyntheticCheck", ctx, mock.MatchedBy(func(check model.SyntheticCheckResourceModel) bool {
+	mockClient.On("CreateSyntheticCheck", ctx, mock.MatchedBy(func(check model.SyntheticCheck) bool {
 		return check.Dataset.ValueString() == "test-dataset" &&
 			check.Origin.ValueString() != "" && // Should have generated UUID
 			check.SyntheticCheckYaml.ValueString() != ""
@@ -265,7 +265,7 @@ metadata:
 			},
 		}
 
-		mockClient.On("UpdateSyntheticCheck", ctx, mock.MatchedBy(func(check model.SyntheticCheckResourceModel) bool {
+		mockClient.On("UpdateSyntheticCheck", ctx, mock.MatchedBy(func(check model.SyntheticCheck) bool {
 			return check.Origin.ValueString() == "test-origin" &&
 				check.Dataset.ValueString() == "test-dataset"
 		})).Return(nil).Once()

@@ -32,7 +32,7 @@ spec:
           for: 5m`
 
 	// Create checkRuleModel
-	checkRuleModel := model.CheckRuleResourceModel{
+	checkRuleModel := model.CheckRule{
 		Origin:        types.StringValue(origin),
 		Dataset:       types.StringValue(dataset),
 		CheckRuleYaml: types.StringValue(checkRuleYaml),
@@ -192,7 +192,7 @@ func TestCheckRuleResource_ReadError(t *testing.T) {
 
 	// Mock client to return error
 	mockClient.On("GetCheckRule", mock.Anything, "test-dataset", "test-origin").Return(
-		(*model.CheckRuleResourceModel)(nil), errors.New("not found"))
+		(*model.CheckRule)(nil), errors.New("not found"))
 
 	req := resource.ReadRequest{}
 	resp := &resource.ReadResponse{}

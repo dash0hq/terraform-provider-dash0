@@ -17,11 +17,11 @@ import (
 // Custom mock client implementation for this test
 type testDashboardClient struct {
 	client.Client
-	getResponse *model.DashboardResourceModel
+	getResponse *model.Dashboard
 	getError    error
 }
 
-func (c *testDashboardClient) GetDashboard(_ context.Context, _, _ string) (*model.DashboardResourceModel, error) {
+func (c *testDashboardClient) GetDashboard(_ context.Context, _, _ string) (*model.Dashboard, error) {
 	return c.getResponse, c.getError
 }
 
@@ -110,7 +110,7 @@ spec:
 
 			// Create a test client
 			testClient := &testDashboardClient{
-				getResponse: &model.DashboardResourceModel{
+				getResponse: &model.Dashboard{
 					Origin:        types.StringValue(testOrigin),
 					Dataset:       types.StringValue(testDataset),
 					DashboardYaml: types.StringValue(tc.apiResponseYaml),
@@ -157,7 +157,7 @@ spec:
 			r.Read(ctx, req, &resp)
 
 			// Extract the resulting state
-			var resultState model.DashboardResourceModel
+			var resultState model.Dashboard
 			resp.State.Get(ctx, &resultState)
 
 			// Check if the result matches expectations

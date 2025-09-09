@@ -25,7 +25,7 @@ func TestDashboardOperations(t *testing.T) {
 	expectedJSON, err := converter.ConvertYAMLToJSON(testYaml)
 	require.NoError(t, err)
 
-	dashboardModel := model.DashboardResourceModel{
+	dashboardModel := model.Dashboard{
 		Origin:        types.StringValue(testOrigin),
 		Dataset:       types.StringValue(testDataset),
 		DashboardYaml: types.StringValue(testYaml),
@@ -139,7 +139,7 @@ func TestDashboardOperations(t *testing.T) {
 			case "create":
 				err = client.CreateDashboard(ctx, dashboardModel)
 			case "get":
-				var dashboard *model.DashboardResourceModel
+				var dashboard *model.Dashboard
 				dashboard, err = client.GetDashboard(ctx, testDataset, testOrigin)
 				if err == nil {
 					assert.Equal(t, testOrigin, dashboard.Origin.ValueString())
@@ -226,7 +226,7 @@ func TestDashboardOperations_IntegrationStyle(t *testing.T) {
 
 	// We don't need to check the exact JSON since we validate structure in the test
 
-	dashboardModel := model.DashboardResourceModel{
+	dashboardModel := model.Dashboard{
 		Origin:        types.StringValue(testOrigin),
 		Dataset:       types.StringValue(testDataset),
 		DashboardYaml: types.StringValue(testYaml),

@@ -33,7 +33,7 @@ spec:
 	expectedJSON, err := converter.ConvertYAMLToJSON(testYaml)
 	require.NoError(t, err)
 
-	checkModel := model.SyntheticCheckResourceModel{
+	checkModel := model.SyntheticCheck{
 		Origin:             types.StringValue(testOrigin),
 		Dataset:            types.StringValue(testDataset),
 		SyntheticCheckYaml: types.StringValue(testYaml),
@@ -139,7 +139,7 @@ spec:
 			case "create":
 				err = client.CreateSyntheticCheck(ctx, checkModel)
 			case "get":
-				var result *model.SyntheticCheckResourceModel
+				var result *model.SyntheticCheck
 				result, err = client.GetSyntheticCheck(ctx, testDataset, testOrigin)
 				if !tt.expectError {
 					assert.NotNil(t, result)
@@ -167,7 +167,7 @@ func TestSyntheticCheckClient_InvalidYAML(t *testing.T) {
 	ctx := context.Background()
 	client := NewDash0Client("http://localhost", "test-token")
 
-	checkModel := model.SyntheticCheckResourceModel{
+	checkModel := model.SyntheticCheck{
 		Origin:             types.StringValue("test-origin"),
 		Dataset:            types.StringValue("test-dataset"),
 		SyntheticCheckYaml: types.StringValue("invalid: : : yaml"),
