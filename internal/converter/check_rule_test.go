@@ -1,4 +1,4 @@
-package provider
+package converter
 
 import (
 	_ "embed"
@@ -16,7 +16,7 @@ var promRuleRaw string
 var dash0RuleRaw string
 
 func TestConvertCheckRule(t *testing.T) {
-	dash0Rule, err := convertPromYAMLToDash0CheckRule(promRuleRaw, "default")
+	dash0Rule, err := ConvertPromYAMLToDash0CheckRule(promRuleRaw, "default")
 	assert.NotNil(t, dash0Rule)
 	assert.NoError(t, err)
 
@@ -26,7 +26,7 @@ func TestConvertCheckRule(t *testing.T) {
 }
 
 func TestConvertToPrometheusRule(t *testing.T) {
-	promRules, err := convertDash0JSONtoPrometheusRules(dash0RuleRaw)
+	promRules, err := ConvertDash0JSONtoPrometheusRules(dash0RuleRaw)
 	assert.NotNil(t, promRules)
 	assert.NoError(t, err)
 

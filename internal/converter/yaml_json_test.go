@@ -1,4 +1,4 @@
-package provider
+package converter
 
 import (
 	"encoding/json"
@@ -110,17 +110,17 @@ spec:
 			// Convert YAML to JSON
 			jsonStr, err := ConvertYAMLToJSON(tc.yamlStr)
 			require.NoError(t, err)
-			
+
 			// Parse the JSON string back into a map for comparison
 			var result map[string]interface{}
 			err = json.Unmarshal([]byte(jsonStr), &result)
 			require.NoError(t, err)
-			
+
 			// Compare the result with the expected map
 			assert.Equal(t, tc.expected, result)
 		})
 	}
-	
+
 	// Test invalid YAML
 	t.Run("invalid yaml", func(t *testing.T) {
 		_, err := ConvertYAMLToJSON("invalid: : : yaml")
