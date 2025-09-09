@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/dash0/terraform-provider-dash0/internal/converter"
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
@@ -20,29 +21,23 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &viewResource{}
-	_ resource.ResourceWithConfigure   = &viewResource{}
-	_ resource.ResourceWithImportState = &viewResource{}
+	_ resource.Resource                = &ViewResource{}
+	_ resource.ResourceWithConfigure   = &ViewResource{}
+	_ resource.ResourceWithImportState = &ViewResource{}
 )
 
 // NewViewResource is a helper function to simplify the provider implementation.
 func NewViewResource() resource.Resource {
-	return &viewResource{}
+	return &ViewResource{}
 }
 
-// viewResource is the resource implementation.
-type viewResource struct {
+// ViewResource is the resource implementation.
+type ViewResource struct {
 	client dash0ClientInterface
 }
 
-type viewResourceModel struct {
-	Origin   types.String `tfsdk:"origin"`
-	Dataset  types.String `tfsdk:"dataset"`
-	ViewYaml types.String `tfsdk:"view_yaml"`
-}
-
 // Configure adds the provider configured client to the resource.
-func (r *viewResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *ViewResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -59,11 +54,11 @@ func (r *viewResource) Configure(_ context.Context, req resource.ConfigureReques
 	r.client = client
 }
 
-func (r *viewResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (r *ViewResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_view"
 }
 
-func (r *viewResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *ViewResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a Dash0 View.",
 		Attributes: map[string]schema.Attribute{
@@ -86,19 +81,19 @@ func (r *viewResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 	}
 }
 
-func (r *viewResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var model viewResourceModel
-	diags := req.Plan.Get(ctx, &model)
+func (r *ViewResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var m model.ViewResourceModel
+	diags := req.Plan.Get(ctx, &m)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	model.Origin = types.StringValue("tf_" + uuid.New().String())
+	m.Origin = types.StringValue("tf_" + uuid.New().String())
 
 	// Validate YAML format
 	var viewYaml interface{}
-	err := yaml.Unmarshal([]byte(model.ViewYaml.ValueString()), &viewYaml)
+	err := yaml.Unmarshal([]byte(m.ViewYaml.ValueString()), &viewYaml)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Invalid YAML",
@@ -107,7 +102,7 @@ func (r *viewResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	err = r.client.CreateView(ctx, model)
+	err = r.client.CreateView(ctx, m)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create view, got error: %s", err))
 		return
@@ -116,13 +111,13 @@ func (r *viewResource) Create(ctx context.Context, req resource.CreateRequest, r
 	tflog.Trace(ctx, "created a view resource")
 
 	// Set state to fully populated data
-	diags = resp.State.Set(ctx, model)
+	diags = resp.State.Set(ctx, m)
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *viewResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *ViewResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state viewResourceModel
+	var state model.ViewResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -167,9 +162,9 @@ func (r *viewResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *viewResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *ViewResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// get current state
-	var state viewResourceModel
+	var state model.ViewResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -177,7 +172,7 @@ func (r *viewResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 
 	// Retrieve values from plan
-	var plan viewResourceModel
+	var plan model.ViewResourceModel
 	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -229,9 +224,9 @@ func (r *viewResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *viewResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *ViewResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Get current state
-	var state viewResourceModel
+	var state model.ViewResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -248,7 +243,7 @@ func (r *viewResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 }
 
 // ImportState function is required for resources that support import
-func (r *viewResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *ViewResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Expect the import ID in the format "dataset,origin"
 	idParts := strings.Split(req.ID, ",")
 	if len(idParts) != 2 {

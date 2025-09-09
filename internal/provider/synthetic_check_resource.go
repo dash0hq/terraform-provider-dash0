@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/dash0/terraform-provider-dash0/internal/converter"
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
@@ -20,29 +21,23 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &syntheticCheckResource{}
-	_ resource.ResourceWithConfigure   = &syntheticCheckResource{}
-	_ resource.ResourceWithImportState = &syntheticCheckResource{}
+	_ resource.Resource                = &SyntheticCheckResource{}
+	_ resource.ResourceWithConfigure   = &SyntheticCheckResource{}
+	_ resource.ResourceWithImportState = &SyntheticCheckResource{}
 )
 
 // NewSyntheticCheckResource is a helper function to simplify the provider implementation.
 func NewSyntheticCheckResource() resource.Resource {
-	return &syntheticCheckResource{}
+	return &SyntheticCheckResource{}
 }
 
-// syntheticCheckResource is the resource implementation.
-type syntheticCheckResource struct {
+// SyntheticCheckResource is the resource implementation.
+type SyntheticCheckResource struct {
 	client dash0ClientInterface
 }
 
-type syntheticCheckResourceModel struct {
-	Origin             types.String `tfsdk:"origin"`
-	Dataset            types.String `tfsdk:"dataset"`
-	SyntheticCheckYaml types.String `tfsdk:"synthetic_check_yaml"`
-}
-
 // Configure adds the provider configured client to the resource.
-func (r *syntheticCheckResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *SyntheticCheckResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -59,11 +54,11 @@ func (r *syntheticCheckResource) Configure(_ context.Context, req resource.Confi
 	r.client = client
 }
 
-func (r *syntheticCheckResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (r *SyntheticCheckResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_synthetic_check"
 }
 
-func (r *syntheticCheckResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *SyntheticCheckResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a Dash0 Synthetic Check.",
 		Attributes: map[string]schema.Attribute{
@@ -86,19 +81,19 @@ func (r *syntheticCheckResource) Schema(_ context.Context, _ resource.SchemaRequ
 	}
 }
 
-func (r *syntheticCheckResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var model syntheticCheckResourceModel
-	diags := req.Plan.Get(ctx, &model)
+func (r *SyntheticCheckResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var m model.SyntheticCheckResourceModel
+	diags := req.Plan.Get(ctx, &m)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	model.Origin = types.StringValue("tf_" + uuid.New().String())
+	m.Origin = types.StringValue("tf_" + uuid.New().String())
 
 	// Validate YAML format
 	var checkYaml interface{}
-	err := yaml.Unmarshal([]byte(model.SyntheticCheckYaml.ValueString()), &checkYaml)
+	err := yaml.Unmarshal([]byte(m.SyntheticCheckYaml.ValueString()), &checkYaml)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Invalid YAML",
@@ -107,7 +102,7 @@ func (r *syntheticCheckResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	err = r.client.CreateSyntheticCheck(ctx, model)
+	err = r.client.CreateSyntheticCheck(ctx, m)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create synthetic check, got error: %s", err))
 		return
@@ -116,13 +111,13 @@ func (r *syntheticCheckResource) Create(ctx context.Context, req resource.Create
 	tflog.Trace(ctx, "created a synthetic check resource")
 
 	// Set state to fully populated data
-	diags = resp.State.Set(ctx, model)
+	diags = resp.State.Set(ctx, m)
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *syntheticCheckResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *SyntheticCheckResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state syntheticCheckResourceModel
+	var state model.SyntheticCheckResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -167,9 +162,9 @@ func (r *syntheticCheckResource) Read(ctx context.Context, req resource.ReadRequ
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *syntheticCheckResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *SyntheticCheckResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Get current state
-	var state syntheticCheckResourceModel
+	var state model.SyntheticCheckResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -177,7 +172,7 @@ func (r *syntheticCheckResource) Update(ctx context.Context, req resource.Update
 	}
 
 	// Retrieve values from plan
-	var plan syntheticCheckResourceModel
+	var plan model.SyntheticCheckResourceModel
 	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -229,9 +224,9 @@ func (r *syntheticCheckResource) Update(ctx context.Context, req resource.Update
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *syntheticCheckResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *SyntheticCheckResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Get current state
-	var state syntheticCheckResourceModel
+	var state model.SyntheticCheckResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -248,7 +243,7 @@ func (r *syntheticCheckResource) Delete(ctx context.Context, req resource.Delete
 }
 
 // ImportState function is required for resources that support import
-func (r *syntheticCheckResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *SyntheticCheckResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Expect the import ID in the format "dataset,origin"
 	idParts := strings.Split(req.ID, ",")
 	if len(idParts) != 2 {

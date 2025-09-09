@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -14,11 +15,11 @@ import (
 // Custom mock client implementation for this test
 type testSyntheticCheckClient struct {
 	dash0ClientInterface
-	getResponse *syntheticCheckResourceModel
+	getResponse *model.SyntheticCheckResourceModel
 	getError    error
 }
 
-func (c *testSyntheticCheckClient) GetSyntheticCheck(_ context.Context, _, _ string) (*syntheticCheckResourceModel, error) {
+func (c *testSyntheticCheckClient) GetSyntheticCheck(_ context.Context, _, _ string) (*model.SyntheticCheckResourceModel, error) {
 	return c.getResponse, c.getError
 }
 
@@ -67,11 +68,11 @@ spec:
 `
 
 	tests := []struct {
-		name                   string
-		currentState          string
-		apiResponse           string
-		expectStateUpdate     bool
-		expectWarning         bool
+		name              string
+		currentState      string
+		apiResponse       string
+		expectStateUpdate bool
+		expectWarning     bool
 	}{
 		{
 			name:              "metadata changes only - no significant diff",
@@ -102,15 +103,15 @@ spec:
 
 			// Create mock client
 			mockClient := &testSyntheticCheckClient{
-				getResponse: &syntheticCheckResourceModel{
-					Origin:              types.StringValue("test-origin"),
-					Dataset:             types.StringValue("test-dataset"),
+				getResponse: &model.SyntheticCheckResourceModel{
+					Origin:             types.StringValue("test-origin"),
+					Dataset:            types.StringValue("test-dataset"),
 					SyntheticCheckYaml: types.StringValue(tt.apiResponse),
 				},
 			}
 
 			// Create resource with mock client
-			r := &syntheticCheckResource{
+			r := &SyntheticCheckResource{
 				client: mockClient,
 			}
 
@@ -152,7 +153,7 @@ spec:
 
 			// Verify state update behavior
 			if !resp.Diagnostics.HasError() {
-				var state syntheticCheckResourceModel
+				var state model.SyntheticCheckResourceModel
 				resp.State.Get(ctx, &state)
 
 				if tt.expectStateUpdate {

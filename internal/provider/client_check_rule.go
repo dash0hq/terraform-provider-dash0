@@ -8,12 +8,13 @@ import (
 	"net/url"
 
 	"github.com/dash0/terraform-provider-dash0/internal/converter"
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"gopkg.in/yaml.v3"
 )
 
-func (c *dash0Client) CreateCheckRule(ctx context.Context, checkRule checkRuleResourceModel) error {
+func (c *dash0Client) CreateCheckRule(ctx context.Context, checkRule model.CheckRuleResourceModel) error {
 	// Build URL with dataset query parameter
 	apiPath := fmt.Sprintf("/api/alerting/check-rules/%s", checkRule.Origin.ValueString())
 	u, err := url.Parse(apiPath)
@@ -48,7 +49,7 @@ func (c *dash0Client) CreateCheckRule(ctx context.Context, checkRule checkRuleRe
 	return nil
 }
 
-func (c *dash0Client) GetCheckRule(ctx context.Context, dataset string, origin string) (*checkRuleResourceModel, error) {
+func (c *dash0Client) GetCheckRule(ctx context.Context, dataset string, origin string) (*model.CheckRuleResourceModel, error) {
 	apiPath := fmt.Sprintf("/api/alerting/check-rules/%s", origin)
 	u, err := url.Parse(apiPath)
 	if err != nil {
@@ -77,7 +78,7 @@ func (c *dash0Client) GetCheckRule(ctx context.Context, dataset string, origin s
 		return nil, fmt.Errorf("error normalizing check rule YAML: %w", err)
 	}
 
-	checkRule := &checkRuleResourceModel{
+	checkRule := &model.CheckRuleResourceModel{
 		Origin:        types.StringValue(origin),
 		Dataset:       types.StringValue(dataset),
 		CheckRuleYaml: types.StringValue(normalizedYAML),
@@ -85,7 +86,7 @@ func (c *dash0Client) GetCheckRule(ctx context.Context, dataset string, origin s
 	return checkRule, nil
 }
 
-func (c *dash0Client) UpdateCheckRule(ctx context.Context, checkRule checkRuleResourceModel) error {
+func (c *dash0Client) UpdateCheckRule(ctx context.Context, checkRule model.CheckRuleResourceModel) error {
 	dataset := checkRule.Dataset.ValueString()
 
 	// Build URL with dataset query parameter

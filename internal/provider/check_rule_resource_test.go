@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -30,17 +31,17 @@ spec:
           expr: up == 0
           for: 5m`
 
-	// Create model
-	model := checkRuleResourceModel{
+	// Create checkRuleModel
+	checkRuleModel := model.CheckRuleResourceModel{
 		Origin:        types.StringValue(origin),
 		Dataset:       types.StringValue(dataset),
 		CheckRuleYaml: types.StringValue(checkRuleYaml),
 	}
 
 	// Test values
-	assert.Equal(t, origin, model.Origin.ValueString())
-	assert.Equal(t, dataset, model.Dataset.ValueString())
-	assert.Equal(t, checkRuleYaml, model.CheckRuleYaml.ValueString())
+	assert.Equal(t, origin, checkRuleModel.Origin.ValueString())
+	assert.Equal(t, dataset, checkRuleModel.Dataset.ValueString())
+	assert.Equal(t, checkRuleYaml, checkRuleModel.CheckRuleYaml.ValueString())
 }
 
 func TestNewCheckRuleResource(t *testing.T) {
@@ -48,12 +49,12 @@ func TestNewCheckRuleResource(t *testing.T) {
 	assert.NotNil(t, resource)
 
 	// Check that it's the correct type
-	_, ok := resource.(*checkRuleResource)
+	_, ok := resource.(*CheckRuleResource)
 	assert.True(t, ok)
 }
 
 func TestCheckRuleResource_Metadata(t *testing.T) {
-	r := &checkRuleResource{}
+	r := &CheckRuleResource{}
 	resp := &resource.MetadataResponse{}
 	req := resource.MetadataRequest{
 		ProviderTypeName: "dash0",
@@ -65,7 +66,7 @@ func TestCheckRuleResource_Metadata(t *testing.T) {
 }
 
 func TestCheckRuleResource_Schema(t *testing.T) {
-	r := &checkRuleResource{}
+	r := &CheckRuleResource{}
 	resp := &resource.SchemaResponse{}
 	req := resource.SchemaRequest{}
 
@@ -119,7 +120,7 @@ func TestCheckRuleResource_Configure(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r := &checkRuleResource{}
+			r := &CheckRuleResource{}
 			resp := &resource.ConfigureResponse{}
 			req := resource.ConfigureRequest{
 				ProviderData: tc.providerData,
@@ -141,7 +142,7 @@ func TestCheckRuleResource_Configure(t *testing.T) {
 
 func TestCheckRuleResource_Create_InvalidYAML(t *testing.T) {
 	mockClient := &MockClient{}
-	r := &checkRuleResource{client: mockClient}
+	r := &CheckRuleResource{client: mockClient}
 
 	// Create request with invalid YAML
 	req := resource.CreateRequest{}
@@ -187,11 +188,11 @@ func TestCheckRuleResource_Create_InvalidYAML(t *testing.T) {
 
 func TestCheckRuleResource_ReadError(t *testing.T) {
 	mockClient := &MockClient{}
-	r := &checkRuleResource{client: mockClient}
+	r := &CheckRuleResource{client: mockClient}
 
 	// Mock client to return error
 	mockClient.On("GetCheckRule", mock.Anything, "test-dataset", "test-origin").Return(
-		(*checkRuleResourceModel)(nil), errors.New("not found"))
+		(*model.CheckRuleResourceModel)(nil), errors.New("not found"))
 
 	req := resource.ReadRequest{}
 	resp := &resource.ReadResponse{}

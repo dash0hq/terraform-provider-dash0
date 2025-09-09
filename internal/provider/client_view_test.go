@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/dash0/terraform-provider-dash0/internal/converter"
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ spec:
 	expectedJSON, err := converter.ConvertYAMLToJSON(testYaml)
 	require.NoError(t, err)
 
-	viewModel := viewResourceModel{
+	viewModel := model.ViewResourceModel{
 		Origin:   types.StringValue(testOrigin),
 		Dataset:  types.StringValue(testDataset),
 		ViewYaml: types.StringValue(testYaml),
@@ -142,7 +143,7 @@ spec:
 			case "create":
 				err = client.CreateView(ctx, viewModel)
 			case "get":
-				var view *viewResourceModel
+				var view *model.ViewResourceModel
 				view, err = client.GetView(ctx, testDataset, testOrigin)
 				if err == nil {
 					assert.Equal(t, testOrigin, view.Origin.ValueString())
@@ -227,7 +228,7 @@ func TestViewOperations_IntegrationStyle(t *testing.T) {
 	testDataset := "test-dataset"
 	testYaml := "kind: View\nmetadata:\n  name: example-view\nspec:\n  title: Example View"
 
-	viewModel := viewResourceModel{
+	viewModel := model.ViewResourceModel{
 		Origin:   types.StringValue(testOrigin),
 		Dataset:  types.StringValue(testDataset),
 		ViewYaml: types.StringValue(testYaml),
@@ -329,7 +330,7 @@ func TestViewClient_InvalidYAML(t *testing.T) {
 	ctx := context.Background()
 	client := newDash0Client("http://localhost", "test-token")
 
-	viewModel := viewResourceModel{
+	viewModel := model.ViewResourceModel{
 		Origin:   types.StringValue("test-origin"),
 		Dataset:  types.StringValue("test-dataset"),
 		ViewYaml: types.StringValue("invalid: : : yaml"),

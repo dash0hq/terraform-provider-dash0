@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/dash0/terraform-provider-dash0/internal/converter"
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +33,7 @@ spec:
 	expectedJSON, err := converter.ConvertYAMLToJSON(testYaml)
 	require.NoError(t, err)
 
-	checkModel := syntheticCheckResourceModel{
+	checkModel := model.SyntheticCheckResourceModel{
 		Origin:             types.StringValue(testOrigin),
 		Dataset:            types.StringValue(testDataset),
 		SyntheticCheckYaml: types.StringValue(testYaml),
@@ -138,7 +139,7 @@ spec:
 			case "create":
 				err = client.CreateSyntheticCheck(ctx, checkModel)
 			case "get":
-				var result *syntheticCheckResourceModel
+				var result *model.SyntheticCheckResourceModel
 				result, err = client.GetSyntheticCheck(ctx, testDataset, testOrigin)
 				if !tt.expectError {
 					assert.NotNil(t, result)
@@ -166,7 +167,7 @@ func TestSyntheticCheckClient_InvalidYAML(t *testing.T) {
 	ctx := context.Background()
 	client := newDash0Client("http://localhost", "test-token")
 
-	checkModel := syntheticCheckResourceModel{
+	checkModel := model.SyntheticCheckResourceModel{
 		Origin:             types.StringValue("test-origin"),
 		Dataset:            types.StringValue("test-dataset"),
 		SyntheticCheckYaml: types.StringValue("invalid: : : yaml"),

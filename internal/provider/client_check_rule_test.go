@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/dash0/terraform-provider-dash0/internal/converter"
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,7 +41,7 @@ spec:
 	expectedJSON, err := json.Marshal(dash0CheckRule)
 	require.NoError(t, err)
 
-	checkRuleModel := checkRuleResourceModel{
+	checkRuleModel := model.CheckRuleResourceModel{
 		Origin:        types.StringValue(testOrigin),
 		Dataset:       types.StringValue(testDataset),
 		CheckRuleYaml: types.StringValue(testYaml),
@@ -165,7 +166,7 @@ spec:
 			case "create":
 				err = client.CreateCheckRule(ctx, checkRuleModel)
 			case "get":
-				var checkRule *checkRuleResourceModel
+				var checkRule *model.CheckRuleResourceModel
 				checkRule, err = client.GetCheckRule(ctx, testDataset, testOrigin)
 				if err == nil {
 					assert.Equal(t, testOrigin, checkRule.Origin.ValueString())
@@ -266,7 +267,7 @@ spec:
           labels:
             severity: warning`
 
-	checkRuleModel := checkRuleResourceModel{
+	checkRuleModel := model.CheckRuleResourceModel{
 		Origin:        types.StringValue(testOrigin),
 		Dataset:       types.StringValue(testDataset),
 		CheckRuleYaml: types.StringValue(testYaml),
@@ -381,7 +382,7 @@ func TestCheckRuleClient_InvalidYAML(t *testing.T) {
 	ctx := context.Background()
 	client := newDash0Client("http://localhost", "test-token")
 
-	checkRuleModel := checkRuleResourceModel{
+	checkRuleModel := model.CheckRuleResourceModel{
 		Origin:        types.StringValue("test-origin"),
 		Dataset:       types.StringValue("test-dataset"),
 		CheckRuleYaml: types.StringValue("invalid: : : yaml"),
@@ -417,12 +418,12 @@ spec:
 
 	tests := []struct {
 		name    string
-		model   checkRuleResourceModel
+		model   model.CheckRuleResourceModel
 		wantErr bool
 	}{
 		{
 			name: "empty origin",
-			model: checkRuleResourceModel{
+			model: model.CheckRuleResourceModel{
 				Origin:        types.StringValue(""),
 				Dataset:       types.StringValue("test-dataset"),
 				CheckRuleYaml: types.StringValue(testYaml),
@@ -431,7 +432,7 @@ spec:
 		},
 		{
 			name: "empty dataset",
-			model: checkRuleResourceModel{
+			model: model.CheckRuleResourceModel{
 				Origin:        types.StringValue("test-origin"),
 				Dataset:       types.StringValue(""),
 				CheckRuleYaml: types.StringValue(testYaml),
@@ -440,7 +441,7 @@ spec:
 		},
 		{
 			name: "empty YAML",
-			model: checkRuleResourceModel{
+			model: model.CheckRuleResourceModel{
 				Origin:        types.StringValue("test-origin"),
 				Dataset:       types.StringValue("test-dataset"),
 				CheckRuleYaml: types.StringValue(""),
@@ -523,7 +524,7 @@ spec:
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			checkRuleModel := checkRuleResourceModel{
+			checkRuleModel := model.CheckRuleResourceModel{
 				Origin:        types.StringValue("test-origin"),
 				Dataset:       types.StringValue("test-dataset"),
 				CheckRuleYaml: types.StringValue(tc.yaml),

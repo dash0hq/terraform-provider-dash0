@@ -2,27 +2,29 @@ package provider
 
 import (
 	"context"
+
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 )
 
 type dash0ClientInterface interface {
-	CreateDashboard(ctx context.Context, dashboard dashboardResourceModel) error
-	GetDashboard(ctx context.Context, dataset string, origin string) (*dashboardResourceModel, error)
-	UpdateDashboard(ctx context.Context, dashboard dashboardResourceModel) error
+	CreateDashboard(ctx context.Context, dashboard model.DashboardResourceModel) error
+	GetDashboard(ctx context.Context, dataset string, origin string) (*model.DashboardResourceModel, error)
+	UpdateDashboard(ctx context.Context, dashboard model.DashboardResourceModel) error
 	DeleteDashboard(ctx context.Context, origin string, dataset string) error
 
-	CreateSyntheticCheck(ctx context.Context, check syntheticCheckResourceModel) error
-	GetSyntheticCheck(ctx context.Context, dataset string, origin string) (*syntheticCheckResourceModel, error)
-	UpdateSyntheticCheck(ctx context.Context, check syntheticCheckResourceModel) error
+	CreateSyntheticCheck(ctx context.Context, check model.SyntheticCheckResourceModel) error
+	GetSyntheticCheck(ctx context.Context, dataset string, origin string) (*model.SyntheticCheckResourceModel, error)
+	UpdateSyntheticCheck(ctx context.Context, check model.SyntheticCheckResourceModel) error
 	DeleteSyntheticCheck(ctx context.Context, origin string, dataset string) error
 
-	CreateView(ctx context.Context, check viewResourceModel) error
-	GetView(ctx context.Context, dataset string, origin string) (*viewResourceModel, error)
-	UpdateView(ctx context.Context, check viewResourceModel) error
+	CreateView(ctx context.Context, check model.ViewResourceModel) error
+	GetView(ctx context.Context, dataset string, origin string) (*model.ViewResourceModel, error)
+	UpdateView(ctx context.Context, check model.ViewResourceModel) error
 	DeleteView(ctx context.Context, origin string, dataset string) error
 
-	CreateCheckRule(ctx context.Context, checkRule checkRuleResourceModel) error
-	GetCheckRule(ctx context.Context, dataset string, origin string) (*checkRuleResourceModel, error)
-	UpdateCheckRule(ctx context.Context, checkRule checkRuleResourceModel) error
+	CreateCheckRule(ctx context.Context, checkRule model.CheckRuleResourceModel) error
+	GetCheckRule(ctx context.Context, dataset string, origin string) (*model.CheckRuleResourceModel, error)
+	UpdateCheckRule(ctx context.Context, checkRule model.CheckRuleResourceModel) error
 	DeleteCheckRule(ctx context.Context, origin string, dataset string) error
 }
 

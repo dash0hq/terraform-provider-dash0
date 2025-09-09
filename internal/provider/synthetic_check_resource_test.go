@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -15,7 +16,7 @@ import (
 
 // Tests for syntheticCheckResource
 func TestSyntheticCheckResource_Metadata(t *testing.T) {
-	r := &syntheticCheckResource{}
+	r := &SyntheticCheckResource{}
 	resp := &resource.MetadataResponse{}
 	req := resource.MetadataRequest{
 		ProviderTypeName: "dash0",
@@ -27,7 +28,7 @@ func TestSyntheticCheckResource_Metadata(t *testing.T) {
 }
 
 func TestSyntheticCheckResource_Schema(t *testing.T) {
-	r := &syntheticCheckResource{}
+	r := &SyntheticCheckResource{}
 	resp := &resource.SchemaResponse{}
 	req := resource.SchemaRequest{}
 
@@ -59,7 +60,7 @@ func TestSyntheticCheckResource_Create(t *testing.T) {
 	ctx := context.Background()
 	mockClient := new(MockClient)
 
-	r := &syntheticCheckResource{
+	r := &SyntheticCheckResource{
 		client: mockClient,
 	}
 
@@ -98,7 +99,7 @@ spec:
 	}
 
 	// Setup mock expectations
-	mockClient.On("CreateSyntheticCheck", ctx, mock.MatchedBy(func(check syntheticCheckResourceModel) bool {
+	mockClient.On("CreateSyntheticCheck", ctx, mock.MatchedBy(func(check model.SyntheticCheckResourceModel) bool {
 		return check.Dataset.ValueString() == "test-dataset" &&
 			check.Origin.ValueString() != "" && // Should have generated UUID
 			check.SyntheticCheckYaml.ValueString() != ""
@@ -116,7 +117,7 @@ func TestSyntheticCheckResource_CreateWithError(t *testing.T) {
 	ctx := context.Background()
 	mockClient := new(MockClient)
 
-	r := &syntheticCheckResource{
+	r := &SyntheticCheckResource{
 		client: mockClient,
 	}
 
@@ -162,7 +163,7 @@ func TestSyntheticCheckResource_Delete(t *testing.T) {
 	ctx := context.Background()
 	mockClient := new(MockClient)
 
-	r := &syntheticCheckResource{
+	r := &SyntheticCheckResource{
 		client: mockClient,
 	}
 
@@ -218,7 +219,7 @@ func TestSyntheticCheckResource_Update(t *testing.T) {
 	ctx := context.Background()
 	mockClient := new(MockClient)
 
-	r := &syntheticCheckResource{
+	r := &SyntheticCheckResource{
 		client: mockClient,
 	}
 
@@ -264,7 +265,7 @@ metadata:
 			},
 		}
 
-		mockClient.On("UpdateSyntheticCheck", ctx, mock.MatchedBy(func(check syntheticCheckResourceModel) bool {
+		mockClient.On("UpdateSyntheticCheck", ctx, mock.MatchedBy(func(check model.SyntheticCheckResourceModel) bool {
 			return check.Origin.ValueString() == "test-origin" &&
 				check.Dataset.ValueString() == "test-dataset"
 		})).Return(nil).Once()

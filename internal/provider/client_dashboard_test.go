@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/dash0/terraform-provider-dash0/internal/converter"
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +25,7 @@ func TestDashboardOperations(t *testing.T) {
 	expectedJSON, err := converter.ConvertYAMLToJSON(testYaml)
 	require.NoError(t, err)
 
-	dashboardModel := dashboardResourceModel{
+	dashboardModel := model.DashboardResourceModel{
 		Origin:        types.StringValue(testOrigin),
 		Dataset:       types.StringValue(testDataset),
 		DashboardYaml: types.StringValue(testYaml),
@@ -138,7 +139,7 @@ func TestDashboardOperations(t *testing.T) {
 			case "create":
 				err = client.CreateDashboard(ctx, dashboardModel)
 			case "get":
-				var dashboard *dashboardResourceModel
+				var dashboard *model.DashboardResourceModel
 				dashboard, err = client.GetDashboard(ctx, testDataset, testOrigin)
 				if err == nil {
 					assert.Equal(t, testOrigin, dashboard.Origin.ValueString())
@@ -225,7 +226,7 @@ func TestDashboardOperations_IntegrationStyle(t *testing.T) {
 
 	// We don't need to check the exact JSON since we validate structure in the test
 
-	dashboardModel := dashboardResourceModel{
+	dashboardModel := model.DashboardResourceModel{
 		Origin:        types.StringValue(testOrigin),
 		Dataset:       types.StringValue(testDataset),
 		DashboardYaml: types.StringValue(testYaml),
