@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/dash0/terraform-provider-dash0/internal/converter"
+	"github.com/dash0/terraform-provider-dash0/internal/provider/client"
 	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -33,7 +34,7 @@ func NewDashboardResource() resource.Resource {
 
 // DashboardResource is the resource implementation.
 type DashboardResource struct {
-	client dash0ClientInterface
+	client client.Client
 }
 
 // Configure adds the provider configured client to the resource.
@@ -42,7 +43,7 @@ func (r *DashboardResource) Configure(_ context.Context, req resource.ConfigureR
 		return
 	}
 
-	client, ok := req.ProviderData.(dash0ClientInterface)
+	client, ok := req.ProviderData.(client.Client)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",

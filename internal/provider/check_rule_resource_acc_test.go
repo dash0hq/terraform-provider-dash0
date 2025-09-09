@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/dash0/terraform-provider-dash0/internal/provider/client"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
@@ -161,13 +162,13 @@ func testAccCheckCheckRuleExists(resourceName string) resource.TestCheckFunc {
 		dataset := rs.Primary.Attributes["dataset"]
 
 		// Create a new client to verify the check rule exists
-		client := newDash0Client(
+		c := client.NewDash0Client(
 			os.Getenv("DASH0_URL"),
 			os.Getenv("DASH0_AUTH_TOKEN"),
 		)
 
 		// Attempt to retrieve the check rule
-		_, err := client.GetCheckRule(context.Background(), dataset, origin)
+		_, err := c.GetCheckRule(context.Background(), dataset, origin)
 		if err != nil {
 			return fmt.Errorf("Error retrieving check rule: %s", err)
 		}

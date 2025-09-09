@@ -1,4 +1,4 @@
-package provider
+package client
 
 import (
 	"bytes"
@@ -21,8 +21,8 @@ type dash0Client struct {
 	maxParallel int64
 }
 
-// newDash0Client creates a new Dash0 API client.
-func newDash0Client(url, authToken string) *dash0Client {
+// NewDash0Client creates a new Dash0 API client.
+func NewDash0Client(url, authToken string) *dash0Client {
 	maxParallel := int64(10) // Maximum number of parallel HTTP requests
 	return &dash0Client{
 		url:       url,

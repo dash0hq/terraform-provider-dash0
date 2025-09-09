@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/dash0/terraform-provider-dash0/internal/provider/client"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
@@ -270,7 +271,7 @@ func testAccCheckViewExists(resourceName string) resource.TestCheckFunc {
 		dataset := rs.Primary.Attributes["dataset"]
 
 		// Create a new client to verify the view exists
-		client := newDash0Client(
+		client := client.NewDash0Client(
 			os.Getenv("DASH0_URL"),
 			os.Getenv("DASH0_AUTH_TOKEN"),
 		)

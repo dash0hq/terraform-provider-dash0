@@ -1,4 +1,4 @@
-package provider
+package client
 
 import (
 	"context"
@@ -157,7 +157,7 @@ spec:
 			defer server.Close()
 
 			// Create client
-			client := newDash0Client(server.URL, "test-token")
+			client := NewDash0Client(server.URL, "test-token")
 			ctx := context.Background()
 			var err error
 
@@ -246,7 +246,7 @@ func TestCheckRuleOperations_IntegrationStyle(t *testing.T) {
 	defer server.Close()
 
 	// Create client
-	client := newDash0Client(server.URL, "test-token")
+	client := NewDash0Client(server.URL, "test-token")
 
 	// Test check rule data
 	testOrigin := "test-check-rule"
@@ -380,7 +380,7 @@ spec:
 
 func TestCheckRuleClient_InvalidYAML(t *testing.T) {
 	ctx := context.Background()
-	client := newDash0Client("http://localhost", "test-token")
+	client := NewDash0Client("http://localhost", "test-token")
 
 	checkRuleModel := model.CheckRuleResourceModel{
 		Origin:        types.StringValue("test-origin"),
@@ -459,7 +459,7 @@ spec:
 			}))
 			defer server.Close()
 
-			client := newDash0Client(server.URL, "test-token")
+			client := NewDash0Client(server.URL, "test-token")
 
 			err := client.CreateCheckRule(ctx, tc.model)
 			if tc.wantErr {
@@ -473,7 +473,7 @@ spec:
 
 func TestCheckRuleClient_UnsupportedYAMLFormats(t *testing.T) {
 	ctx := context.Background()
-	client := newDash0Client("http://localhost", "test-token")
+	client := NewDash0Client("http://localhost", "test-token")
 
 	tests := []struct {
 		name string
