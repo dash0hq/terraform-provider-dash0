@@ -4,28 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
 
 	"github.com/dash0/terraform-provider-dash0/internal/converter"
 	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"gopkg.in/yaml.v3"
 )
 
 func (c *dash0Client) CreateCheckRule(ctx context.Context, checkRule model.CheckRule) error {
 	// Build URL with dataset query parameter
 	apiPath := fmt.Sprintf("/api/alerting/check-rules/%s", checkRule.Origin.ValueString())
-	u, err := url.Parse(apiPath)
-	if err != nil {
-		return fmt.Errorf("error parsing API path: %w", err)
-	}
-
-	// Add dataset as a query parameter
-	q := u.Query()
-	q.Set("dataset", checkRule.Dataset.ValueString())
-	u.RawQuery = q.Encode()
 
 	dash0CheckRule, err := converter.ConvertPromYAMLToDash0CheckRule(checkRule.CheckRuleYaml.ValueString(), checkRule.Dataset.ValueString())
 	if err != nil {
@@ -36,35 +24,16 @@ func (c *dash0Client) CreateCheckRule(ctx context.Context, checkRule model.Check
 		return fmt.Errorf("error converting check rule to JSON: %w", err)
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("Creating check rule with JSON payload: %s", string(jsonBytes)))
-
-	// Make the API request with JSON
-	resp, err := c.doRequest(ctx, http.MethodPut, u.String(), string(jsonBytes))
-	if err != nil {
-		return err
-	}
-
-	tflog.Debug(ctx, fmt.Sprintf("Check rule created. Got API response: %s", resp))
-
-	return nil
+	return c.create(ctx, checkRule.Dataset.ValueString(), apiPath, string(jsonBytes), "Check Rule")
 }
 
 func (c *dash0Client) GetCheckRule(ctx context.Context, dataset string, origin string) (*model.CheckRule, error) {
 	apiPath := fmt.Sprintf("/api/alerting/check-rules/%s", origin)
-	u, err := url.Parse(apiPath)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing API path: %w", err)
-	}
-
-	// Add dataset as a query parameter
-	q := u.Query()
-	q.Set("dataset", dataset)
-	u.RawQuery = q.Encode()
-
-	resp, err := c.doRequest(ctx, http.MethodGet, u.String(), "")
+	resp, err := c.get(ctx, origin, dataset, apiPath, "Check Rule")
 	if err != nil {
 		return nil, err
 	}
+
 	promRule, err := converter.ConvertDash0JSONtoPrometheusRules(string(resp))
 	if err != nil {
 		return nil, fmt.Errorf("error converting check rule to Prometheus format: %w", err)
@@ -87,24 +56,11 @@ func (c *dash0Client) GetCheckRule(ctx context.Context, dataset string, origin s
 }
 
 func (c *dash0Client) UpdateCheckRule(ctx context.Context, checkRule model.CheckRule) error {
-	dataset := checkRule.Dataset.ValueString()
-
 	// Build URL with dataset query parameter
 	apiPath := fmt.Sprintf("/api/alerting/check-rules/%s", checkRule.Origin.ValueString())
-	u, err := url.Parse(apiPath)
-	if err != nil {
-		return fmt.Errorf("error parsing API path: %w", err)
-	}
-
-	// Add dataset as a query parameter
-	q := u.Query()
-	q.Set("dataset", dataset)
-	u.RawQuery = q.Encode()
-
-	tflog.Debug(ctx, fmt.Sprintf("Updating check rule in dataset: %s", dataset))
 
 	// Convert Prometheus YAML to Dash0 format
-	dash0Checkrule, err := converter.ConvertPromYAMLToDash0CheckRule(checkRule.CheckRuleYaml.ValueString(), dataset)
+	dash0Checkrule, err := converter.ConvertPromYAMLToDash0CheckRule(checkRule.CheckRuleYaml.ValueString(), checkRule.Dataset.ValueString())
 	if err != nil {
 		return fmt.Errorf("error converting check rule YAML to Dash0 format: %w", err)
 	}
@@ -113,39 +69,11 @@ func (c *dash0Client) UpdateCheckRule(ctx context.Context, checkRule model.Check
 		return fmt.Errorf("error converting check rule to JSON: %w", err)
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("Updating check rule with JSON payload: %s", jsonBody))
-
-	// Make the API request with JSON
-	_, err = c.doRequest(ctx, http.MethodPut, u.String(), string(jsonBody))
-	if err != nil {
-		return err
-	}
-
-	tflog.Debug(ctx, fmt.Sprintf("Check rule updated with origin: %s", checkRule.Origin))
-
-	return nil
+	return c.update(ctx, checkRule.Origin.ValueString(), checkRule.Dataset.ValueString(), apiPath, string(jsonBody), "Check Rule")
 }
 
 func (c *dash0Client) DeleteCheckRule(ctx context.Context, origin string, dataset string) error {
 	// Build URL with dataset query parameter
 	apiPath := fmt.Sprintf("/api/alerting/check-rules/%s", origin)
-	u, err := url.Parse(apiPath)
-	if err != nil {
-		return fmt.Errorf("error parsing API path: %w", err)
-	}
-
-	// Add dataset as a query parameter
-	q := u.Query()
-	q.Set("dataset", dataset)
-	u.RawQuery = q.Encode()
-
-	tflog.Debug(ctx, fmt.Sprintf("Deleting check rule in dataset: %s", dataset))
-
-	// Make the API request
-	_, err = c.doRequest(ctx, http.MethodDelete, u.String(), "")
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return c.delete(ctx, origin, dataset, apiPath, "Check Rule")
 }
