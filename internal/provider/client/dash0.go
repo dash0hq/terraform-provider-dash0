@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -80,4 +81,96 @@ func (c *dash0Client) doRequest(ctx context.Context, method, path string, body s
 	}
 
 	return respBody, nil
+}
+
+func (c *dash0Client) create(ctx context.Context, dataset string, apiPath string, jsonBody string, resourceName string) error {
+	u, err := url.Parse(apiPath)
+	if err != nil {
+		return fmt.Errorf("error parsing API path: %w", err)
+	}
+
+	// Add dataset as a query parameter
+	q := u.Query()
+	q.Set("dataset", dataset)
+	u.RawQuery = q.Encode()
+
+	tflog.Debug(ctx, fmt.Sprintf("Creating %s with JSON payload: %s", resourceName, jsonBody))
+
+	// Make the API request with JSON
+	resp, err := c.doRequest(ctx, http.MethodPut, u.String(), jsonBody)
+	if err != nil {
+		return err
+	}
+
+	tflog.Debug(ctx, fmt.Sprintf("%s created. Got API response: %s", resourceName, resp))
+	return nil
+}
+
+func (c *dash0Client) update(ctx context.Context, origin string, dataset string, apiPath string, jsonBody string, resourceName string) error {
+	u, err := url.Parse(apiPath)
+	if err != nil {
+		return fmt.Errorf("error parsing API path: %w", err)
+	}
+
+	// Add dataset as a query parameter
+	q := u.Query()
+	q.Set("dataset", dataset)
+	u.RawQuery = q.Encode()
+
+	tflog.Debug(ctx, fmt.Sprintf("Updating %s in %s with JSON payload: %s", resourceName, dataset, jsonBody))
+
+	// Make the API request with JSON
+	_, err = c.doRequest(ctx, http.MethodPut, u.String(), jsonBody)
+	if err != nil {
+		return err
+	}
+
+	tflog.Debug(ctx, fmt.Sprintf("%s updated with origin: %s", resourceName, origin))
+	return nil
+}
+
+func (c *dash0Client) get(ctx context.Context, origin string, dataset string, apiPath string, resourceName string) ([]byte, error) {
+	u, err := url.Parse(apiPath)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing API path: %w", err)
+	}
+
+	// Add dataset as a query parameter
+	q := u.Query()
+	q.Set("dataset", dataset)
+	u.RawQuery = q.Encode()
+
+	resp, err := c.doRequest(ctx, http.MethodGet, u.String(), "")
+	if err != nil {
+		return nil, err
+	}
+
+	tflog.Debug(ctx, fmt.Sprintf("%s retrieved with origin: %s", resourceName, origin))
+
+	return resp, nil
+}
+
+func (c *dash0Client) delete(ctx context.Context, origin string, dataset string, apiPath string, resourceName string) error {
+	// Build URL with dataset query parameter
+	u, err := url.Parse(apiPath)
+	if err != nil {
+		return fmt.Errorf("error parsing API path: %w", err)
+	}
+
+	// Add dataset as a query parameter
+	q := u.Query()
+	q.Set("dataset", dataset)
+	u.RawQuery = q.Encode()
+
+	tflog.Debug(ctx, fmt.Sprintf("Deleting %s in dataset: %s", resourceName, dataset))
+
+	// Make the API request
+	_, err = c.doRequest(ctx, http.MethodDelete, u.String(), "")
+	if err != nil {
+		return err
+	}
+
+	tflog.Debug(ctx, fmt.Sprintf("%s deleted with origin: %s", resourceName, origin))
+
+	return nil
 }
