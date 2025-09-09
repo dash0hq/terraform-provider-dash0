@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/dash0/terraform-provider-dash0/internal/converter"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -24,7 +25,7 @@ func (c *dash0Client) CreateSyntheticCheck(ctx context.Context, check syntheticC
 	u.RawQuery = q.Encode()
 
 	// Convert YAML to JSON
-	jsonBody, err := ConvertYAMLToJSON(check.SyntheticCheckYaml.ValueString())
+	jsonBody, err := converter.ConvertYAMLToJSON(check.SyntheticCheckYaml.ValueString())
 	if err != nil {
 		return fmt.Errorf("error converting synthetic check YAML to JSON: %w", err)
 	}
@@ -85,7 +86,7 @@ func (c *dash0Client) UpdateSyntheticCheck(ctx context.Context, check syntheticC
 	tflog.Debug(ctx, fmt.Sprintf("Updating synthetic check in dataset: %s", dataset))
 
 	// Convert YAML to JSON
-	jsonBody, err := ConvertYAMLToJSON(check.SyntheticCheckYaml.ValueString())
+	jsonBody, err := converter.ConvertYAMLToJSON(check.SyntheticCheckYaml.ValueString())
 	if err != nil {
 		return fmt.Errorf("error converting synthetic check YAML to JSON: %w", err)
 	}

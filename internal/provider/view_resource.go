@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dash0/terraform-provider-dash0/internal/converter"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
@@ -140,7 +141,7 @@ func (r *viewResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	// Compare the current state with the retrieved view
 	// Only update state if there's a significant change (ignoring certain fields)
 	if state.ViewYaml.ValueString() != "" {
-		equivalent, err := ResourceYAMLEquivalent(state.ViewYaml.ValueString(), check.ViewYaml.ValueString())
+		equivalent, err := converter.ResourceYAMLEquivalent(state.ViewYaml.ValueString(), check.ViewYaml.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"View Comparison Error",

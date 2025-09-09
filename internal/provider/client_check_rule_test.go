@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/dash0/terraform-provider-dash0/internal/converter"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +35,7 @@ spec:
             severity: warning`
 
 	// Convert YAML to expected JSON for requests (this will use the converter)
-	dash0CheckRule, err := convertPromYAMLToDash0CheckRule(testYaml, testDataset)
+	dash0CheckRule, err := converter.ConvertPromYAMLToDash0CheckRule(testYaml, testDataset)
 	require.NoError(t, err)
 	expectedJSON, err := json.Marshal(dash0CheckRule)
 	require.NoError(t, err)

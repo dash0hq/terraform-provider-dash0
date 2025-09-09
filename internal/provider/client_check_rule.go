@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/dash0/terraform-provider-dash0/internal/converter"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"gopkg.in/yaml.v3"
@@ -25,7 +26,7 @@ func (c *dash0Client) CreateCheckRule(ctx context.Context, checkRule checkRuleRe
 	q.Set("dataset", checkRule.Dataset.ValueString())
 	u.RawQuery = q.Encode()
 
-	dash0CheckRule, err := convertPromYAMLToDash0CheckRule(checkRule.CheckRuleYaml.ValueString(), checkRule.Dataset.ValueString())
+	dash0CheckRule, err := converter.ConvertPromYAMLToDash0CheckRule(checkRule.CheckRuleYaml.ValueString(), checkRule.Dataset.ValueString())
 	if err != nil {
 		return err
 	}
@@ -63,7 +64,7 @@ func (c *dash0Client) GetCheckRule(ctx context.Context, dataset string, origin s
 	if err != nil {
 		return nil, err
 	}
-	promRule, err := convertDash0JSONtoPrometheusRules(string(resp))
+	promRule, err := converter.ConvertDash0JSONtoPrometheusRules(string(resp))
 	if err != nil {
 		return nil, fmt.Errorf("error converting check rule to Prometheus format: %w", err)
 	}
@@ -71,7 +72,7 @@ func (c *dash0Client) GetCheckRule(ctx context.Context, dataset string, origin s
 	if err != nil {
 		return nil, fmt.Errorf("error converting check rule to YAML: %w", err)
 	}
-	normalizedYAML, err := NormalizeYAML(string(promRuleYaml))
+	normalizedYAML, err := converter.NormalizeYAML(string(promRuleYaml))
 	if err != nil {
 		return nil, fmt.Errorf("error normalizing check rule YAML: %w", err)
 	}
@@ -102,7 +103,7 @@ func (c *dash0Client) UpdateCheckRule(ctx context.Context, checkRule checkRuleRe
 	tflog.Debug(ctx, fmt.Sprintf("Updating check rule in dataset: %s", dataset))
 
 	// Convert Prometheus YAML to Dash0 format
-	dash0Checkrule, err := convertPromYAMLToDash0CheckRule(checkRule.CheckRuleYaml.ValueString(), dataset)
+	dash0Checkrule, err := converter.ConvertPromYAMLToDash0CheckRule(checkRule.CheckRuleYaml.ValueString(), dataset)
 	if err != nil {
 		return fmt.Errorf("error converting check rule YAML to Dash0 format: %w", err)
 	}

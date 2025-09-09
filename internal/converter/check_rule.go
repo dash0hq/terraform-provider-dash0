@@ -1,4 +1,4 @@
-package provider
+package converter
 
 import (
 	"encoding/json"
@@ -6,11 +6,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dash0/terraform-provider-dash0/internal/types"
 	"gopkg.in/yaml.v3"
 )
 
-func convertDash0JSONtoPrometheusRules(dash0CheckRuleJson string) (*PrometheusRules, error) {
-	var dash0CheckRule Dash0CheckRule
+func ConvertDash0JSONtoPrometheusRules(dash0CheckRuleJson string) (*types.PrometheusRules, error) {
+	var dash0CheckRule types.Dash0CheckRule
 	if err := json.Unmarshal([]byte(dash0CheckRuleJson), &dash0CheckRule); err != nil {
 		return nil, fmt.Errorf("error parsing resource JSON: %w", err)
 	}
@@ -26,7 +27,7 @@ func convertDash0JSONtoPrometheusRules(dash0CheckRuleJson string) (*PrometheusRu
 		alertName = dash0CheckRule.Name
 	}
 
-	promRule := PrometheusRule{
+	promRule := types.PrometheusRule{
 		Alert:         alertName,
 		Expr:          dash0CheckRule.Expression,
 		For:           dash0CheckRule.For,
@@ -48,16 +49,16 @@ func convertDash0JSONtoPrometheusRules(dash0CheckRuleJson string) (*PrometheusRu
 		promRule.Annotations["dash0-threshold-degraded"] = strconv.Itoa(dash0CheckRule.Thresholds.Degraded)
 	}
 
-	promRules := &PrometheusRules{
+	promRules := &types.PrometheusRules{
 		APIVersion: "monitoring.coreos.com/v1",
 		Kind:       "PrometheusRule",
 		Metadata:   map[string]string{},
-		Spec: PrometheusRulesSpec{
-			Groups: []PrometheusRulesGroup{
+		Spec: types.PrometheusRulesSpec{
+			Groups: []types.PrometheusRulesGroup{
 				{
 					Name:     groupName,
 					Interval: dash0CheckRule.Interval,
-					Rules:    []PrometheusRule{promRule},
+					Rules:    []types.PrometheusRule{promRule},
 				},
 			},
 		},
@@ -65,8 +66,8 @@ func convertDash0JSONtoPrometheusRules(dash0CheckRuleJson string) (*PrometheusRu
 	return promRules, nil
 }
 
-func convertPromYAMLToDash0CheckRule(promRuleYaml string, dataset string) (*Dash0CheckRule, error) {
-	var promRule PrometheusRules
+func ConvertPromYAMLToDash0CheckRule(promRuleYaml string, dataset string) (*types.Dash0CheckRule, error) {
+	var promRule types.PrometheusRules
 	if err := yaml.Unmarshal([]byte(promRuleYaml), &promRule); err != nil {
 		return nil, fmt.Errorf("error parsing resource YAML: %w", err)
 	}
@@ -82,7 +83,7 @@ func convertPromYAMLToDash0CheckRule(promRuleYaml string, dataset string) (*Dash
 	rule := group.Rules[0]
 
 	name := fmt.Sprintf("%s - %s", group.Name, rule.Alert)
-	dash0CheckRule := &Dash0CheckRule{
+	dash0CheckRule := &types.Dash0CheckRule{
 		Name:          name,
 		Interval:      group.Interval,
 		Annotations:   rule.Annotations,
@@ -90,7 +91,7 @@ func convertPromYAMLToDash0CheckRule(promRuleYaml string, dataset string) (*Dash
 		For:           rule.For,
 		Expression:    rule.Expr,
 		KeepFiringFor: rule.KeepFiringFor,
-		Thresholds:    Dash0CheckRuleThresholds{},
+		Thresholds:    types.Dash0CheckRuleThresholds{},
 		Enabled:       true,
 		Dataset:       dataset,
 	}

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/dash0/terraform-provider-dash0/internal/converter"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -24,7 +25,7 @@ func (c *dash0Client) CreateView(ctx context.Context, check viewResourceModel) e
 	u.RawQuery = q.Encode()
 
 	// Convert YAML to JSON
-	jsonBody, err := ConvertYAMLToJSON(check.ViewYaml.ValueString())
+	jsonBody, err := converter.ConvertYAMLToJSON(check.ViewYaml.ValueString())
 	if err != nil {
 		return fmt.Errorf("error converting view YAML to JSON: %w", err)
 	}
@@ -83,7 +84,7 @@ func (c *dash0Client) UpdateView(ctx context.Context, check viewResourceModel) e
 	tflog.Debug(ctx, fmt.Sprintf("Updating view in dataset: %s", dataset))
 
 	// Convert YAML to JSON
-	jsonBody, err := ConvertYAMLToJSON(check.ViewYaml.ValueString())
+	jsonBody, err := converter.ConvertYAMLToJSON(check.ViewYaml.ValueString())
 	if err != nil {
 		return fmt.Errorf("error converting view YAML to JSON: %w", err)
 	}

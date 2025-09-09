@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/dash0/terraform-provider-dash0/internal/converter"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -24,11 +25,11 @@ func (c *dash0Client) CreateDashboard(ctx context.Context, dashboard dashboardRe
 	u.RawQuery = q.Encode()
 
 	// Convert YAML to JSON
-	jsonBody, err := ConvertYAMLToJSON(dashboard.DashboardYaml.ValueString())
+	jsonBody, err := converter.ConvertYAMLToJSON(dashboard.DashboardYaml.ValueString())
 	if err != nil {
 		return fmt.Errorf("error converting dashboard YAML to JSON: %w", err)
 	}
-	
+
 	tflog.Debug(ctx, fmt.Sprintf("Creating dashboard with JSON payload: %s", jsonBody))
 
 	// Make the API request with JSON
@@ -85,11 +86,11 @@ func (c *dash0Client) UpdateDashboard(ctx context.Context, dashboard dashboardRe
 	tflog.Debug(ctx, fmt.Sprintf("Updating dashboard in dataset: %s", dataset))
 
 	// Convert YAML to JSON
-	jsonBody, err := ConvertYAMLToJSON(dashboard.DashboardYaml.ValueString())
+	jsonBody, err := converter.ConvertYAMLToJSON(dashboard.DashboardYaml.ValueString())
 	if err != nil {
 		return fmt.Errorf("error converting dashboard YAML to JSON: %w", err)
 	}
-	
+
 	tflog.Debug(ctx, fmt.Sprintf("Updating dashboard with JSON payload: %s", jsonBody))
 
 	// Make the API request with JSON

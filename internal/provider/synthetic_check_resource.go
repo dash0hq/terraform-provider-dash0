@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dash0/terraform-provider-dash0/internal/converter"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
@@ -140,7 +141,7 @@ func (r *syntheticCheckResource) Read(ctx context.Context, req resource.ReadRequ
 	// Compare the current state with the retrieved synthetic check
 	// Only update state if there's a significant change (ignoring certain fields)
 	if state.SyntheticCheckYaml.ValueString() != "" {
-		equivalent, err := ResourceYAMLEquivalent(state.SyntheticCheckYaml.ValueString(), check.SyntheticCheckYaml.ValueString())
+		equivalent, err := converter.ResourceYAMLEquivalent(state.SyntheticCheckYaml.ValueString(), check.SyntheticCheckYaml.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Synthetic Check Comparison Error",
