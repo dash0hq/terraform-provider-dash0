@@ -7,11 +7,12 @@ import (
 	"net/url"
 
 	"github.com/dash0/terraform-provider-dash0/internal/converter"
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-func (c *dash0Client) CreateSyntheticCheck(ctx context.Context, check syntheticCheckResourceModel) error {
+func (c *dash0Client) CreateSyntheticCheck(ctx context.Context, check model.SyntheticCheckResourceModel) error {
 	// Build URL with dataset query parameter
 	apiPath := fmt.Sprintf("/api/synthetic-checks/%s", check.Origin.ValueString())
 	u, err := url.Parse(apiPath)
@@ -43,7 +44,7 @@ func (c *dash0Client) CreateSyntheticCheck(ctx context.Context, check syntheticC
 	return nil
 }
 
-func (c *dash0Client) GetSyntheticCheck(ctx context.Context, dataset string, origin string) (*syntheticCheckResourceModel, error) {
+func (c *dash0Client) GetSyntheticCheck(ctx context.Context, dataset string, origin string) (*model.SyntheticCheckResourceModel, error) {
 	apiPath := fmt.Sprintf("/api/synthetic-checks/%s", origin)
 	u, err := url.Parse(apiPath)
 	if err != nil {
@@ -60,7 +61,7 @@ func (c *dash0Client) GetSyntheticCheck(ctx context.Context, dataset string, ori
 		return nil, err
 	}
 
-	check := &syntheticCheckResourceModel{
+	check := &model.SyntheticCheckResourceModel{
 		Origin:             types.StringValue(origin),
 		Dataset:            types.StringValue(dataset),
 		SyntheticCheckYaml: types.StringValue(string(resp)),
@@ -68,7 +69,7 @@ func (c *dash0Client) GetSyntheticCheck(ctx context.Context, dataset string, ori
 	return check, nil
 }
 
-func (c *dash0Client) UpdateSyntheticCheck(ctx context.Context, check syntheticCheckResourceModel) error {
+func (c *dash0Client) UpdateSyntheticCheck(ctx context.Context, check model.SyntheticCheckResourceModel) error {
 	dataset := check.Dataset.ValueString()
 
 	// Build URL with dataset query parameter

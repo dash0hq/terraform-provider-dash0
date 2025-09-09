@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -15,11 +16,11 @@ import (
 // Custom mock client implementation for this test
 type testDashboardClient struct {
 	dash0ClientInterface
-	getResponse *dashboardResourceModel
+	getResponse *model.DashboardResourceModel
 	getError    error
 }
 
-func (c *testDashboardClient) GetDashboard(_ context.Context, _, _ string) (*dashboardResourceModel, error) {
+func (c *testDashboardClient) GetDashboard(_ context.Context, _, _ string) (*model.DashboardResourceModel, error) {
 	return c.getResponse, c.getError
 }
 
@@ -27,7 +28,7 @@ func TestDashboardResource_ReadWithDiffs(t *testing.T) {
 	// Create test data
 	testOrigin := "test-dashboard"
 	testDataset := "test-dataset"
-	
+
 	// Original dashboard YAML in state
 	originalYaml := `
 kind: Dashboard
@@ -39,13 +40,13 @@ spec:
   title: Test Dashboard
   description: Original description
 `
-	
+
 	// Test cases for different types of API responses
 	tests := []struct {
-		name               string
-		apiResponseYaml    string
-		expectYamlUpdated  bool
-		expectWarning      bool
+		name              string
+		apiResponseYaml   string
+		expectYamlUpdated bool
+		expectWarning     bool
 	}{
 		{
 			name: "metadata changes only - no significant diff",
@@ -63,7 +64,7 @@ spec:
   description: Original description
 `,
 			expectYamlUpdated: false,
-			expectWarning: false,
+			expectWarning:     false,
 		},
 		{
 			name: "significant changes - should update state",
@@ -79,16 +80,16 @@ spec:
   description: Updated description
 `,
 			expectYamlUpdated: true,
-			expectWarning: false,
+			expectWarning:     false,
 		},
 		{
-			name: "invalid YAML response - should update and warn",
-			apiResponseYaml: "invalid: : yaml: that: will: fail",
+			name:              "invalid YAML response - should update and warn",
+			apiResponseYaml:   "invalid: : yaml: that: will: fail",
 			expectYamlUpdated: true,
-			expectWarning: true,
+			expectWarning:     true,
 		},
 	}
-	
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create the test schema
@@ -105,19 +106,19 @@ spec:
 					},
 				},
 			}
-			
+
 			// Create a test client
 			testClient := &testDashboardClient{
-				getResponse: &dashboardResourceModel{
+				getResponse: &model.DashboardResourceModel{
 					Origin:        types.StringValue(testOrigin),
 					Dataset:       types.StringValue(testDataset),
 					DashboardYaml: types.StringValue(tc.apiResponseYaml),
 				},
 			}
-			
+
 			// Create the resource with the test client
-			r := &dashboardResource{client: testClient}
-			
+			r := &DashboardResource{client: testClient}
+
 			// Create the state object
 			raw := tftypes.NewValue(
 				tftypes.Object{
@@ -133,38 +134,38 @@ spec:
 					"dashboard_yaml": tftypes.NewValue(tftypes.String, originalYaml),
 				},
 			)
-			
+
 			// Create the request state
 			state := tfsdk.State{
 				Raw:    raw,
 				Schema: testSchema,
 			}
-			
+
 			// Create the request
 			req := resource.ReadRequest{
 				State: state,
 			}
-			
+
 			// Create the response with a copy of the state
 			resp := resource.ReadResponse{
 				State: state,
 			}
-			
+
 			// Call the Read function
 			ctx := context.Background()
 			r.Read(ctx, req, &resp)
-			
+
 			// Extract the resulting state
-			var resultState dashboardResourceModel
+			var resultState model.DashboardResourceModel
 			resp.State.Get(ctx, &resultState)
-			
+
 			// Check if the result matches expectations
 			if tc.expectYamlUpdated {
 				assert.Equal(t, tc.apiResponseYaml, resultState.DashboardYaml.ValueString())
 			} else {
 				assert.Equal(t, originalYaml, resultState.DashboardYaml.ValueString())
 			}
-			
+
 			// Check for warnings
 			hasWarnings := resp.Diagnostics.WarningsCount() > 0
 			assert.Equal(t, tc.expectWarning, hasWarnings)

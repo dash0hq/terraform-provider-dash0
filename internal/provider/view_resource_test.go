@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -16,7 +17,7 @@ import (
 )
 
 func TestViewResource_Metadata(t *testing.T) {
-	r := &viewResource{}
+	r := &ViewResource{}
 	resp := &resource.MetadataResponse{}
 	r.Metadata(context.Background(), resource.MetadataRequest{ProviderTypeName: "dash0"}, resp)
 
@@ -24,7 +25,7 @@ func TestViewResource_Metadata(t *testing.T) {
 }
 
 func TestViewResource_Schema(t *testing.T) {
-	r := &viewResource{}
+	r := &ViewResource{}
 	resp := &resource.SchemaResponse{}
 	r.Schema(context.Background(), resource.SchemaRequest{}, resp)
 
@@ -43,7 +44,7 @@ func TestViewResource_Schema(t *testing.T) {
 }
 
 func TestViewResource_Configure(t *testing.T) {
-	r := &viewResource{}
+	r := &ViewResource{}
 	client := &MockClient{}
 
 	// Test with nil provider data
@@ -66,7 +67,7 @@ func TestViewResource_Configure(t *testing.T) {
 
 func TestViewResource_Create(t *testing.T) {
 	mockClient := new(MockClient)
-	r := &viewResource{client: mockClient}
+	r := &ViewResource{client: mockClient}
 
 	// Setup test data
 	testYaml := "kind: View\nmetadata:\n  name: example-view\nspec:\n  title: Example View"
@@ -120,7 +121,7 @@ func TestViewResource_Create(t *testing.T) {
 
 func TestViewResource_Read(t *testing.T) {
 	mockClient := new(MockClient)
-	r := &viewResource{client: mockClient}
+	r := &ViewResource{client: mockClient}
 
 	// Setup test data
 	testOrigin := "test-origin"
@@ -162,7 +163,7 @@ func TestViewResource_Read(t *testing.T) {
 
 	// Setup mock expectations for the read operation
 	mockClient.On("GetView", mock.Anything, testDataset, testOrigin).Return(
-		&viewResourceModel{
+		&model.ViewResourceModel{
 			Origin:   types.StringValue(testOrigin),
 			Dataset:  types.StringValue(testDataset),
 			ViewYaml: types.StringValue(testYaml),
@@ -178,7 +179,7 @@ func TestViewResource_Read(t *testing.T) {
 	assert.False(t, resp.Diagnostics.HasError())
 
 	// Create a new state object to verify
-	var resultState viewResourceModel
+	var resultState model.ViewResourceModel
 	diags := resp.State.Get(context.Background(), &resultState)
 	require.False(t, diags.HasError(), "state cannot be unmarshalled")
 
@@ -188,7 +189,7 @@ func TestViewResource_Read(t *testing.T) {
 
 	// Test with API error
 	mockClient = new(MockClient)
-	r = &viewResource{client: mockClient}
+	r = &ViewResource{client: mockClient}
 	mockClient.On("GetView", mock.Anything, testDataset, testOrigin).Return(
 		nil,
 		errors.New("API error"),
@@ -216,7 +217,7 @@ func TestViewResource_Update(t *testing.T) {
 	// Test 1: Update view YAML only (no dataset change)
 	t.Run("update yaml only", func(t *testing.T) {
 		mockClient := new(MockClient)
-		r := &viewResource{client: mockClient}
+		r := &ViewResource{client: mockClient}
 
 		// Create state
 		state := tfsdk.State{
@@ -260,9 +261,9 @@ func TestViewResource_Update(t *testing.T) {
 		}
 
 		// Setup mock expectations - UpdateView should be called
-		mockClient.On("UpdateView", mock.Anything, mock.MatchedBy(func(model viewResourceModel) bool {
-			return model.Origin.ValueString() == testOrigin &&
-				model.Dataset.ValueString() == testDataset
+		mockClient.On("UpdateView", mock.Anything, mock.MatchedBy(func(m model.ViewResourceModel) bool {
+			return m.Origin.ValueString() == testOrigin &&
+				m.Dataset.ValueString() == testDataset
 		})).Return(nil)
 
 		// Execute the update operation
@@ -276,7 +277,7 @@ func TestViewResource_Update(t *testing.T) {
 	// Test 2: Change dataset (should delete and recreate)
 	t.Run("change dataset", func(t *testing.T) {
 		mockClient := new(MockClient)
-		r := &viewResource{client: mockClient}
+		r := &ViewResource{client: mockClient}
 
 		// Create state
 		state := tfsdk.State{
@@ -321,9 +322,9 @@ func TestViewResource_Update(t *testing.T) {
 
 		// Setup mock expectations - DeleteView followed by CreateView
 		mockClient.On("DeleteView", mock.Anything, testOrigin, testDataset).Return(nil)
-		mockClient.On("CreateView", mock.Anything, mock.MatchedBy(func(model viewResourceModel) bool {
-			return model.Origin.ValueString() == testOrigin &&
-				model.Dataset.ValueString() == newDataset
+		mockClient.On("CreateView", mock.Anything, mock.MatchedBy(func(viewModel model.ViewResourceModel) bool {
+			return viewModel.Origin.ValueString() == testOrigin &&
+				viewModel.Dataset.ValueString() == newDataset
 		})).Return(nil)
 
 		// Execute the update operation
@@ -337,7 +338,7 @@ func TestViewResource_Update(t *testing.T) {
 	// Test 3: Invalid YAML
 	t.Run("invalid yaml", func(t *testing.T) {
 		mockClient := new(MockClient)
-		r := &viewResource{client: mockClient}
+		r := &ViewResource{client: mockClient}
 		_ = r
 
 		// Create state
@@ -391,7 +392,7 @@ func TestViewResource_Update(t *testing.T) {
 
 func TestViewResource_Delete(t *testing.T) {
 	mockClient := new(MockClient)
-	r := &viewResource{client: mockClient}
+	r := &ViewResource{client: mockClient}
 
 	// Setup test data
 	testOrigin := "test-origin"
@@ -438,7 +439,7 @@ func TestViewResource_Delete(t *testing.T) {
 
 	// Test with API error
 	mockClient = new(MockClient)
-	r = &viewResource{client: mockClient}
+	r = &ViewResource{client: mockClient}
 	mockClient.On("DeleteView", mock.Anything, testOrigin, testDataset).Return(errors.New("API error"))
 
 	resp = resource.DeleteResponse{}

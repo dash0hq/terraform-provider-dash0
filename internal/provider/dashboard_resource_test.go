@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -16,7 +17,7 @@ import (
 )
 
 func TestDashboardResource_Metadata(t *testing.T) {
-	r := &dashboardResource{}
+	r := &DashboardResource{}
 	resp := &resource.MetadataResponse{}
 	r.Metadata(context.Background(), resource.MetadataRequest{ProviderTypeName: "dash0"}, resp)
 
@@ -24,7 +25,7 @@ func TestDashboardResource_Metadata(t *testing.T) {
 }
 
 func TestDashboardResource_Schema(t *testing.T) {
-	r := &dashboardResource{}
+	r := &DashboardResource{}
 	resp := &resource.SchemaResponse{}
 	r.Schema(context.Background(), resource.SchemaRequest{}, resp)
 
@@ -43,7 +44,7 @@ func TestDashboardResource_Schema(t *testing.T) {
 }
 
 func TestDashboardResource_Configure(t *testing.T) {
-	r := &dashboardResource{}
+	r := &DashboardResource{}
 	client := &MockClient{}
 
 	// Test with nil provider data
@@ -66,7 +67,7 @@ func TestDashboardResource_Configure(t *testing.T) {
 
 func TestDashboardResource_Create(t *testing.T) {
 	mockClient := new(MockClient)
-	r := &dashboardResource{client: mockClient}
+	r := &DashboardResource{client: mockClient}
 
 	// Setup test data
 	testYaml := "kind: Dashboard\nmetadata:\n  name: system-overview\nspec:\n  title: System Overview"
@@ -121,7 +122,7 @@ func TestDashboardResource_Create(t *testing.T) {
 
 func TestDashboardResource_Read(t *testing.T) {
 	mockClient := new(MockClient)
-	r := &dashboardResource{client: mockClient}
+	r := &DashboardResource{client: mockClient}
 
 	// Setup test data
 	testOrigin := "test-origin"
@@ -164,7 +165,7 @@ func TestDashboardResource_Read(t *testing.T) {
 
 	// Setup mock expectations for the read operation
 	mockClient.On("GetDashboard", mock.Anything, testDataset, testOrigin).Return(
-		&dashboardResourceModel{
+		&model.DashboardResourceModel{
 			Origin:        types.StringValue(testOrigin),
 			Dataset:       types.StringValue(testDataset),
 			DashboardYaml: types.StringValue(testYaml),
@@ -180,7 +181,7 @@ func TestDashboardResource_Read(t *testing.T) {
 	assert.False(t, resp.Diagnostics.HasError())
 
 	// Create a new state object to verify
-	var resultState dashboardResourceModel
+	var resultState model.DashboardResourceModel
 	diags := resp.State.Get(context.Background(), &resultState)
 	require.False(t, diags.HasError(), "state cannot be unmarshalled")
 
@@ -190,7 +191,7 @@ func TestDashboardResource_Read(t *testing.T) {
 
 	// Test with API error
 	mockClient = new(MockClient)
-	r = &dashboardResource{client: mockClient}
+	r = &DashboardResource{client: mockClient}
 	mockClient.On("GetDashboard", mock.Anything, testDataset, testOrigin).Return(
 		nil,
 		errors.New("API error"),
@@ -218,7 +219,7 @@ func TestDashboardResource_Update(t *testing.T) {
 	// Test 1: Update dashboard YAML only (no dataset change)
 	t.Run("update yaml only", func(t *testing.T) {
 		mockClient := new(MockClient)
-		r := &dashboardResource{client: mockClient}
+		r := &DashboardResource{client: mockClient}
 
 		// Create state
 		state := tfsdk.State{
@@ -262,9 +263,9 @@ func TestDashboardResource_Update(t *testing.T) {
 		}
 
 		// Setup mock expectations - UpdateDashboard should be called
-		mockClient.On("UpdateDashboard", mock.Anything, mock.MatchedBy(func(model dashboardResourceModel) bool {
-			return model.Origin.ValueString() == testOrigin &&
-				model.Dataset.ValueString() == testDataset
+		mockClient.On("UpdateDashboard", mock.Anything, mock.MatchedBy(func(dashboardModel model.DashboardResourceModel) bool {
+			return dashboardModel.Origin.ValueString() == testOrigin &&
+				dashboardModel.Dataset.ValueString() == testDataset
 		})).Return(nil)
 
 		// Execute the update operation
@@ -278,7 +279,7 @@ func TestDashboardResource_Update(t *testing.T) {
 	// Test 2: Change dataset (should delete and recreate)
 	t.Run("change dataset", func(t *testing.T) {
 		mockClient := new(MockClient)
-		r := &dashboardResource{client: mockClient}
+		r := &DashboardResource{client: mockClient}
 
 		// Create state
 		state := tfsdk.State{
@@ -323,9 +324,9 @@ func TestDashboardResource_Update(t *testing.T) {
 
 		// Setup mock expectations - DeleteDashboard followed by CreateDashboard
 		mockClient.On("DeleteDashboard", mock.Anything, testOrigin, testDataset).Return(nil)
-		mockClient.On("CreateDashboard", mock.Anything, mock.MatchedBy(func(model dashboardResourceModel) bool {
-			return model.Origin.ValueString() == testOrigin &&
-				model.Dataset.ValueString() == newDataset
+		mockClient.On("CreateDashboard", mock.Anything, mock.MatchedBy(func(m model.DashboardResourceModel) bool {
+			return m.Origin.ValueString() == testOrigin &&
+				m.Dataset.ValueString() == newDataset
 		})).Return(nil)
 
 		// Execute the update operation
@@ -339,7 +340,7 @@ func TestDashboardResource_Update(t *testing.T) {
 	// Test 3: Invalid YAML
 	t.Run("invalid yaml", func(t *testing.T) {
 		mockClient := new(MockClient)
-		r := &dashboardResource{client: mockClient}
+		r := &DashboardResource{client: mockClient}
 		_ = r
 
 		// Create state
@@ -393,7 +394,7 @@ func TestDashboardResource_Update(t *testing.T) {
 
 func TestDashboardResource_Delete(t *testing.T) {
 	mockClient := new(MockClient)
-	r := &dashboardResource{client: mockClient}
+	r := &DashboardResource{client: mockClient}
 
 	// Setup test data
 	testOrigin := "test-origin"
@@ -440,7 +441,7 @@ func TestDashboardResource_Delete(t *testing.T) {
 
 	// Test with API error
 	mockClient = new(MockClient)
-	r = &dashboardResource{client: mockClient}
+	r = &DashboardResource{client: mockClient}
 	mockClient.On("DeleteDashboard", mock.Anything, testOrigin, testDataset).Return(errors.New("API error"))
 
 	resp = resource.DeleteResponse{}

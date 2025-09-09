@@ -7,11 +7,12 @@ import (
 	"net/url"
 
 	"github.com/dash0/terraform-provider-dash0/internal/converter"
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-func (c *dash0Client) CreateView(ctx context.Context, check viewResourceModel) error {
+func (c *dash0Client) CreateView(ctx context.Context, check model.ViewResourceModel) error {
 	// Build URL with dataset query parameter
 	apiPath := fmt.Sprintf("/api/views/%s", check.Origin.ValueString())
 	u, err := url.Parse(apiPath)
@@ -42,7 +43,7 @@ func (c *dash0Client) CreateView(ctx context.Context, check viewResourceModel) e
 
 	return nil
 }
-func (c *dash0Client) GetView(ctx context.Context, dataset string, origin string) (*viewResourceModel, error) {
+func (c *dash0Client) GetView(ctx context.Context, dataset string, origin string) (*model.ViewResourceModel, error) {
 	apiPath := fmt.Sprintf("/api/views/%s", origin)
 	u, err := url.Parse(apiPath)
 	if err != nil {
@@ -59,14 +60,14 @@ func (c *dash0Client) GetView(ctx context.Context, dataset string, origin string
 		return nil, err
 	}
 
-	check := &viewResourceModel{
+	check := &model.ViewResourceModel{
 		Origin:   types.StringValue(origin),
 		Dataset:  types.StringValue(dataset),
 		ViewYaml: types.StringValue(string(resp)),
 	}
 	return check, nil
 }
-func (c *dash0Client) UpdateView(ctx context.Context, check viewResourceModel) error {
+func (c *dash0Client) UpdateView(ctx context.Context, check model.ViewResourceModel) error {
 	dataset := check.Dataset.ValueString()
 
 	// Build URL with dataset query parameter

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/dash0/terraform-provider-dash0/internal/converter"
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
@@ -20,29 +21,23 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &checkRuleResource{}
-	_ resource.ResourceWithConfigure   = &checkRuleResource{}
-	_ resource.ResourceWithImportState = &checkRuleResource{}
+	_ resource.Resource                = &CheckRuleResource{}
+	_ resource.ResourceWithConfigure   = &CheckRuleResource{}
+	_ resource.ResourceWithImportState = &CheckRuleResource{}
 )
 
 // NewCheckRuleResource is a helper function to simplify the provider implementation.
 func NewCheckRuleResource() resource.Resource {
-	return &checkRuleResource{}
+	return &CheckRuleResource{}
 }
 
-// checkRuleResource is the resource implementation.
-type checkRuleResource struct {
+// CheckRuleResource is the resource implementation.
+type CheckRuleResource struct {
 	client dash0ClientInterface
 }
 
-type checkRuleResourceModel struct {
-	Origin        types.String `tfsdk:"origin"`
-	Dataset       types.String `tfsdk:"dataset"`
-	CheckRuleYaml types.String `tfsdk:"check_rule_yaml"`
-}
-
 // Configure adds the provider configured client to the resource.
-func (r *checkRuleResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *CheckRuleResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -59,11 +54,11 @@ func (r *checkRuleResource) Configure(_ context.Context, req resource.ConfigureR
 	r.client = client
 }
 
-func (r *checkRuleResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (r *CheckRuleResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_check_rule"
 }
 
-func (r *checkRuleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *CheckRuleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a Dash0 Check Rule (in Prometheus Rule format).",
 		Attributes: map[string]schema.Attribute{
@@ -86,19 +81,19 @@ func (r *checkRuleResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 	}
 }
 
-func (r *checkRuleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var model checkRuleResourceModel
-	diags := req.Plan.Get(ctx, &model)
+func (r *CheckRuleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var checkRuleModel model.CheckRuleResourceModel
+	diags := req.Plan.Get(ctx, &checkRuleModel)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	model.Origin = types.StringValue("tf_" + uuid.New().String())
+	checkRuleModel.Origin = types.StringValue("tf_" + uuid.New().String())
 
 	// Validate YAML format
 	var checkRuleYaml interface{}
-	err := yaml.Unmarshal([]byte(model.CheckRuleYaml.ValueString()), &checkRuleYaml)
+	err := yaml.Unmarshal([]byte(checkRuleModel.CheckRuleYaml.ValueString()), &checkRuleYaml)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Invalid YAML",
@@ -107,7 +102,7 @@ func (r *checkRuleResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	err = r.client.CreateCheckRule(ctx, model)
+	err = r.client.CreateCheckRule(ctx, checkRuleModel)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create check rule, got error: %s", err))
 		return
@@ -116,13 +111,13 @@ func (r *checkRuleResource) Create(ctx context.Context, req resource.CreateReque
 	tflog.Trace(ctx, "created a check rule resource")
 
 	// Set state to fully populated data
-	diags = resp.State.Set(ctx, model)
+	diags = resp.State.Set(ctx, checkRuleModel)
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *checkRuleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *CheckRuleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state checkRuleResourceModel
+	var state model.CheckRuleResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -167,9 +162,9 @@ func (r *checkRuleResource) Read(ctx context.Context, req resource.ReadRequest, 
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *checkRuleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *CheckRuleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Get current state
-	var state checkRuleResourceModel
+	var state model.CheckRuleResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -177,7 +172,7 @@ func (r *checkRuleResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	// Retrieve values from plan
-	var plan checkRuleResourceModel
+	var plan model.CheckRuleResourceModel
 	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -229,9 +224,9 @@ func (r *checkRuleResource) Update(ctx context.Context, req resource.UpdateReque
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *checkRuleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *CheckRuleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Get current state
-	var state checkRuleResourceModel
+	var state model.CheckRuleResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -248,7 +243,7 @@ func (r *checkRuleResource) Delete(ctx context.Context, req resource.DeleteReque
 }
 
 // ImportState function is required for resources that support import
-func (r *checkRuleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *CheckRuleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Expect the import ID in the format "dataset,origin"
 	idParts := strings.Split(req.ID, ",")
 	if len(idParts) != 2 {

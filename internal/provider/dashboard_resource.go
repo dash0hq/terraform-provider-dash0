@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/dash0/terraform-provider-dash0/internal/converter"
+	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
@@ -20,29 +21,23 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &dashboardResource{}
-	_ resource.ResourceWithConfigure   = &dashboardResource{}
-	_ resource.ResourceWithImportState = &dashboardResource{}
+	_ resource.Resource                = &DashboardResource{}
+	_ resource.ResourceWithConfigure   = &DashboardResource{}
+	_ resource.ResourceWithImportState = &DashboardResource{}
 )
 
 // NewDashboardResource is a helper function to simplify the provider implementation.
 func NewDashboardResource() resource.Resource {
-	return &dashboardResource{}
+	return &DashboardResource{}
 }
 
-// dashboardResource is the resource implementation.
-type dashboardResource struct {
+// DashboardResource is the resource implementation.
+type DashboardResource struct {
 	client dash0ClientInterface
 }
 
-type dashboardResourceModel struct {
-	Origin        types.String `tfsdk:"origin"`
-	Dataset       types.String `tfsdk:"dataset"`
-	DashboardYaml types.String `tfsdk:"dashboard_yaml"`
-}
-
 // Configure adds the provider configured client to the resource.
-func (r *dashboardResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *DashboardResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -59,11 +54,11 @@ func (r *dashboardResource) Configure(_ context.Context, req resource.ConfigureR
 	r.client = client
 }
 
-func (r *dashboardResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (r *DashboardResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_dashboard"
 }
 
-func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a Dash0 Dashboard (in Perses format).",
 		Attributes: map[string]schema.Attribute{
@@ -86,8 +81,8 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 	}
 }
 
-func (r *dashboardResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var model dashboardResourceModel
+func (r *DashboardResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var model model.DashboardResourceModel
 	diags := req.Plan.Get(ctx, &model)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -120,9 +115,9 @@ func (r *dashboardResource) Create(ctx context.Context, req resource.CreateReque
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state dashboardResourceModel
+	var state model.DashboardResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -167,9 +162,9 @@ func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *dashboardResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Get current state
-	var state dashboardResourceModel
+	var state model.DashboardResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -177,7 +172,7 @@ func (r *dashboardResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	// Retrieve values from plan
-	var plan dashboardResourceModel
+	var plan model.DashboardResourceModel
 	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -236,8 +231,8 @@ func (r *dashboardResource) Update(ctx context.Context, req resource.UpdateReque
 	resp.Diagnostics.Append(diags...)
 }
 
-func (r *dashboardResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state dashboardResourceModel
+func (r *DashboardResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state model.DashboardResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -254,7 +249,7 @@ func (r *dashboardResource) Delete(ctx context.Context, req resource.DeleteReque
 }
 
 // ImportState function is required for resources that support import
-func (r *dashboardResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *DashboardResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Expect the import ID in the format "origin,dataset"
 	idParts := strings.Split(req.ID, ",")
 	if len(idParts) != 2 {
