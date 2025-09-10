@@ -24,3 +24,7 @@ docs:
 .PHONY: clean
 clean:
 	rm -f terraform-provider-dash0
+
+.PHONY: lint
+lint:
+	golangci-lint run

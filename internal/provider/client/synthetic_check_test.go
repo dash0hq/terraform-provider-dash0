@@ -118,14 +118,16 @@ spec:
 
 				if tt.expectedBody != "" {
 					body := make([]byte, len(tt.expectedBody))
-					r.Body.Read(body)
+					_, err := r.Body.Read(body)
+					assert.ErrorContains(t, err, "EOF")
 					assert.JSONEq(t, tt.expectedBody, string(body))
 				}
 
 				// Send response
 				w.WriteHeader(tt.serverStatus)
 				if tt.serverResponse != "" {
-					w.Write([]byte(tt.serverResponse))
+					_, err := w.Write([]byte(tt.serverResponse))
+					assert.NoError(t, err)
 				}
 			}))
 			defer server.Close()
