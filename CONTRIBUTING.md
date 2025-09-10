@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- [Go](https://golang.org/doc/install) 1.24 or higher
+- [Go](https://golang.org/doc/install) 1.25 or higher
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) 1.5.7 or higher
 
 ## Building
