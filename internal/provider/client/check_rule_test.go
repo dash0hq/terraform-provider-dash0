@@ -455,7 +455,8 @@ spec:
 			// Create a simple test server that always returns 200 OK
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(`{"status":"ok"}`))
+				_, err := w.Write([]byte(`{"status":"ok"}`))
+				assert.NoError(t, err)
 			}))
 			defer server.Close()
 

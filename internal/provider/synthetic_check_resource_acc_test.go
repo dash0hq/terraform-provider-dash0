@@ -129,7 +129,7 @@ func TestAccSyntheticCheckResource(t *testing.T) {
 					testAccCheckSyntheticCheckExists(syntheticCheckResourceName),
 
 					resource.TestCheckResourceAttr(syntheticCheckResourceName, "dataset", "terraform-test"),
-					//resource.TestCheckResourceAttr(syntheticCheckResourceName, "synthetic_check_yaml", basicSyntheticCheckYaml),
+					resource.TestCheckResourceAttr(syntheticCheckResourceName, "synthetic_check_yaml", basicSyntheticCheckYaml),
 					resource.TestCheckResourceAttrSet(syntheticCheckResourceName, "origin"),
 				),
 			},

@@ -69,6 +69,7 @@ func (c *dash0Client) doRequest(ctx context.Context, method, path string, body s
 	if err != nil {
 		return nil, fmt.Errorf("error making request: %w", err)
 	}
+	//nolint:errcheck
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)

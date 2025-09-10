@@ -43,7 +43,11 @@ func NormalizeYAML(yamlStr string) (string, error) {
 	if err := encoder.Encode(parsedYaml); err != nil {
 		return "", fmt.Errorf("error encoding YAML: %w", err)
 	}
-	encoder.Close()
+
+	err := encoder.Close()
+	if err != nil {
+		return "", fmt.Errorf("error closing YAML encoder: %w", err)
+	}
 
 	// Remove the trailing newline that yaml.Marshal adds
 	result := strings.TrimSuffix(buf.String(), "\n")

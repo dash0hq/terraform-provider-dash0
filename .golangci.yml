@@ -1,0 +1,21 @@
+version: "2"
+linters:
+  default: standard
+  enable:
+    - gocritic
+  settings:
+    gocritic:
+      disabled-checks:
+        - ifElseChain
+    staticcheck:
+      checks:
+        - "-QF1003" # disable: "could use tagged switch"
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        # Put imports beginning with prefix after 3rd-party packages.
+        - github.com/dash0hq/
