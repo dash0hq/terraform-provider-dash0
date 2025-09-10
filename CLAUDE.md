@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Code Style Guidelines
 
 - Follow standard Go formatting with `gofmt`
-- Use Go 1.24+ features and conventions
+- Use Go 1.25+ features and conventions
 - Group imports: standard library first, then third-party packages
 - Always handle errors with appropriate context using `fmt.Errorf("message: %w", err)`
 - Use terraform-plugin-framework types (types.String, etc.) for all resource attributes
