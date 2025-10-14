@@ -46,6 +46,7 @@ spec:
           annotations:
             summary: 'Test service is down (updated)'
             description: 'Test service has been down for more than 10 minutes'
+            dash0-enabled: "false"
           labels:
             severity: critical`
 
@@ -63,12 +64,12 @@ func TestAccCheckRuleResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: testAccCheckRuleResourceConfig("default", basicCheckRuleYaml),
+				Config: testAccCheckRuleResourceConfig("terraform-test", basicCheckRuleYaml),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify the check rule exists
 					testAccCheckCheckRuleExists(checkRuleResourceName),
 					// Verify attributes
-					resource.TestCheckResourceAttr(checkRuleResourceName, "dataset", "default"),
+					resource.TestCheckResourceAttr(checkRuleResourceName, "dataset", "terraform-test"),
 					resource.TestCheckResourceAttr(checkRuleResourceName, "check_rule_yaml", basicCheckRuleYaml),
 					resource.TestCheckResourceAttrSet(checkRuleResourceName, "origin"),
 				),
@@ -92,8 +93,8 @@ func TestAccCheckRuleResource(t *testing.T) {
 					}
 
 					// Verify the dataset attribute
-					if dataset := states[0].Attributes["dataset"]; dataset != "default" {
-						return fmt.Errorf("expected dataset 'default', got '%s'", dataset)
+					if dataset := states[0].Attributes["dataset"]; dataset != "terraform-test" {
+						return fmt.Errorf("expected dataset 'terraform-test', got '%s'", dataset)
 					}
 
 					// Verify the check_rule_yaml attribute
@@ -106,10 +107,10 @@ func TestAccCheckRuleResource(t *testing.T) {
 			},
 			// Update testing
 			{
-				Config: testAccCheckRuleResourceConfig("default", updatedCheckRuleYaml),
+				Config: testAccCheckRuleResourceConfig("terraform-test", updatedCheckRuleYaml),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckCheckRuleExists(checkRuleResourceName),
-					resource.TestCheckResourceAttr(checkRuleResourceName, "dataset", "default"),
+					resource.TestCheckResourceAttr(checkRuleResourceName, "dataset", "terraform-test"),
 					resource.TestCheckResourceAttr(checkRuleResourceName, "check_rule_yaml", updatedCheckRuleYaml),
 				),
 			},

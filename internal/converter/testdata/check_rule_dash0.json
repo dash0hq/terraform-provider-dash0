@@ -16,5 +16,5 @@
     "summary": "High error percentage for adservice: {{$value|printf \"%.2f\"}}%",
     "description": "High error percentage for adservice: {{$value|printf \"%.2f\"}}%"
   },
-  "enabled": true
+  "enabled": false
 }
