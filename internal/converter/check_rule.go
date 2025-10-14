@@ -36,6 +36,11 @@ func ConvertDash0JSONtoPrometheusRules(dash0CheckRuleJson string) (*types.Promet
 		Annotations:   dash0CheckRule.Annotations,
 	}
 
+	// explicitly set the annotation only if false, as true is the default
+	if !dash0CheckRule.Enabled {
+		promRule.Annotations["dash0-enabled"] = strconv.FormatBool(false)
+	}
+
 	if dash0CheckRule.Summary != "" {
 		promRule.Annotations["summary"] = dash0CheckRule.Summary
 	}
@@ -92,7 +97,6 @@ func ConvertPromYAMLToDash0CheckRule(promRuleYaml string, dataset string) (*type
 		Expression:    rule.Expr,
 		KeepFiringFor: rule.KeepFiringFor,
 		Thresholds:    types.Dash0CheckRuleThresholds{},
-		Enabled:       true,
 		Dataset:       dataset,
 	}
 
@@ -117,6 +121,18 @@ func ConvertPromYAMLToDash0CheckRule(promRuleYaml string, dataset string) (*type
 		} else {
 			return nil, fmt.Errorf("invalid value for dash0-threshold-degraded: %v", err)
 		}
+	}
+	if enabled, ok := rule.Annotations["dash0-enabled"]; ok {
+		if enabledBool, err := strconv.ParseBool(enabled); err == nil {
+			dash0CheckRule.Enabled = enabledBool
+			delete(dash0CheckRule.Annotations, "dash0-enabled")
+		} else {
+			return nil, fmt.Errorf("invalid value for dash0-enabled: %v", err)
+		}
+
+	} else {
+		// setting default value to true
+		dash0CheckRule.Enabled = true
 	}
 
 	return dash0CheckRule, nil
