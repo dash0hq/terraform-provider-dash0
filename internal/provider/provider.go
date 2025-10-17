@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/dash0/terraform-provider-dash0/internal/provider/client"
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"

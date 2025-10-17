@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dash0/terraform-provider-dash0/internal/converter"
-	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
+	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/dash0/terraform-provider-dash0/internal/provider/client"
-	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"

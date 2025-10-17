@@ -5,7 +5,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/dash0/terraform-provider-dash0/internal/provider"
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )
 

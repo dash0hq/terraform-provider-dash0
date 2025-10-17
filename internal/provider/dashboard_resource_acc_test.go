@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dash0/terraform-provider-dash0/internal/provider/client"
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dash0/terraform-provider-dash0/internal/types"
+	"github.com/dash0hq/terraform-provider-dash0/internal/types"
 	"gopkg.in/yaml.v3"
 )
 

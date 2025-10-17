@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - Build: `make build`
 - Run all tests: `make test`
-- Run specific test: `go test -v github.com/dash0/terraform-provider-dash0/internal/provider -run TestName`
+- Run specific test: `go test -v github.com/dash0hq/terraform-provider-dash0/internal/provider -run TestName`
 - Run tests with Terraform API: `make testacc`
 - Generate docs: `make docs`
 - Clean build artifacts: `make clean`
