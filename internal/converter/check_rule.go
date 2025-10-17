@@ -6,8 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dash0hq/terraform-provider-dash0/internal/types"
 	"gopkg.in/yaml.v3"
+
+	"github.com/dash0hq/terraform-provider-dash0/internal/types"
 )
 
 func ConvertDash0JSONtoPrometheusRules(dash0CheckRuleJson string) (*types.PrometheusRules, error) {

@@ -6,9 +6,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
 
 const viewResourceName = "dash0_view.test"

@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/types"
+
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 func (c *dash0Client) CreateDashboard(ctx context.Context, dashboard model.Dashboard) error {
