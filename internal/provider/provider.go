@@ -4,12 +4,13 @@ import (
 	"context"
 	"os"
 
-	"github.com/dash0/terraform-provider-dash0/internal/provider/client"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
 
 // Ensure the implementation satisfies the expected interfaces

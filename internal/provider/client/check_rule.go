@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/dash0/terraform-provider-dash0/internal/converter"
-	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"gopkg.in/yaml.v3"
+
+	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
 func (c *dash0Client) CreateCheckRule(ctx context.Context, checkRule model.CheckRule) error {

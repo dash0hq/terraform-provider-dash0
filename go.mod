@@ -1,4 +1,4 @@
-module github.com/dash0/terraform-provider-dash0
+module github.com/dash0hq/terraform-provider-dash0
 
 go 1.25.0
 

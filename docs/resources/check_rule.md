@@ -4,11 +4,14 @@ page_title: "dash0_check_rule Resource - Dash0"
 subcategory: ""
 description: |-
   Manages a Dash0 Check Rule (in Prometheus Rule format).
+  More information on how prometheus rules are mapped to Dash0 check rules can be found in the Dash0 Operator documentation https://github.com/dash0hq/dash0-operator/blob/main/helm-chart/dash0-operator/README.md#managing-dash0-check-rules.
 ---
 
 # dash0_check_rule (Resource)
 
 Manages a Dash0 Check Rule (in Prometheus Rule format).
+
+More information on how prometheus rules are mapped to Dash0 check rules can be found in the [Dash0 Operator documentation](https://github.com/dash0hq/dash0-operator/blob/main/helm-chart/dash0-operator/README.md#managing-dash0-check-rules).
 
 ## Example Usage
 
@@ -36,6 +39,7 @@ spec:
             description: 'High error percentage for adservice: {{$value|printf "%.2f"}}%'
             dash0-threshold-critical: "40"
             dash0-threshold-degraded: "35"
+            dash0-enabled: true
           labels: {}
 EOF
 }

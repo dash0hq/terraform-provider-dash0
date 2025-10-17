@@ -5,13 +5,14 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
 // Tests for syntheticCheckResource

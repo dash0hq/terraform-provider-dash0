@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dash0/terraform-provider-dash0/internal/converter"
-	"github.com/dash0/terraform-provider-dash0/internal/provider/client"
-	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+
+	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -61,7 +62,10 @@ func (r *CheckRuleResource) Metadata(_ context.Context, req resource.MetadataReq
 
 func (r *CheckRuleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a Dash0 Check Rule (in Prometheus Rule format).",
+		Description: `Manages a Dash0 Check Rule (in Prometheus Rule format).
+
+More information on how prometheus rules are mapped to Dash0 check rules can be found in the [Dash0 Operator documentation](https://github.com/dash0hq/dash0-operator/blob/main/helm-chart/dash0-operator/README.md#managing-dash0-check-rules).`,
+
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
 				Description: "Identifier of the check rule.",

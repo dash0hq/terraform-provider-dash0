@@ -28,3 +28,8 @@ clean:
 .PHONY: lint
 lint:
 	golangci-lint run
+	
+.PHONY: fmt
+fmt:
+	golangci-lint fmt --enable goimports
+	golangci-lint run --fix --allow-parallel-runners --verbose --timeout=30m

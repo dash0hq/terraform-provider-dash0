@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dash0/terraform-provider-dash0/internal/converter"
-	"github.com/dash0/terraform-provider-dash0/internal/provider/client"
-	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+
+	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"

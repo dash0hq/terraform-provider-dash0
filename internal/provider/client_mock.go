@@ -3,8 +3,9 @@ package provider
 import (
 	"context"
 
-	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
 // MockClient mocks the client.Client for synthetic checks

@@ -93,6 +93,7 @@ spec:
             description: 'High error percentage for adservice: {{$value|printf "%.2f"}}%'
             dash0-threshold-critical: "40"
             dash0-threshold-degraded: "35"
+            dash0-enabled: true
           labels: {}
 EOF
 }

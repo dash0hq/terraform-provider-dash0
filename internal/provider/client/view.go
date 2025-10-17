@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/dash0/terraform-provider-dash0/internal/converter"
-	"github.com/dash0/terraform-provider-dash0/internal/provider/model"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
 func (c *dash0Client) CreateView(ctx context.Context, check model.ViewResource) error {
