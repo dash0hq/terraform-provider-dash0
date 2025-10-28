@@ -35,8 +35,11 @@ terraform {
 }
 
 provider "dash0" {
-  # Configuration can be provided via environment variables:
+  # Configuration can be provided either via environment variables:
   # DASH0_URL and DASH0_AUTH_TOKEN
+  # or by passing the following arguments:
+  # url        = "https://api.us-west-2.aws.dash0.com"
+  # auth_token = "auth_xxxx"
 }
 ```
 
