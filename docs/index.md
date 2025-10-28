@@ -12,17 +12,36 @@ The Dash0 provider provides dashboard, check rule and more resources for [Dash0]
 The changelog for this provider can be found [on GitHub](https://github.com/dash0hq/terraform-provider-dash0/releases).
 
 ## Authentication
-The Dash0 provider authenticates using environment variables. You can get the value for these environment variables
-through [Dash0's settings screens](https://app.dash0.com/settings/auth-tokens).
+
+The Dash0 provider supports two authentication methods. You can get the authentication credentials through [Dash0's settings screens](https://app.dash0.com/settings/auth-tokens).
+
+### Option 1: Environment Variables (Recommended)
+
+Environment variables take precedence over provider configuration attributes.
 
 ```sh
 export DASH0_URL="https://api.us-west-2.aws.dash0.com"
 export DASH0_AUTH_TOKEN="auth_xxxx"
 ```
 
+### Option 2: Provider Configuration
+
+Alternatively, you can configure authentication directly in the provider block:
+
+```terraform
+provider "dash0" {
+  url        = "https://api.us-west-2.aws.dash0.com"
+  auth_token = "auth_xxxx"
+}
+```
+
+**Note:** Environment variables (`DASH0_URL` and `DASH0_AUTH_TOKEN`) will override provider configuration attributes if both are set.
+
 ## Examples
 
 ### Creating a Dash0 provider
+
+#### Using Environment Variables
 
 ```terraform
 terraform {
@@ -35,11 +54,26 @@ terraform {
 }
 
 provider "dash0" {
-  # Configuration can be provided either via environment variables:
+  # Configuration will be read from environment variables:
   # DASH0_URL and DASH0_AUTH_TOKEN
-  # or by passing the following arguments:
-  # url        = "https://api.us-west-2.aws.dash0.com"
-  # auth_token = "auth_xxxx"
+}
+```
+
+#### Using Provider Configuration
+
+```terraform
+terraform {
+  required_providers {
+    dash0 = {
+      source  = "dash0hq/dash0"
+      version = "~> 1.4.0"
+    }
+  }
+}
+
+provider "dash0" {
+  url        = "https://api.us-west-2.aws.dash0.com"
+  auth_token = "auth_xxxx"
 }
 ```
 
