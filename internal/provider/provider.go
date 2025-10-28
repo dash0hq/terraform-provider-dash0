@@ -73,15 +73,15 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 		return
 	}
 
-	// Start with environment variables as fallback
+	// Start with environment variables
 	url := os.Getenv("DASH0_URL")
 	authToken := os.Getenv("DASH0_AUTH_TOKEN")
 
-	// If provider attributes are set, they override environment variables
-	if !cfg.URL.IsNull() && !cfg.URL.IsUnknown() {
+	// only if environment variables are not set, use config values
+	if url == "" && !cfg.URL.IsNull() && !cfg.URL.IsUnknown() {
 		url = cfg.URL.ValueString()
 	}
-	if !cfg.AuthToken.IsNull() && !cfg.AuthToken.IsUnknown() {
+	if authToken == "" && !cfg.AuthToken.IsNull() && !cfg.AuthToken.IsUnknown() {
 		authToken = cfg.AuthToken.ValueString()
 	}
 
