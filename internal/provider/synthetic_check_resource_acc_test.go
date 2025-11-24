@@ -37,13 +37,13 @@ spec:
             spec:
               type: response
               value: 5000ms
-              operator: lt
+              operator: lte
         degradedAssertions:
           - kind: timing
             spec:
               type: response
               value: 2000ms
-              operator: lt
+              operator: lte
       request:
         method: get
         url: https://test.example.com
@@ -88,13 +88,13 @@ spec:
             spec:
               type: response
               value: 5000ms
-              operator: lt
+              operator: lte
         degradedAssertions:
           - kind: timing
             spec:
               type: response
               value: 2000ms
-              operator: lt
+              operator: lte
       request:
         method: post
         url: https://example.com
