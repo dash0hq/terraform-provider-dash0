@@ -8,6 +8,6 @@ terraform {
 }
 
 provider "dash0" {
-  url        = "https://api.us-west-2.aws.dash0.com"
-  auth_token = "auth_xxxx"
+  # Configuration will be read from environment variables:
+  # DASH0_URL and DASH0_AUTH_TOKEN
 }
