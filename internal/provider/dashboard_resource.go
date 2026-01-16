@@ -75,6 +75,9 @@ func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"dataset": schema.StringAttribute{
 				Description: "The dataset for which the dashboard is created.",
 				Required:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"dashboard_yaml": schema.StringAttribute{
 				Description: "The dashboard definition in YAML format (Perses Dashboard format).",
@@ -196,41 +199,15 @@ func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	// Check if dataset has changed
-	datasetChanged := state.Dataset.ValueString() != plan.Dataset.ValueString()
-
-	if datasetChanged {
-		tflog.Info(ctx, fmt.Sprintf("Dataset changed from %s to %s, recreating dashboard",
-			state.Dataset.ValueString(), plan.Dataset.ValueString()))
-
-		// Delete the existing dashboard
-		err := r.client.DeleteDashboard(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error",
-				fmt.Sprintf("Unable to delete old dashboard when changing dataset, got error: %s", err))
-			return
-		}
-
-		// Create a new dashboard in the new dataset
-		err = r.client.CreateDashboard(ctx, plan)
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error",
-				fmt.Sprintf("Unable to create dashboard in new dataset, got error: %s", err))
-			return
-		}
-
-		tflog.Trace(ctx, "recreated dashboard resource in new dataset")
-	} else {
-		// Standard update (same dataset)
-		err := r.client.UpdateDashboard(ctx, plan)
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error",
-				fmt.Sprintf("Unable to update dashboard, got error: %s", err))
-			return
-		}
-
-		tflog.Trace(ctx, "updated dashboard resource")
+	// Update the existing dashboard (dataset changes force recreation via RequiresReplace)
+	plan.Origin = state.Origin
+	err = r.client.UpdateDashboard(ctx, plan)
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update dashboard, got error: %s", err))
+		return
 	}
+
+	tflog.Trace(ctx, "updated a dashboard resource")
 
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)

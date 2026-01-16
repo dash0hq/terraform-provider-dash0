@@ -34,8 +34,7 @@ spec:
       request:
         url: https://www.example.com
 `,
-			expected: `metadata: {}
-spec:
+			expected: `spec:
   enabled: true
   plugin:
     kind: http
@@ -53,8 +52,7 @@ metadata:
 spec:
   enabled: false
 `,
-			expected: `metadata: {}
-spec:
+			expected: `spec:
   enabled: false`,
 			wantErr: false,
 		},
@@ -101,8 +99,7 @@ spec:
     locations:
       - gcp-europe-west3
 `,
-			expected: `metadata: {}
-spec:
+			expected: `spec:
   enabled: true
   notifications:
     channels:
@@ -134,6 +131,25 @@ spec:
     interval: 1m
     locations:
       - gcp-europe-west3`,
+			wantErr: false,
+		},
+		{
+			name: "removes empty arrays and empty maps",
+			input: `
+kind: Dash0View
+metadata:
+  name: test
+  annotations: {}
+spec:
+  display:
+    name: Test View
+    folder: []
+  type: spans
+`,
+			expected: `spec:
+  display:
+    name: Test View
+  type: spans`,
 			wantErr: false,
 		},
 		{
@@ -387,6 +403,31 @@ spec:
 			equivalent: true,
 			wantErr:    false,
 		},
+		{
+			name: "equivalent when one has empty arrays and other omits them",
+			yaml1: `
+kind: Dash0View
+metadata:
+  name: test
+  annotations: {}
+spec:
+  display:
+    name: Test View
+    folder: []
+  type: spans
+`,
+			yaml2: `
+kind: Dash0View
+metadata:
+  name: test
+spec:
+  display:
+    name: Test View
+  type: spans
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -472,7 +513,7 @@ func TestRemoveYAMLField(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			removeField(tt.input, tt.path)
+			cleanupMap(tt.input, []string{tt.path})
 			assert.Equal(t, tt.expected, tt.input)
 		})
 	}

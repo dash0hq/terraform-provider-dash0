@@ -14,6 +14,7 @@ var ignoredFields = []string{
 	"apiVersion",
 	"kind",
 	"metadata.labels",
+	"metadata.annotations",
 	"metadata.createdAt",
 	"metadata.updatedAt",
 	"metadata.version",
@@ -30,10 +31,8 @@ func NormalizeYAML(yamlStr string) (string, error) {
 		return "", fmt.Errorf("error parsing resource YAML: %w", err)
 	}
 
-	// Remove ignored fields
-	for _, field := range ignoredFields {
-		removeField(parsedYaml, field)
-	}
+	// Remove ignored fields and empty values
+	cleanupMap(parsedYaml, ignoredFields)
 
 	// Create a new encoder with consistent settings
 	var buf strings.Builder
@@ -55,55 +54,75 @@ func NormalizeYAML(yamlStr string) (string, error) {
 	return string(result), nil
 }
 
-// removeField removes a field from a map by path (e.g., "metadata.createdAt")
-func removeField(data map[string]interface{}, path string) {
-	// Split the path into parts
-	parts := []string{}
-	current := ""
-	for _, c := range path {
-		if c == '.' {
-			parts = append(parts, current)
-			current = ""
+// cleanupMap removes specified fields by path and empty values from a map in place.
+// fieldsToRemove contains dot-separated paths (e.g., "metadata.createdAt").
+// Empty arrays, maps, and strings are also removed to ensure consistent comparison.
+func cleanupMap(data map[string]interface{}, fieldsToRemove []string) {
+	// Build maps for what to remove at this level vs what to recurse into
+	removeHere := make(map[string]bool)
+	nestedRemovals := make(map[string][]string)
+	for _, path := range fieldsToRemove {
+		if idx := strings.Index(path, "."); idx == -1 {
+			removeHere[path] = true
 		} else {
-			current += string(c)
+			key := path[:idx]
+			nestedRemovals[key] = append(nestedRemovals[key], path[idx+1:])
 		}
 	}
-	if current != "" {
-		parts = append(parts, current)
-	}
 
-	// Navigate the path
-	var currentMap interface{} = data
-	for i, part := range parts {
-		if i == len(parts)-1 {
-			// Last part - delete the field
-			if m, ok := currentMap.(map[string]interface{}); ok {
-				delete(m, part)
-			} else if m, ok := currentMap.(map[interface{}]interface{}); ok {
-				delete(m, part)
+	for key, value := range data {
+		if removeHere[key] {
+			delete(data, key)
+			continue
+		}
+
+		switch v := value.(type) {
+		case map[string]interface{}:
+			cleanupMap(v, nestedRemovals[key])
+			if isEmpty(v) {
+				delete(data, key)
 			}
-			return
+		case []interface{}:
+			for _, item := range v {
+				if m, ok := item.(map[string]interface{}); ok {
+					cleanupMap(m, nil)
+				}
+			}
+			if len(v) == 0 {
+				delete(data, key)
+			}
+		case string:
+			if v == "" {
+				delete(data, key)
+			}
 		}
-
-		// Navigate to the next level
-		var next interface{}
-		if m, ok := currentMap.(map[string]interface{}); ok {
-			next = m[part]
-		} else if m, ok := currentMap.(map[interface{}]interface{}); ok {
-			next = m[part]
-		} else {
-			// Can't navigate further
-			return
-		}
-
-		// Check if we can continue
-		if next == nil {
-			return
-		}
-
-		// Continue with the next part
-		currentMap = next
 	}
+}
+
+// isEmpty checks if a map is empty or contains only empty values
+func isEmpty(m map[string]interface{}) bool {
+	if len(m) == 0 {
+		return true
+	}
+	for _, value := range m {
+		switch v := value.(type) {
+		case map[string]interface{}:
+			if !isEmpty(v) {
+				return false
+			}
+		case []interface{}:
+			if len(v) > 0 {
+				return false
+			}
+		case string:
+			if v != "" {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // ResourceYAMLEquivalent checks if two resource YAMLs are equivalent,

@@ -213,7 +213,6 @@ func TestDashboardResource_Update(t *testing.T) {
 	// Setup test data
 	testOrigin := "test-origin"
 	testDataset := "test-dataset"
-	newDataset := "new-dataset"
 	testYaml := "kind: Dashboard\nmetadata:\n  name: system-overview\nspec:\n  title: System Overview"
 	updatedYaml := testYaml + "\n  description: Updated dashboard"
 
@@ -277,68 +276,7 @@ func TestDashboardResource_Update(t *testing.T) {
 		assert.False(t, resp.Diagnostics.HasError())
 	})
 
-	// Test 2: Change dataset (should delete and recreate)
-	t.Run("change dataset", func(t *testing.T) {
-		mockClient := new(MockClient)
-		r := &DashboardResource{client: mockClient}
-
-		// Create state
-		state := tfsdk.State{
-			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
-				"origin":         tftypes.NewValue(tftypes.String, testOrigin),
-				"dataset":        tftypes.NewValue(tftypes.String, testDataset),
-				"dashboard_yaml": tftypes.NewValue(tftypes.String, testYaml),
-			}),
-			Schema: schema.Schema{
-				Attributes: map[string]schema.Attribute{
-					"origin": schema.StringAttribute{
-						Computed: true,
-					},
-					"dataset": schema.StringAttribute{
-						Required: true,
-					},
-					"dashboard_yaml": schema.StringAttribute{
-						Required: true,
-					},
-				},
-			},
-		}
-
-		// Create plan with new dataset
-		plan := tfsdk.Plan{
-			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
-				"origin":         tftypes.NewValue(tftypes.String, testOrigin),
-				"dataset":        tftypes.NewValue(tftypes.String, newDataset),
-				"dashboard_yaml": tftypes.NewValue(tftypes.String, updatedYaml),
-			}),
-			Schema: state.Schema,
-		}
-
-		// Setup request and response
-		req := resource.UpdateRequest{
-			State: state,
-			Plan:  plan,
-		}
-		resp := resource.UpdateResponse{
-			State: state,
-		}
-
-		// Setup mock expectations - DeleteDashboard followed by CreateDashboard
-		mockClient.On("DeleteDashboard", mock.Anything, testOrigin, testDataset).Return(nil)
-		mockClient.On("CreateDashboard", mock.Anything, mock.MatchedBy(func(m model.Dashboard) bool {
-			return m.Origin.ValueString() == testOrigin &&
-				m.Dataset.ValueString() == newDataset
-		})).Return(nil)
-
-		// Execute the update operation
-		r.Update(context.Background(), req, &resp)
-
-		// Verify expectations
-		mockClient.AssertExpectations(t)
-		assert.False(t, resp.Diagnostics.HasError())
-	})
-
-	// Test 3: Invalid YAML
+	// Test 2: Invalid YAML
 	t.Run("invalid yaml", func(t *testing.T) {
 		mockClient := new(MockClient)
 		r := &DashboardResource{client: mockClient}

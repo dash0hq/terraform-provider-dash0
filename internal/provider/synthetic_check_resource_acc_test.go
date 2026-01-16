@@ -19,9 +19,19 @@ kind: Dash0SyntheticCheck
 metadata:
   name: test-check
 spec:
+  display:
+    name: ""
   enabled: true
   notifications:
     channels: []
+  permissions:
+    - actions:
+        - "synthetic_check:delete"
+        - "synthetic_check:read"
+      role: admin
+    - actions:
+        - "synthetic_check:read"
+      role: basic_member
   plugin:
     display:
       name: test.example.com
@@ -70,9 +80,19 @@ kind: Dash0SyntheticCheck
 metadata:
   name: test-check
 spec:
+  display:
+    name: ""
   enabled: true
   notifications:
     channels: []
+  permissions:
+    - actions:
+        - "synthetic_check:delete"
+        - "synthetic_check:read"
+      role: admin
+    - actions:
+        - "synthetic_check:read"
+      role: basic_member
   plugin:
     display:
       name: test.example.com

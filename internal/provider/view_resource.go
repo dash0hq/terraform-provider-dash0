@@ -75,6 +75,9 @@ func (r *ViewResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 			"dataset": schema.StringAttribute{
 				Description: "The dataset for which the view is created.",
 				Required:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"view_yaml": schema.StringAttribute{
 				Description: "The view definition in YAML format.",
@@ -196,31 +199,12 @@ func (r *ViewResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	// Check if dataset has changed
-	datasetChanged := state.Dataset.ValueString() != plan.Dataset.ValueString()
-
-	if datasetChanged {
-		// Delete from old dataset
-		err = r.client.DeleteView(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete view from old dataset, got error: %s", err))
-			return
-		}
-		// Create in new dataset
-		plan.Origin = state.Origin
-		err = r.client.CreateView(ctx, plan)
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create view in new dataset, got error: %s", err))
-			return
-		}
-	} else {
-		// Update the existing view
-		plan.Origin = state.Origin
-		err = r.client.UpdateView(ctx, plan)
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update view, got error: %s", err))
-			return
-		}
+	// Update the existing view (dataset changes force recreation via RequiresReplace)
+	plan.Origin = state.Origin
+	err = r.client.UpdateView(ctx, plan)
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update view, got error: %s", err))
+		return
 	}
 
 	tflog.Trace(ctx, "updated a view resource")

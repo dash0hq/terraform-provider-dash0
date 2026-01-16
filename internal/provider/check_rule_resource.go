@@ -78,6 +78,9 @@ More information on how prometheus rules are mapped to Dash0 check rules can be 
 			"dataset": schema.StringAttribute{
 				Description: "The dataset for which the check rule is created.",
 				Required:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"check_rule_yaml": schema.StringAttribute{
 				Description: "The check rule definition in YAML format (Prometheus Rule format).",
@@ -199,31 +202,12 @@ func (r *CheckRuleResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	// Check if dataset has changed
-	datasetChanged := state.Dataset.ValueString() != plan.Dataset.ValueString()
-
-	if datasetChanged {
-		// Delete from old dataset
-		err = r.client.DeleteCheckRule(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete check rule from old dataset, got error: %s", err))
-			return
-		}
-		// Create in new dataset
-		plan.Origin = state.Origin
-		err = r.client.CreateCheckRule(ctx, plan)
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create check rule in new dataset, got error: %s", err))
-			return
-		}
-	} else {
-		// Update the existing check rule
-		plan.Origin = state.Origin
-		err = r.client.UpdateCheckRule(ctx, plan)
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update check rule, got error: %s", err))
-			return
-		}
+	// Update the existing check rule (dataset changes force recreation via RequiresReplace)
+	plan.Origin = state.Origin
+	err = r.client.UpdateCheckRule(ctx, plan)
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update check rule, got error: %s", err))
+		return
 	}
 
 	tflog.Trace(ctx, "updated a check rule resource")
