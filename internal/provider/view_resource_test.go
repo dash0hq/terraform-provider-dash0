@@ -211,7 +211,6 @@ func TestViewResource_Update(t *testing.T) {
 	// Setup test data
 	testOrigin := "test-origin"
 	testDataset := "test-dataset"
-	newDataset := "new-dataset"
 	testYaml := "kind: View\nmetadata:\n  name: example-view\nspec:\n  title: Example View"
 	updatedYaml := testYaml + "\n  description: Updated view"
 
@@ -275,68 +274,8 @@ func TestViewResource_Update(t *testing.T) {
 		assert.False(t, resp.Diagnostics.HasError())
 	})
 
-	// Test 2: Change dataset (should delete and recreate)
-	t.Run("change dataset", func(t *testing.T) {
-		mockClient := new(MockClient)
-		r := &ViewResource{client: mockClient}
-
-		// Create state
-		state := tfsdk.State{
-			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
-				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
-				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
-				"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
-			}),
-			Schema: schema.Schema{
-				Attributes: map[string]schema.Attribute{
-					"origin": schema.StringAttribute{
-						Computed: true,
-					},
-					"dataset": schema.StringAttribute{
-						Required: true,
-					},
-					"view_yaml": schema.StringAttribute{
-						Required: true,
-					},
-				},
-			},
-		}
-
-		// Create plan with new dataset
-		plan := tfsdk.Plan{
-			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
-				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
-				"dataset":   tftypes.NewValue(tftypes.String, newDataset),
-				"view_yaml": tftypes.NewValue(tftypes.String, updatedYaml),
-			}),
-			Schema: state.Schema,
-		}
-
-		// Setup request and response
-		req := resource.UpdateRequest{
-			State: state,
-			Plan:  plan,
-		}
-		resp := resource.UpdateResponse{
-			State: state,
-		}
-
-		// Setup mock expectations - DeleteView followed by CreateView
-		mockClient.On("DeleteView", mock.Anything, testOrigin, testDataset).Return(nil)
-		mockClient.On("CreateView", mock.Anything, mock.MatchedBy(func(viewModel model.ViewResource) bool {
-			return viewModel.Origin.ValueString() == testOrigin &&
-				viewModel.Dataset.ValueString() == newDataset
-		})).Return(nil)
-
-		// Execute the update operation
-		r.Update(context.Background(), req, &resp)
-
-		// Verify expectations
-		mockClient.AssertExpectations(t)
-		assert.False(t, resp.Diagnostics.HasError())
-	})
-
-	// Test 3: Invalid YAML
+	// Test 2: Invalid YAML
+	// Note: Dataset changes now force resource recreation (RequiresReplace), so Update is not called for dataset changes
 	t.Run("invalid yaml", func(t *testing.T) {
 		mockClient := new(MockClient)
 		r := &ViewResource{client: mockClient}

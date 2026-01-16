@@ -75,6 +75,9 @@ func (r *SyntheticCheckResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"dataset": schema.StringAttribute{
 				Description: "The dataset for which the synthetic check is created.",
 				Required:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"synthetic_check_yaml": schema.StringAttribute{
 				Description: "The synthetic check definition in YAML format.",
@@ -196,31 +199,12 @@ func (r *SyntheticCheckResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	// Check if dataset has changed
-	datasetChanged := state.Dataset.ValueString() != plan.Dataset.ValueString()
-
-	if datasetChanged {
-		// Delete from old dataset
-		err = r.client.DeleteSyntheticCheck(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete synthetic check from old dataset, got error: %s", err))
-			return
-		}
-		// Create in new dataset
-		plan.Origin = state.Origin
-		err = r.client.CreateSyntheticCheck(ctx, plan)
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create synthetic check in new dataset, got error: %s", err))
-			return
-		}
-	} else {
-		// Update the existing synthetic check
-		plan.Origin = state.Origin
-		err = r.client.UpdateSyntheticCheck(ctx, plan)
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update synthetic check, got error: %s", err))
-			return
-		}
+	// Update the existing synthetic check (dataset changes force recreation via RequiresReplace)
+	plan.Origin = state.Origin
+	err = r.client.UpdateSyntheticCheck(ctx, plan)
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update synthetic check, got error: %s", err))
+		return
 	}
 
 	tflog.Trace(ctx, "updated a synthetic check resource")

@@ -3,8 +3,9 @@ package planmodifier
 import (
 	"context"
 
-	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+
+	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 )
 
 // YAMLSemanticEqual returns a plan modifier that preserves state when
