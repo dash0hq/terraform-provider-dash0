@@ -327,7 +327,7 @@ spec:
 kind: Dash0SyntheticCheck
 spec:
   permissions:
-    - actions: 
+    - actions:
         - "views:read"
         - "views:delete"
       role: "admin"
@@ -342,10 +342,47 @@ spec:
     - actions:
         - "views:read"
       role: "basic_member"
-    - actions: 
+    - actions:
         - "views:delete"
         - "views:read"
       role: "admin"
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
+		{
+			name: "equivalent with different annotation ordering and quoting styles",
+			yaml1: `
+spec:
+  groups:
+    - interval: 1m0s
+      name: test-group
+      rules:
+        - alert: test-alert
+          annotations:
+            summary: "{{ $labels.reason }} event detected"
+            description: "Events exceeded threshold"
+            dash0-threshold-critical: "0"
+            dash0-threshold-degraded: "0"
+          labels:
+            severity: critical
+            team: "{{ $labels.team_name }}"
+`,
+			yaml2: `
+spec:
+  groups:
+    - interval: 1m0s
+      name: test-group
+      rules:
+        - alert: test-alert
+          annotations:
+            dash0-threshold-critical: "0"
+            dash0-threshold-degraded: "0"
+            description: Events exceeded threshold
+            summary: '{{ $labels.reason }} event detected'
+          labels:
+            severity: "critical"
+            team: '{{ $labels.team_name }}'
 `,
 			equivalent: true,
 			wantErr:    false,

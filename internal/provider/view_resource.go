@@ -11,6 +11,7 @@ import (
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
+	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -78,6 +79,9 @@ func (r *ViewResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 			"view_yaml": schema.StringAttribute{
 				Description: "The view definition in YAML format.",
 				Required:    true,
+				PlanModifiers: []planmodifier.String{
+					customplanmodifier.YAMLSemanticEqual(),
+				},
 			},
 		},
 	}

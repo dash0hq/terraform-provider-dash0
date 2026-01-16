@@ -11,6 +11,7 @@ import (
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
+	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -81,6 +82,9 @@ More information on how prometheus rules are mapped to Dash0 check rules can be 
 			"check_rule_yaml": schema.StringAttribute{
 				Description: "The check rule definition in YAML format (Prometheus Rule format).",
 				Required:    true,
+				PlanModifiers: []planmodifier.String{
+					customplanmodifier.YAMLSemanticEqual(),
+				},
 			},
 		},
 	}
