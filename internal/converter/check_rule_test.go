@@ -38,11 +38,11 @@ func TestConvertToPrometheusRule(t *testing.T) {
 
 func TestConvertPromYAMLToDash0CheckRule_FloatThresholds(t *testing.T) {
 	tests := []struct {
-		name             string
-		thresholdCrit    string
+		name              string
+		thresholdCrit     string
 		thresholdDegraded string
-		expectedFailed   float64
-		expectedDegraded float64
+		expectedFailed    float64
+		expectedDegraded  float64
 	}{
 		{
 			name:              "integer thresholds",
