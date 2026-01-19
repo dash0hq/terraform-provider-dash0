@@ -74,8 +74,8 @@ type Dash0CheckRule struct {
 }
 
 type Dash0CheckRuleThresholds struct {
-	Degraded int `json:"degraded"`
-	Failed   int `json:"failed"`
+	Degraded float64 `json:"degraded"`
+	Failed   float64 `json:"failed"`
 }
 
 type PrometheusRules struct {

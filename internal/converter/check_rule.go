@@ -49,10 +49,10 @@ func ConvertDash0JSONtoPrometheusRules(dash0CheckRuleJson string) (*types.Promet
 		promRule.Annotations["description"] = dash0CheckRule.Description
 	}
 	if dash0CheckRule.Thresholds.Failed != 0 {
-		promRule.Annotations["dash0-threshold-critical"] = strconv.Itoa(dash0CheckRule.Thresholds.Failed)
+		promRule.Annotations["dash0-threshold-critical"] = strconv.FormatFloat(dash0CheckRule.Thresholds.Failed, 'f', -1, 64)
 	}
 	if dash0CheckRule.Thresholds.Degraded != 0 {
-		promRule.Annotations["dash0-threshold-degraded"] = strconv.Itoa(dash0CheckRule.Thresholds.Degraded)
+		promRule.Annotations["dash0-threshold-degraded"] = strconv.FormatFloat(dash0CheckRule.Thresholds.Degraded, 'f', -1, 64)
 	}
 
 	promRules := &types.PrometheusRules{
@@ -108,16 +108,16 @@ func ConvertPromYAMLToDash0CheckRule(promRuleYaml string, dataset string) (*type
 		dash0CheckRule.Description = description
 	}
 	if thresholdCritial, ok := rule.Annotations["dash0-threshold-critical"]; ok {
-		if criticalInt, err := strconv.Atoi(thresholdCritial); err == nil {
-			dash0CheckRule.Thresholds.Failed = criticalInt
+		if criticalNumeric, err := strconv.ParseFloat(thresholdCritial, 64); err == nil {
+			dash0CheckRule.Thresholds.Failed = criticalNumeric
 			delete(dash0CheckRule.Annotations, "dash0-threshold-critical")
 		} else {
 			return nil, fmt.Errorf("invalid value for dash0-threshold-critical: %v", err)
 		}
 	}
 	if thresholdDegraded, ok := rule.Annotations["dash0-threshold-degraded"]; ok {
-		if degradedInt, err := strconv.Atoi(thresholdDegraded); err == nil {
-			dash0CheckRule.Thresholds.Degraded = degradedInt
+		if degradedNumeric, err := strconv.ParseFloat(thresholdDegraded, 64); err == nil {
+			dash0CheckRule.Thresholds.Degraded = degradedNumeric
 			delete(dash0CheckRule.Annotations, "dash0-threshold-degraded")
 		} else {
 			return nil, fmt.Errorf("invalid value for dash0-threshold-degraded: %v", err)
