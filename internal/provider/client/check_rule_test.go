@@ -77,7 +77,7 @@ spec:
 			expectedPath:   "/api/alerting/check-rules/" + testOrigin,
 			expectedQuery:  "dataset=" + testDataset,
 			expectedBody:   "",
-			serverResponse: `{"dataset":"default","name":"example-check-rules - HighMemoryUsage","expression":"memory_usage > 0.8","thresholds":{"degraded":0,"failed":0},"summary":"High memory usage detected","description":"","interval":"1m0s","for":"5m","keepFiringFor":"0s","labels":{"severity":"warning"},"annotations":{},"enabled":true}`,
+			serverResponse: `{"dataset":"default","name":"example-check-rules - HighMemoryUsage","expression":"memory_usage > 0.8","thresholds":{"degraded":50.5,"failed":75.25},"summary":"High memory usage detected","description":"","interval":"1m0s","for":"5m","keepFiringFor":"0s","labels":{"severity":"warning"},"annotations":{},"enabled":true}`,
 			serverStatus:   http.StatusOK,
 			expectError:    false,
 		},
@@ -221,10 +221,10 @@ func TestCheckRuleOperations_IntegrationStyle(t *testing.T) {
 		case "/api/alerting/check-rules/test-check-rule":
 			switch r.Method {
 			case http.MethodGet:
-				// Return a check rule JSON for GET requests
+				// Return a check rule JSON for GET requests with float thresholds
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(status)
-				_, _ = w.Write([]byte(`{"dataset":"default","name":"example-check-rules - HighMemoryUsage","expression":"memory_usage > 0.8","thresholds":{"degraded":0,"failed":0},"summary":"High memory usage detected","description":"","interval":"1m0s","for":"5m","keepFiringFor":"0s","labels":{"severity":"warning"},"annotations":{},"enabled":true}`))
+				_, _ = w.Write([]byte(`{"dataset":"default","name":"example-check-rules - HighMemoryUsage","expression":"memory_usage > 0.8","thresholds":{"degraded":50.5,"failed":75.25},"summary":"High memory usage detected","description":"","interval":"1m0s","for":"5m","keepFiringFor":"0s","labels":{"severity":"warning"},"annotations":{},"enabled":true}`))
 				return
 			case http.MethodDelete:
 				response["status"] = "deleted"
@@ -534,6 +534,76 @@ spec:
 
 			err := client.CreateCheckRule(ctx, checkRuleModel)
 			assert.Error(t, err)
+		})
+	}
+}
+
+func TestCheckRuleClient_FloatThresholds(t *testing.T) {
+	tests := []struct {
+		name             string
+		serverResponse   string
+		expectedDegraded float64
+		expectedFailed   float64
+	}{
+		{
+			name:             "integer thresholds",
+			serverResponse:   `{"dataset":"default","name":"TestGroup - TestAlert","expression":"test > 0","thresholds":{"degraded":50,"failed":100},"summary":"Test","description":"","interval":"1m0s","for":"5m","keepFiringFor":"0s","labels":{},"annotations":{},"enabled":true}`,
+			expectedDegraded: 50,
+			expectedFailed:   100,
+		},
+		{
+			name:             "float thresholds with decimals",
+			serverResponse:   `{"dataset":"default","name":"TestGroup - TestAlert","expression":"test > 0","thresholds":{"degraded":50.5,"failed":99.99},"summary":"Test","description":"","interval":"1m0s","for":"5m","keepFiringFor":"0s","labels":{},"annotations":{},"enabled":true}`,
+			expectedDegraded: 50.5,
+			expectedFailed:   99.99,
+		},
+		{
+			name:             "small decimal thresholds",
+			serverResponse:   `{"dataset":"default","name":"TestGroup - TestAlert","expression":"test > 0","thresholds":{"degraded":0.001,"failed":0.999},"summary":"Test","description":"","interval":"1m0s","for":"5m","keepFiringFor":"0s","labels":{},"annotations":{},"enabled":true}`,
+			expectedDegraded: 0.001,
+			expectedFailed:   0.999,
+		},
+		{
+			name:             "zero thresholds",
+			serverResponse:   `{"dataset":"default","name":"TestGroup - TestAlert","expression":"test > 0","thresholds":{"degraded":0,"failed":0},"summary":"Test","description":"","interval":"1m0s","for":"5m","keepFiringFor":"0s","labels":{},"annotations":{},"enabled":true}`,
+			expectedDegraded: 0,
+			expectedFailed:   0,
+		},
+		{
+			name:             "precise decimal thresholds",
+			serverResponse:   `{"dataset":"default","name":"TestGroup - TestAlert","expression":"test > 0","thresholds":{"degraded":0.123456789,"failed":0.987654321},"summary":"Test","description":"","interval":"1m0s","for":"5m","keepFiringFor":"0s","labels":{},"annotations":{},"enabled":true}`,
+			expectedDegraded: 0.123456789,
+			expectedFailed:   0.987654321,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, err := w.Write([]byte(tc.serverResponse))
+				require.NoError(t, err)
+			}))
+			defer server.Close()
+
+			client := NewDash0Client(server.URL, "test-token")
+			checkRule, err := client.GetCheckRule(context.Background(), "default", "test-origin")
+
+			require.NoError(t, err)
+			require.NotNil(t, checkRule)
+
+			// Parse the returned YAML to verify thresholds
+			yaml := checkRule.CheckRuleYaml.ValueString()
+			assert.NotEmpty(t, yaml)
+
+			// Verify the YAML contains the expected threshold values
+			if tc.expectedDegraded != 0 {
+				assert.Contains(t, yaml, "dash0-threshold-degraded")
+			}
+			if tc.expectedFailed != 0 {
+				assert.Contains(t, yaml, "dash0-threshold-critical")
+			}
 		})
 	}
 }
