@@ -48,6 +48,8 @@ func ConvertDash0JSONtoPrometheusRules(dash0CheckRuleJson string) (*types.Promet
 	if dash0CheckRule.Description != "" {
 		promRule.Annotations["description"] = dash0CheckRule.Description
 	}
+	// Only include threshold annotations for non-zero values
+	// Zero-value thresholds are handled as semantically equivalent during YAML comparison
 	if dash0CheckRule.Thresholds.Failed != 0 {
 		promRule.Annotations["dash0-threshold-critical"] = strconv.FormatFloat(dash0CheckRule.Thresholds.Failed, 'f', -1, 64)
 	}

@@ -35,7 +35,7 @@ spec:
 const updatedCheckRuleYaml = `apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: testalerts---testservicedown 
+  name: testalerts---testservicedown
 spec:
   groups:
     - name: TestAlerts
@@ -125,6 +125,119 @@ func TestAccCheckRuleResource(t *testing.T) {
 				),
 			},
 			// Test deleting
+			{
+				Config: `provider "dash0" {}`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckCheckRuleDoesNotExists(checkRuleResourceName),
+				),
+			},
+		},
+	})
+}
+
+// Test YAML with explicit zero threshold annotations
+// This tests that users can include zero thresholds and the plan will be idempotent
+const checkRuleYamlWithZeroThresholds = `apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: testalerts---testservicedown
+spec:
+  groups:
+    - name: TestAlerts
+      interval: 1m0s
+      rules:
+        - alert: TestServiceDown
+          expr: up{job="test-service"} == 0
+          for: 5m0s
+          annotations:
+            dash0-threshold-critical: "0"
+            dash0-threshold-degraded: "0"
+            summary: 'Test service is down'
+            description: 'Test service has been down for more than 5 minutes'
+          labels:
+            severity: critical`
+
+// Test YAML with non-zero threshold annotations
+const checkRuleYamlWithNonZeroThresholds = `apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: testalerts---testservicedown
+spec:
+  groups:
+    - name: TestAlerts
+      interval: 1m0s
+      rules:
+        - alert: TestServiceDown
+          expr: up{job="test-service"} == 0
+          for: 5m0s
+          annotations:
+            dash0-threshold-critical: "50"
+            dash0-threshold-degraded: "30"
+            summary: 'Test service is down'
+            description: 'Test service has been down for more than 5 minutes'
+          labels:
+            severity: critical`
+
+// TestAccCheckRuleResource_WithZeroThresholds verifies that configs with explicit
+// zero threshold annotations are idempotent (no plan diff after apply)
+func TestAccCheckRuleResource_WithZeroThresholds(t *testing.T) {
+	if os.Getenv("TF_ACC") != "1" {
+		t.Skip("Acceptance tests skipped unless TF_ACC=1")
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create with zero thresholds
+			{
+				Config: testAccCheckRuleResourceConfig("terraform-test", checkRuleYamlWithZeroThresholds),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckCheckRuleExists(checkRuleResourceName),
+					resource.TestCheckResourceAttr(checkRuleResourceName, "dataset", "terraform-test"),
+				),
+			},
+			// Verify idempotency - re-apply same config should show no changes
+			{
+				Config:   testAccCheckRuleResourceConfig("terraform-test", checkRuleYamlWithZeroThresholds),
+				PlanOnly: true,
+			},
+			// Cleanup
+			{
+				Config: `provider "dash0" {}`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckCheckRuleDoesNotExists(checkRuleResourceName),
+				),
+			},
+		},
+	})
+}
+
+// TestAccCheckRuleResource_WithNonZeroThresholds verifies that configs with non-zero
+// threshold annotations are idempotent (no plan diff after apply)
+func TestAccCheckRuleResource_WithNonZeroThresholds(t *testing.T) {
+	if os.Getenv("TF_ACC") != "1" {
+		t.Skip("Acceptance tests skipped unless TF_ACC=1")
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create with non-zero thresholds
+			{
+				Config: testAccCheckRuleResourceConfig("terraform-test", checkRuleYamlWithNonZeroThresholds),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckCheckRuleExists(checkRuleResourceName),
+					resource.TestCheckResourceAttr(checkRuleResourceName, "dataset", "terraform-test"),
+				),
+			},
+			// Verify idempotency - re-apply same config should show no changes
+			{
+				Config:   testAccCheckRuleResourceConfig("terraform-test", checkRuleYamlWithNonZeroThresholds),
+				PlanOnly: true,
+			},
+			// Cleanup
 			{
 				Config: `provider "dash0" {}`,
 				Check: resource.ComposeAggregateTestCheckFunc(
