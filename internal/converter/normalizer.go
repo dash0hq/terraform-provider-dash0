@@ -54,6 +54,20 @@ func NormalizeYAML(yamlStr string) (string, error) {
 	return string(result), nil
 }
 
+// removeZeroThresholdAnnotations removes dash0-threshold-critical and dash0-threshold-degraded
+// annotations when their value is "0". This treats zero-value thresholds as semantically
+// equivalent to not having the annotation, ensuring consistent comparison regardless of
+// whether the user includes them in their config.
+func removeZeroThresholdAnnotations(annotations map[string]interface{}) {
+	for key, value := range annotations {
+		if key == "dash0-threshold-critical" || key == "dash0-threshold-degraded" {
+			if strVal, ok := value.(string); ok && strVal == "0" {
+				delete(annotations, key)
+			}
+		}
+	}
+}
+
 // cleanupMap removes specified fields by path and empty values from a map in place.
 // fieldsToRemove contains dot-separated paths (e.g., "metadata.createdAt").
 // Empty arrays, maps, and strings are also removed to ensure consistent comparison.
@@ -79,6 +93,10 @@ func cleanupMap(data map[string]interface{}, fieldsToRemove []string) {
 		switch v := value.(type) {
 		case map[string]interface{}:
 			cleanupMap(v, nestedRemovals[key])
+			// Remove zero-value threshold annotations for semantic equivalence
+			if key == "annotations" {
+				removeZeroThresholdAnnotations(v)
+			}
 			if isEmpty(v) {
 				delete(data, key)
 			}

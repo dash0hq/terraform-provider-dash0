@@ -428,6 +428,89 @@ spec:
 			equivalent: true,
 			wantErr:    false,
 		},
+		{
+			name: "equivalent when one has zero threshold annotations and other omits them",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - annotations:
+            summary: Test
+            dash0-threshold-critical: "0"
+            dash0-threshold-degraded: "0"
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - annotations:
+            summary: Test
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
+		{
+			name: "NOT equivalent when threshold values differ",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - annotations:
+            dash0-threshold-critical: "50"
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - annotations:
+            dash0-threshold-critical: "0"
+`,
+			equivalent: false,
+			wantErr:    false,
+		},
+		{
+			name: "equivalent when both have same non-zero threshold annotations",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - annotations:
+            summary: Test
+            dash0-threshold-critical: "50"
+            dash0-threshold-degraded: "30"
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - annotations:
+            summary: Test
+            dash0-threshold-critical: "50"
+            dash0-threshold-degraded: "30"
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
+		{
+			name: "NOT equivalent when one has non-zero threshold and other omits it",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - annotations:
+            summary: Test
+            dash0-threshold-critical: "50"
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - annotations:
+            summary: Test
+`,
+			equivalent: false,
+			wantErr:    false,
+		},
 	}
 
 	for _, tt := range tests {

@@ -271,11 +271,12 @@ func TestConvertDash0JSONtoPrometheusRules_ZeroThresholds(t *testing.T) {
 	assert.NotNil(t, promRules)
 
 	rule := promRules.Spec.Groups[0].Rules[0]
-	// Zero thresholds should not be added to annotations
-	_, hasCrit := rule.Annotations["dash0-threshold-critical"]
+	// Zero thresholds should NOT be in annotations (they're treated as default/absent)
+	// The normalizer handles zero-value threshold annotations as semantically equivalent
+	_, hasCritical := rule.Annotations["dash0-threshold-critical"]
 	_, hasDegraded := rule.Annotations["dash0-threshold-degraded"]
-	assert.False(t, hasCrit, "zero critical threshold should not be in annotations")
-	assert.False(t, hasDegraded, "zero degraded threshold should not be in annotations")
+	assert.False(t, hasCritical, "zero threshold-critical should not be in annotations")
+	assert.False(t, hasDegraded, "zero threshold-degraded should not be in annotations")
 }
 
 func formatFloat(f float64) string {
