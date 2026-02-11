@@ -135,7 +135,7 @@ spec:
 			defer server.Close()
 
 			// Create client
-			client := NewDash0Client(server.URL, "test-token")
+			client := NewDash0Client(server.URL, "test-token", "test")
 			ctx := context.Background()
 			var err error
 
@@ -222,7 +222,7 @@ func TestViewOperations_IntegrationStyle(t *testing.T) {
 	defer server.Close()
 
 	// Create client
-	client := NewDash0Client(server.URL, "test-token")
+	client := NewDash0Client(server.URL, "test-token", "test")
 
 	// Test view data
 	testOrigin := "test-view"
@@ -329,7 +329,7 @@ func TestViewOperations_IntegrationStyle(t *testing.T) {
 
 func TestViewClient_InvalidYAML(t *testing.T) {
 	ctx := context.Background()
-	client := NewDash0Client("http://localhost", "test-token")
+	client := NewDash0Client("http://localhost", "test-token", "test")
 
 	viewModel := model.ViewResource{
 		Origin:   types.StringValue("test-origin"),

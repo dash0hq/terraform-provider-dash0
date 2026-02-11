@@ -280,6 +280,7 @@ func testAccCheckCheckRuleExists(resourceName string) resource.TestCheckFunc {
 		c := client.NewDash0Client(
 			os.Getenv("DASH0_URL"),
 			os.Getenv("DASH0_AUTH_TOKEN"),
+			"test",
 		)
 
 		// Attempt to retrieve the check rule

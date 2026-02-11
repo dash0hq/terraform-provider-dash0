@@ -113,7 +113,7 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 	tflog.Debug(ctx, "Creating Dash0 client")
 
 	// Create dash0Client configuration for data sources and resources
-	dash0Client := client.NewDash0Client(url, authToken)
+	dash0Client := client.NewDash0Client(url, authToken, p.version)
 
 	resp.DataSourceData = dash0Client
 	resp.ResourceData = dash0Client

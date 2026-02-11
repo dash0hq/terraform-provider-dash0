@@ -17,17 +17,19 @@ import (
 type dash0Client struct {
 	url         string
 	authToken   string
+	version     string
 	client      *http.Client
 	semaphore   *semaphore.Weighted
 	maxParallel int64
 }
 
 // NewDash0Client creates a new Dash0 API client.
-func NewDash0Client(url, authToken string) *dash0Client {
+func NewDash0Client(url, authToken, version string) *dash0Client {
 	maxParallel := int64(10) // Maximum number of parallel HTTP requests
 	return &dash0Client{
 		url:       url,
 		authToken: authToken,
+		version:   version,
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -52,15 +54,15 @@ func (c *dash0Client) doRequest(ctx context.Context, method, path string, body s
 		reqBody = bytes.NewBuffer([]byte(body))
 	}
 
-	url := fmt.Sprintf("%s%s", c.url, path)
-	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
+	apiURL := fmt.Sprintf("%s%s", c.url, path)
+	req, err := http.NewRequestWithContext(ctx, method, apiURL, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "Dash0 Terraform Provider")
+	req.Header.Set("User-Agent", fmt.Sprintf("Dash0 Terraform Provider/%s", c.version))
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.authToken))
 
 	tflog.Debug(ctx, fmt.Sprintf("Making request to Dash0 API: %s %s", method, path))

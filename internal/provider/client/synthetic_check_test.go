@@ -134,7 +134,7 @@ spec:
 			defer server.Close()
 
 			// Create client
-			client := NewDash0Client(server.URL, "test-token")
+			client := NewDash0Client(server.URL, "test-token", "test")
 
 			// Execute operation
 			var err error
@@ -168,7 +168,7 @@ spec:
 
 func TestSyntheticCheckClient_InvalidYAML(t *testing.T) {
 	ctx := context.Background()
-	client := NewDash0Client("http://localhost", "test-token")
+	client := NewDash0Client("http://localhost", "test-token", "test")
 
 	checkModel := model.SyntheticCheck{
 		Origin:             types.StringValue("test-origin"),

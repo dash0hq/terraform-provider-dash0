@@ -131,7 +131,7 @@ func TestDashboardOperations(t *testing.T) {
 			defer server.Close()
 
 			// Create client
-			client := NewDash0Client(server.URL, "test-token")
+			client := NewDash0Client(server.URL, "test-token", "test")
 			ctx := context.Background()
 			var err error
 
@@ -218,7 +218,7 @@ func TestDashboardOperations_IntegrationStyle(t *testing.T) {
 	defer server.Close()
 
 	// Create client
-	client := NewDash0Client(server.URL, "test-token")
+	client := NewDash0Client(server.URL, "test-token", "test")
 
 	// Test dashboard data
 	testOrigin := "test-dashboard"
