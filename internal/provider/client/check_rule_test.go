@@ -158,7 +158,7 @@ spec:
 			defer server.Close()
 
 			// Create client
-			client := NewDash0Client(server.URL, "test-token")
+			client := NewDash0Client(server.URL, "test-token", "test")
 			ctx := context.Background()
 			var err error
 
@@ -247,7 +247,7 @@ func TestCheckRuleOperations_IntegrationStyle(t *testing.T) {
 	defer server.Close()
 
 	// Create client
-	client := NewDash0Client(server.URL, "test-token")
+	client := NewDash0Client(server.URL, "test-token", "test")
 
 	// Test check rule data
 	testOrigin := "test-check-rule"
@@ -381,7 +381,7 @@ spec:
 
 func TestCheckRuleClient_InvalidYAML(t *testing.T) {
 	ctx := context.Background()
-	client := NewDash0Client("http://localhost", "test-token")
+	client := NewDash0Client("http://localhost", "test-token", "test")
 
 	checkRuleModel := model.CheckRule{
 		Origin:        types.StringValue("test-origin"),
@@ -461,7 +461,7 @@ spec:
 			}))
 			defer server.Close()
 
-			client := NewDash0Client(server.URL, "test-token")
+			client := NewDash0Client(server.URL, "test-token", "test")
 
 			err := client.CreateCheckRule(ctx, tc.model)
 			if tc.wantErr {
@@ -475,7 +475,7 @@ spec:
 
 func TestCheckRuleClient_UnsupportedYAMLFormats(t *testing.T) {
 	ctx := context.Background()
-	client := NewDash0Client("http://localhost", "test-token")
+	client := NewDash0Client("http://localhost", "test-token", "test")
 
 	tests := []struct {
 		name string
@@ -587,7 +587,7 @@ func TestCheckRuleClient_FloatThresholds(t *testing.T) {
 			}))
 			defer server.Close()
 
-			client := NewDash0Client(server.URL, "test-token")
+			client := NewDash0Client(server.URL, "test-token", "test")
 			checkRule, err := client.GetCheckRule(context.Background(), "default", "test-origin")
 
 			require.NoError(t, err)

@@ -56,7 +56,7 @@ func TestDoRequest(t *testing.T) {
 				// Verify request headers
 				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 				assert.Equal(t, "application/json", r.Header.Get("Accept"))
-				assert.Equal(t, "Dash0 Terraform Provider", r.Header.Get("User-Agent"))
+				assert.Equal(t, "Dash0 Terraform Provider/test", r.Header.Get("User-Agent"))
 				assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
 
 				// Verify request path
@@ -71,7 +71,7 @@ func TestDoRequest(t *testing.T) {
 			}))
 			defer server.Close()
 
-			c := NewDash0Client(server.URL, "test-token")
+			c := NewDash0Client(server.URL, "test-token", "test")
 
 			// Make request
 			resp, err := c.doRequest(context.Background(), tc.method, tc.path, tc.body)
