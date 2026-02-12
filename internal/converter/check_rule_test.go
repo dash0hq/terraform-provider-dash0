@@ -279,6 +279,122 @@ func TestConvertDash0JSONtoPrometheusRules_ZeroThresholds(t *testing.T) {
 	assert.False(t, hasDegraded, "zero threshold-degraded should not be in annotations")
 }
 
+// TestCheckRuleRoundTripEquivalence verifies that user YAML survives the full
+// round-trip (YAML → Dash0 JSON → Prometheus YAML) and is still considered
+// equivalent by the normalizer despite formatting differences.
+func TestCheckRuleRoundTripEquivalence(t *testing.T) {
+	tests := []struct {
+		name     string
+		userYAML string
+	}{
+		{
+			name: "short-form durations (2m vs 2m0s)",
+			userYAML: `apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata: {}
+spec:
+  groups:
+    - name: TestGroup
+      interval: 1m
+      rules:
+        - alert: TestAlert
+          expr: test_metric > $__threshold
+          for: 2m
+          keep_firing_for: 30s
+          annotations:
+            summary: Test alert
+            dash0-threshold-critical: "5000"
+            dash0-threshold-degraded: "1000"
+          labels:
+            severity: warning`,
+		},
+		{
+			name: "keep_firing_for: 0s (dropped by omitempty)",
+			userYAML: `apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata: {}
+spec:
+  groups:
+    - name: TestGroup
+      interval: 1m
+      rules:
+        - alert: TestAlert
+          expr: test_metric > $__threshold
+          for: 2m
+          keep_firing_for: 0s
+          annotations:
+            summary: Test alert
+            dash0-threshold-critical: "5000"
+            dash0-threshold-degraded: "1000"
+          labels:
+            severity: warning`,
+		},
+		{
+			name: "unquoted numeric values in annotations and labels",
+			userYAML: `apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata: {}
+spec:
+  groups:
+    - name: TestGroup
+      interval: 1m
+      rules:
+        - alert: TestAlert
+          expr: test_metric > $__threshold
+          for: 2m
+          annotations:
+            summary: Test alert
+            dash0-threshold-critical: 5000
+            dash0-threshold-degraded: "1000"
+          labels:
+            severity: warning
+            port: 8080`,
+		},
+		{
+			name: "mixed formatting issues (durations + unquoted numbers + defaults + zero-duration)",
+			userYAML: `apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata: {}
+spec:
+  groups:
+    - name: TestGroup
+      interval: 2m
+      rules:
+        - alert: TestAlert
+          expr: test_metric > $__threshold
+          for: 5m
+          keep_firing_for: 0s
+          annotations:
+            summary: Test alert
+            dash0-threshold-critical: 5000
+            dash0-enabled: "true"
+          labels:
+            severity: warning
+            port: 8080`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dash0Rule, err := ConvertPromYAMLToDash0CheckRule(tc.userYAML, "default")
+			assert.NoError(t, err)
+
+			jsonBytes, err := json.Marshal(dash0Rule)
+			assert.NoError(t, err)
+
+			promRules, err := ConvertDash0JSONtoPrometheusRules(string(jsonBytes))
+			assert.NoError(t, err)
+
+			roundTrippedYAMLBytes, err := yaml.Marshal(promRules)
+			assert.NoError(t, err)
+
+			equivalent, err := ResourceYAMLEquivalent(tc.userYAML, string(roundTrippedYAMLBytes))
+			assert.NoError(t, err)
+			assert.True(t, equivalent, "user YAML and round-tripped YAML should be equivalent")
+		})
+	}
+}
+
 func formatFloat(f float64) string {
 	return strconv.FormatFloat(f, 'f', -1, 64)
 }

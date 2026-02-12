@@ -511,6 +511,262 @@ spec:
 			equivalent: false,
 			wantErr:    false,
 		},
+		{
+			name: "equivalent when durations use different formats (2m vs 2m0s)",
+			yaml1: `
+spec:
+  groups:
+    - interval: 2m
+      name: test-group
+      rules:
+        - alert: test-alert
+          for: 5m
+          keep_firing_for: 10s
+          expr: test > 0
+`,
+			yaml2: `
+spec:
+  groups:
+    - interval: 2m0s
+      name: test-group
+      rules:
+        - alert: test-alert
+          for: 5m0s
+          keep_firing_for: 10s
+          expr: test > 0
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
+		{
+			name: "equivalent with complex duration formats (1h30m vs 1h30m0s)",
+			yaml1: `
+spec:
+  groups:
+    - interval: 1h30m
+      name: test-group
+      rules:
+        - alert: test-alert
+          for: 1h
+          expr: test > 0
+`,
+			yaml2: `
+spec:
+  groups:
+    - interval: 1h30m0s
+      name: test-group
+      rules:
+        - alert: test-alert
+          for: 1h0m0s
+          expr: test > 0
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
+		{
+			name: "NOT equivalent when durations actually differ",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - for: 2m
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - for: 3m
+`,
+			equivalent: false,
+			wantErr:    false,
+		},
+		{
+			name: "equivalent when integers and floats represent the same value",
+			yaml1: `
+spec:
+  retries:
+    spec:
+      attempts: 3
+  schedule:
+    interval: 60
+`,
+			yaml2: `
+spec:
+  retries:
+    spec:
+      attempts: 3.0
+  schedule:
+    interval: 60.0
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
+		{
+			name: "NOT equivalent when numeric values actually differ",
+			yaml1: `
+spec:
+  retries:
+    spec:
+      attempts: 3
+`,
+			yaml2: `
+spec:
+  retries:
+    spec:
+      attempts: 4
+`,
+			equivalent: false,
+			wantErr:    false,
+		},
+		{
+			name: "equivalent when one has dash0-enabled true and other omits it",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - annotations:
+            summary: Test
+            dash0-enabled: "true"
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - annotations:
+            summary: Test
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
+		{
+			name: "equivalent when annotation has unquoted number vs quoted string",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - annotations:
+            summary: Test
+            dash0-threshold-critical: 5000
+            dash0-threshold-degraded: "1000"
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - annotations:
+            summary: Test
+            dash0-threshold-critical: "5000"
+            dash0-threshold-degraded: "1000"
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
+		{
+			name: "NOT equivalent when dash0-enabled is false vs absent",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - annotations:
+            summary: Test
+            dash0-enabled: "false"
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - annotations:
+            summary: Test
+`,
+			equivalent: false,
+			wantErr:    false,
+		},
+		{
+			name: "equivalent when label has unquoted number vs quoted string",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - labels:
+            severity: critical
+            port: 8080
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - labels:
+            severity: critical
+            port: "8080"
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
+		{
+			name: "equivalent when label has unquoted boolean vs quoted string",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - labels:
+            severity: critical
+            enabled: true
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - labels:
+            severity: critical
+            enabled: "true"
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
+		{
+			name: "equivalent when keep_firing_for is 0s vs absent",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - alert: test
+          for: 5m
+          keep_firing_for: 0s
+          expr: test > 0
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - alert: test
+          for: 5m
+          expr: test > 0
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
+		{
+			name: "NOT equivalent when keep_firing_for is non-zero vs absent",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - alert: test
+          for: 5m
+          keep_firing_for: 30s
+          expr: test > 0
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - alert: test
+          for: 5m
+          expr: test > 0
+`,
+			equivalent: false,
+			wantErr:    false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -598,6 +854,82 @@ func TestRemoveYAMLField(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cleanupMap(tt.input, []string{tt.path})
 			assert.Equal(t, tt.expected, tt.input)
+		})
+	}
+}
+
+func TestNormalizeNumericTypes(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    interface{}
+		expected interface{}
+	}{
+		{
+			name:     "converts int to float64",
+			input:    int(100),
+			expected: float64(100),
+		},
+		{
+			name:     "converts int32 to float64",
+			input:    int32(100),
+			expected: float64(100),
+		},
+		{
+			name:     "converts int64 to float64",
+			input:    int64(100),
+			expected: float64(100),
+		},
+		{
+			name:     "converts float32 to float64",
+			input:    float32(100.5),
+			expected: float64(100.5),
+		},
+		{
+			name:     "keeps float64 as is",
+			input:    float64(100.5),
+			expected: float64(100.5),
+		},
+		{
+			name:     "keeps string as is",
+			input:    "hello",
+			expected: "hello",
+		},
+		{
+			name: "converts various numeric types in nested map",
+			input: map[string]interface{}{
+				"count":   int(3),
+				"count32": int32(4),
+				"count64": int64(5),
+				"name":    "test",
+				"nested": map[string]interface{}{
+					"value":   int(42),
+					"float32": float32(1.5),
+					"float64": float64(2.5),
+				},
+			},
+			expected: map[string]interface{}{
+				"count":   float64(3),
+				"count32": float64(4),
+				"count64": float64(5),
+				"name":    "test",
+				"nested": map[string]interface{}{
+					"value":   float64(42),
+					"float32": float64(1.5),
+					"float64": float64(2.5),
+				},
+			},
+		},
+		{
+			name:     "converts various numeric types in slices",
+			input:    []interface{}{int(1), int32(2), int64(3), float32(4.5), "five"},
+			expected: []interface{}{float64(1), float64(2), float64(3), float64(4.5), "five"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeNumericTypes(tt.input)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
