@@ -112,6 +112,40 @@ spec:
 			description:  "Should use config value when YAML parsing fails",
 		},
 		{
+			name: "different duration formats - should use state (2m vs 2m0s)",
+			configValue: types.StringValue(`
+spec:
+  groups:
+    - interval: 2m
+      name: test-group
+      rules:
+        - alert: test-alert
+          for: 5m
+          expr: test > 0
+`),
+			stateValue: types.StringValue(`
+spec:
+  groups:
+    - interval: 2m0s
+      name: test-group
+      rules:
+        - alert: test-alert
+          for: 5m0s
+          expr: test > 0
+`),
+			expectedPlan: types.StringValue(`
+spec:
+  groups:
+    - interval: 2m0s
+      name: test-group
+      rules:
+        - alert: test-alert
+          for: 5m0s
+          expr: test > 0
+`),
+			description: "Should use state value when duration formats differ but represent same duration",
+		},
+		{
 			name: "complex nested structure with ordering differences - should use state",
 			configValue: types.StringValue(`
 spec:

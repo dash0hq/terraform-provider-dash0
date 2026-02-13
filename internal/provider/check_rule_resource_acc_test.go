@@ -14,6 +14,12 @@ import (
 
 const checkRuleResourceName = "dash0_check_rule.test"
 
+// basicCheckRuleYaml uses various YAML formatting styles to test round-trip resilience:
+//   - Short-form durations (1m, 5m) that may be normalized to 1m0s, 5m0s
+//   - Unquoted numeric annotation (5000) that may be stringified to "5000"
+//   - Quoted numeric annotation ("1000") for comparison
+//
+// These formatting differences should not cause state drift.
 const basicCheckRuleYaml = `apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -21,14 +27,16 @@ metadata:
 spec:
   groups:
     - name: TestAlerts
-      interval: 1m0s
+      interval: 1m
       rules:
         - alert: TestServiceDown
           expr: up{job="test-service"} == 0
-          for: 5m0s
+          for: 5m
           annotations:
             summary: 'Test service is down'
             description: 'Test service has been down for more than 5 minutes'
+            dash0-threshold-critical: 5000
+            dash0-threshold-degraded: "1000"
           labels:
             severity: critical`
 
