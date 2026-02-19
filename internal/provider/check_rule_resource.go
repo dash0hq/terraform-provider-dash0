@@ -148,7 +148,9 @@ func (r *CheckRuleResource) Read(ctx context.Context, req resource.ReadRequest, 
 	// Compare the current state with the retrieved check rule
 	// Only update state if there's a significant change (ignoring certain fields)
 	if state.CheckRuleYaml.ValueString() != "" {
-		equivalent, err := converter.ResourceYAMLEquivalent(state.CheckRuleYaml.ValueString(), check.CheckRuleYaml.ValueString())
+		stateYAML := state.CheckRuleYaml.ValueString()
+		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, check.CheckRuleYaml.ValueString(), additionalIgnored...)
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Check Rule Comparison Error",

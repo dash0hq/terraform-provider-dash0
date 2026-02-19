@@ -214,6 +214,92 @@ func TestAccSyntheticCheckResource(t *testing.T) {
 	})
 }
 
+// syntheticCheckYamlWithoutPermissions is a config that does NOT include spec.permissions.
+// The API always adds default permissions on retrieval; this test verifies that the
+// normalizer correctly ignores them, preventing phantom diffs.
+const syntheticCheckYamlWithoutPermissions = `
+kind: Dash0SyntheticCheck
+metadata:
+  name: test-check-no-perms
+spec:
+  display:
+    name: test-check-no-perms
+  enabled: true
+  plugin:
+    kind: http
+    spec:
+      assertions:
+        criticalAssertions:
+          - kind: status_code
+            spec:
+              value: "200"
+              operator: is
+          - kind: timing
+            spec:
+              type: response
+              value: 5000ms
+              operator: lte
+        degradedAssertions:
+          - kind: timing
+            spec:
+              type: response
+              value: 2000ms
+              operator: lte
+      request:
+        method: get
+        url: https://test.example.com
+        redirects: follow
+        tls:
+          allowInsecure: false
+        tracing:
+          addTracingHeaders: true
+  retries:
+    kind: fixed
+    spec:
+      attempts: 3
+      delay: 1s
+  schedule:
+    interval: 5m
+    locations:
+      - gcp-us-west1
+    strategy: all_locations`
+
+// TestAccSyntheticCheckResource_WithoutPermissions verifies that configs without
+// spec.permissions are idempotent (no plan diff after apply). The API always adds
+// default permissions on retrieval; the normalizer must ignore them.
+func TestAccSyntheticCheckResource_WithoutPermissions(t *testing.T) {
+	if os.Getenv("TF_ACC") != "1" {
+		t.Skip("Acceptance tests skipped unless TF_ACC=1")
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create synthetic check WITHOUT permissions in config
+			{
+				Config: testAccSyntheticCheckResourceConfig("terraform-test", syntheticCheckYamlWithoutPermissions),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckSyntheticCheckExists(syntheticCheckResourceName),
+					resource.TestCheckResourceAttr(syntheticCheckResourceName, "dataset", "terraform-test"),
+				),
+			},
+			// Verify idempotency - re-apply same config should show NO changes
+			{
+				Config:   testAccSyntheticCheckResourceConfig("terraform-test", syntheticCheckYamlWithoutPermissions),
+				PlanOnly: true,
+			},
+			// Cleanup
+			{
+				Config: `provider "dash0" {}`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckSyntheticCheckDoesNotExists(syntheticCheckResourceName),
+				),
+			},
+		},
+	})
+}
+
 // Check that the synthetic check exists in the API
 func testAccCheckSyntheticCheckExists(resourceName string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {

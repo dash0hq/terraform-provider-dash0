@@ -10,7 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Fields to ignore when comparing resource YAMLs
+// ignoredFields are always removed when comparing resource YAMLs.
 var ignoredFields = []string{
 	"apiVersion",
 	"kind",
@@ -23,17 +23,34 @@ var ignoredFields = []string{
 	"metadata.name",
 }
 
+// ConditionallyIgnoredFields are fields ignored during comparison only when
+// absent from the reference YAML (typically the user's config). These are
+// fields the API enriches on retrieval but that users may optionally manage.
+// When present in the user's config, drift detection is preserved.
+var ConditionallyIgnoredFields = []string{
+	"spec.permissions", // API-managed: stored separately, enriched on retrieval
+}
+
 // NormalizeYAML normalizes a YAML by removing the fields we want to ignore
-// when comparing for drift detection.
-func NormalizeYAML(yamlStr string) (string, error) {
+// when comparing for drift detection. Additional fields to ignore can be
+// passed via additionalIgnoredFields (e.g., from ConditionallyIgnoredFields).
+func NormalizeYAML(yamlStr string, additionalIgnoredFields ...string) (string, error) {
 	// Parse YAML into an interface
 	var parsedYaml map[string]interface{}
 	if err := yaml.Unmarshal([]byte(yamlStr), &parsedYaml); err != nil {
 		return "", fmt.Errorf("error parsing resource YAML: %w", err)
 	}
 
+	// Merge always-ignored fields with any additional fields
+	allIgnored := ignoredFields
+	if len(additionalIgnoredFields) > 0 {
+		allIgnored = make([]string, 0, len(ignoredFields)+len(additionalIgnoredFields))
+		allIgnored = append(allIgnored, ignoredFields...)
+		allIgnored = append(allIgnored, additionalIgnoredFields...)
+	}
+
 	// Remove ignored fields and empty values
-	cleanupMap(parsedYaml, ignoredFields)
+	cleanupMap(parsedYaml, allIgnored)
 
 	// Create a new encoder with consistent settings
 	var buf strings.Builder
@@ -111,6 +128,12 @@ func cleanupMap(data map[string]interface{}, fieldsToRemove []string) {
 			continue
 		}
 
+		// JSON null becomes Go nil after yaml.Unmarshal; treat as absent.
+		if value == nil {
+			delete(data, key)
+			continue
+		}
+
 		switch v := value.(type) {
 		case map[string]interface{}:
 			cleanupMap(v, nestedRemovals[key])
@@ -154,12 +177,15 @@ func cleanupMap(data map[string]interface{}, fieldsToRemove []string) {
 	}
 }
 
-// isEmpty checks if a map is empty or contains only empty values
+// isEmpty checks if a map is empty or contains only empty/nil values
 func isEmpty(m map[string]interface{}) bool {
 	if len(m) == 0 {
 		return true
 	}
 	for _, value := range m {
+		if value == nil {
+			continue
+		}
 		switch v := value.(type) {
 		case map[string]interface{}:
 			if !isEmpty(v) {
@@ -209,15 +235,17 @@ func normalizeNumericTypes(v interface{}) interface{} {
 }
 
 // ResourceYAMLEquivalent checks if two resource YAMLs are equivalent,
-// ignoring fields we don't care about for drift detection
-func ResourceYAMLEquivalent(yamlA, yamlB string) (bool, error) {
+// ignoring fields we don't care about for drift detection.
+// Additional fields to ignore can be passed via additionalIgnoredFields
+// (e.g., conditionally ignored fields that are absent from the user's config).
+func ResourceYAMLEquivalent(yamlA, yamlB string, additionalIgnoredFields ...string) (bool, error) {
 	// Normalize both YAMLs
-	normalizedA, err := NormalizeYAML(yamlA)
+	normalizedA, err := NormalizeYAML(yamlA, additionalIgnoredFields...)
 	if err != nil {
 		return false, fmt.Errorf("error normalizing first resource yaml: %w", err)
 	}
 
-	normalizedB, err := NormalizeYAML(yamlB)
+	normalizedB, err := NormalizeYAML(yamlB, additionalIgnoredFields...)
 	if err != nil {
 		return false, fmt.Errorf("error normalizing second resource yaml: %w", err)
 	}
@@ -257,4 +285,39 @@ func ResourceYAMLEquivalent(yamlA, yamlB string) (bool, error) {
 	}
 	// Compare the parsed structures
 	return cmp.Equal(parsedA, parsedB, cmpOptions...), nil
+}
+
+// FieldsAbsentFromYAML returns which of the given dot-separated field paths
+// are absent from the parsed YAML. Used to conditionally ignore API-managed
+// fields that the user didn't include in their config.
+func FieldsAbsentFromYAML(yamlStr string, fields []string) []string {
+	var parsed map[string]interface{}
+	if err := yaml.Unmarshal([]byte(yamlStr), &parsed); err != nil {
+		return nil // on error, don't ignore anything extra (safe default)
+	}
+
+	var absent []string
+	for _, field := range fields {
+		if !hasFieldPath(parsed, field) {
+			absent = append(absent, field)
+		}
+	}
+	return absent
+}
+
+// hasFieldPath checks if a dot-separated path exists in a nested map.
+func hasFieldPath(data map[string]interface{}, path string) bool {
+	parts := strings.SplitN(path, ".", 2)
+	val, exists := data[parts[0]]
+	if !exists || val == nil {
+		return false
+	}
+	if len(parts) == 1 {
+		return true
+	}
+	nested, ok := val.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	return hasFieldPath(nested, parts[1])
 }

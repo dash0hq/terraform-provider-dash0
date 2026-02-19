@@ -145,7 +145,9 @@ func (r *SyntheticCheckResource) Read(ctx context.Context, req resource.ReadRequ
 	// Compare the current state with the retrieved synthetic check
 	// Only update state if there's a significant change (ignoring certain fields)
 	if state.SyntheticCheckYaml.ValueString() != "" {
-		equivalent, err := converter.ResourceYAMLEquivalent(state.SyntheticCheckYaml.ValueString(), check.SyntheticCheckYaml.ValueString())
+		stateYAML := state.SyntheticCheckYaml.ValueString()
+		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, check.SyntheticCheckYaml.ValueString(), additionalIgnored...)
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Synthetic Check Comparison Error",

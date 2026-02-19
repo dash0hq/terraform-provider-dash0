@@ -40,7 +40,10 @@ func (m yamlSemanticEqualModifier) PlanModifyString(_ context.Context, req planm
 	configYAML := req.ConfigValue.ValueString()
 	stateYAML := req.StateValue.ValueString()
 
-	equivalent, err := converter.ResourceYAMLEquivalent(configYAML, stateYAML)
+	// Conditionally ignore API-managed fields that the user didn't include in their config.
+	// e.g., spec.permissions is enriched by the API on retrieval but users may optionally manage it.
+	additionalIgnored := converter.FieldsAbsentFromYAML(configYAML, converter.ConditionallyIgnoredFields)
+	equivalent, err := converter.ResourceYAMLEquivalent(configYAML, stateYAML, additionalIgnored...)
 	if err != nil {
 		// On error, let Terraform use normal comparison
 		return

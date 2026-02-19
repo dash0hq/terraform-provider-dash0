@@ -145,7 +145,9 @@ func (r *ViewResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	// Compare the current state with the retrieved view
 	// Only update state if there's a significant change (ignoring certain fields)
 	if state.ViewYaml.ValueString() != "" {
-		equivalent, err := converter.ResourceYAMLEquivalent(state.ViewYaml.ValueString(), check.ViewYaml.ValueString())
+		stateYAML := state.ViewYaml.ValueString()
+		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, check.ViewYaml.ValueString(), additionalIgnored...)
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"View Comparison Error",

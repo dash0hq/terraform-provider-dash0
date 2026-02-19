@@ -145,7 +145,9 @@ func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 	// Compare the current state with the retrieved dashboard
 	// Only update state if there's a significant change (ignoring certain fields)
 	if state.DashboardYaml.ValueString() != "" {
-		equivalent, err := converter.ResourceYAMLEquivalent(state.DashboardYaml.ValueString(), dashboard.DashboardYaml.ValueString())
+		stateYAML := state.DashboardYaml.ValueString()
+		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, dashboard.DashboardYaml.ValueString(), additionalIgnored...)
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Dashboard Comparison Error",

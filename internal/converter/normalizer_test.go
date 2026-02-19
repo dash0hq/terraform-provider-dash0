@@ -9,10 +9,11 @@ import (
 
 func TestNormalizeYAML(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		expected string
-		wantErr  bool
+		name              string
+		input             string
+		additionalIgnored []string
+		expected          string
+		wantErr           bool
 	}{
 		{
 			name: "removes metadata fields",
@@ -153,6 +154,81 @@ spec:
 			wantErr: false,
 		},
 		{
+			name:  "removes null values from JSON API responses",
+			input: `{"kind":"Dash0SyntheticCheck","metadata":{"name":"test"},"spec":{"enabled":true,"notifications":{"channels":null},"plugin":{"kind":"http","spec":{"request":{"url":"https://example.com"}}}}}`,
+			expected: `spec:
+  enabled: true
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://example.com`,
+			wantErr: false,
+		},
+		{
+			name: "removes spec.permissions when passed as additional ignored field",
+			input: `
+kind: Dash0SyntheticCheck
+metadata:
+  name: test
+spec:
+  enabled: true
+  permissions:
+    - actions:
+        - "synthetic_check:read"
+        - "synthetic_check:delete"
+      role: admin
+    - actions:
+        - "synthetic_check:read"
+      role: basic_member
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://www.example.com
+`,
+			additionalIgnored: []string{"spec.permissions"},
+			expected: `spec:
+  enabled: true
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://www.example.com`,
+			wantErr: false,
+		},
+		{
+			name: "preserves spec.permissions when not in additional ignored fields",
+			input: `
+kind: Dash0SyntheticCheck
+metadata:
+  name: test
+spec:
+  enabled: true
+  permissions:
+    - actions:
+        - "synthetic_check:read"
+      role: admin
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://www.example.com
+`,
+			expected: `spec:
+  enabled: true
+  permissions:
+    - actions:
+        - synthetic_check:read
+      role: admin
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://www.example.com`,
+			wantErr: false,
+		},
+		{
 			name:     "handles invalid YAML",
 			input:    "invalid: : : yaml",
 			expected: "",
@@ -162,7 +238,7 @@ spec:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := NormalizeYAML(tt.input)
+			result, err := NormalizeYAML(tt.input, tt.additionalIgnored...)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -176,11 +252,12 @@ spec:
 
 func TestResourceYAMLEquivalent(t *testing.T) {
 	tests := []struct {
-		name       string
-		yaml1      string
-		yaml2      string
-		equivalent bool
-		wantErr    bool
+		name              string
+		yaml1             string
+		yaml2             string
+		additionalIgnored []string
+		equivalent        bool
+		wantErr           bool
 	}{
 		{
 			name: "identical checks",
@@ -342,26 +419,22 @@ spec:
 			yaml1: `
 kind: Dash0SyntheticCheck
 spec:
-  permissions:
-    - actions:
-        - "views:read"
-        - "views:delete"
-      role: "admin"
-    - actions:
-        - "views:read"
-      role: "basic_member"
+  notifications:
+    channels:
+      - id: channel-a
+        type: email
+      - id: channel-b
+        type: slack
 `,
 			yaml2: `
 kind: Dash0SyntheticCheck
 spec:
-  permissions:
-    - actions:
-        - "views:read"
-      role: "basic_member"
-    - actions:
-        - "views:delete"
-        - "views:read"
-      role: "admin"
+  notifications:
+    channels:
+      - id: channel-b
+        type: slack
+      - id: channel-a
+        type: email
 `,
 			equivalent: true,
 			wantErr:    false,
@@ -400,6 +473,21 @@ spec:
             severity: "critical"
             team: '{{ $labels.team_name }}'
 `,
+			equivalent: true,
+			wantErr:    false,
+		},
+		{
+			name: "equivalent when JSON has null values and YAML omits them",
+			yaml1: `
+spec:
+  enabled: true
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://example.com
+`,
+			yaml2:      `{"spec":{"enabled":true,"notifications":{"channels":null},"plugin":{"kind":"http","spec":{"request":{"url":"https://example.com"}}}}}`,
 			equivalent: true,
 			wantErr:    false,
 		},
@@ -767,11 +855,151 @@ spec:
 			equivalent: false,
 			wantErr:    false,
 		},
+		{
+			name: "equivalent when one has spec.permissions and other omits it (conditionally ignored)",
+			yaml1: `
+spec:
+  enabled: true
+  permissions:
+    - actions:
+        - "synthetic_check:read"
+        - "synthetic_check:delete"
+      role: admin
+    - actions:
+        - "synthetic_check:read"
+      role: basic_member
+`,
+			yaml2: `
+spec:
+  enabled: true
+`,
+			additionalIgnored: []string{"spec.permissions"},
+			equivalent:        true,
+			wantErr:           false,
+		},
+		{
+			name: "equivalent when API adds spec.permissions and metadata (conditionally ignored)",
+			yaml1: `
+kind: Dash0SyntheticCheck
+metadata:
+  name: test-check
+  description: test check
+spec:
+  enabled: true
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://example.com
+  schedule:
+    interval: 5m
+    locations:
+      - de-frankfurt
+    strategy: all_locations
+`,
+			yaml2: `
+kind: Dash0SyntheticCheck
+metadata:
+  name: test-check
+  description: test check
+  annotations: {}
+  labels:
+    dash0.com/dataset: test-dataset
+    dash0.com/id: some-uuid
+    dash0.com/origin: tf_some-origin
+    dash0.com/version: "1"
+spec:
+  enabled: true
+  permissions:
+    - actions:
+        - "synthetic_check:read"
+        - "synthetic_check:delete"
+      role: admin
+    - actions:
+        - "synthetic_check:read"
+      role: basic_member
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://example.com
+  schedule:
+    interval: 5m
+    locations:
+      - de-frankfurt
+    strategy: all_locations
+`,
+			additionalIgnored: []string{"spec.permissions"},
+			equivalent:        true,
+			wantErr:           false,
+		},
+		{
+			name: "NOT equivalent when both have different spec.permissions (drift detection)",
+			yaml1: `
+spec:
+  enabled: true
+  permissions:
+    - actions:
+        - "synthetic_check:read"
+      role: admin
+`,
+			yaml2: `
+spec:
+  enabled: true
+  permissions:
+    - actions:
+        - "synthetic_check:read"
+        - "synthetic_check:delete"
+      role: admin
+`,
+			equivalent: false,
+			wantErr:    false,
+		},
+		{
+			name: "equivalent when both have same spec.permissions (no drift)",
+			yaml1: `
+spec:
+  enabled: true
+  permissions:
+    - actions:
+        - "synthetic_check:read"
+        - "synthetic_check:delete"
+      role: admin
+`,
+			yaml2: `
+spec:
+  enabled: true
+  permissions:
+    - actions:
+        - "synthetic_check:read"
+        - "synthetic_check:delete"
+      role: admin
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
+		{
+			name: "NOT equivalent when one has spec.permissions and other omits it (without conditional ignore)",
+			yaml1: `
+spec:
+  enabled: true
+  permissions:
+    - actions:
+        - "synthetic_check:read"
+      role: admin
+`,
+			yaml2: `
+spec:
+  enabled: true
+`,
+			equivalent: false,
+			wantErr:    false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := ResourceYAMLEquivalent(tt.yaml1, tt.yaml2)
+			result, err := ResourceYAMLEquivalent(tt.yaml1, tt.yaml2, tt.additionalIgnored...)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -929,6 +1157,144 @@ func TestNormalizeNumericTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := normalizeNumericTypes(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestHasFieldPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     map[string]interface{}
+		path     string
+		expected bool
+	}{
+		{
+			name:     "top-level field exists",
+			data:     map[string]interface{}{"enabled": true},
+			path:     "enabled",
+			expected: true,
+		},
+		{
+			name:     "top-level field missing",
+			data:     map[string]interface{}{"enabled": true},
+			path:     "permissions",
+			expected: false,
+		},
+		{
+			name: "nested field exists",
+			data: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"permissions": []interface{}{"read"},
+				},
+			},
+			path:     "spec.permissions",
+			expected: true,
+		},
+		{
+			name: "nested field missing",
+			data: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"enabled": true,
+				},
+			},
+			path:     "spec.permissions",
+			expected: false,
+		},
+		{
+			name: "intermediate path missing",
+			data: map[string]interface{}{
+				"metadata": map[string]interface{}{"name": "test"},
+			},
+			path:     "spec.permissions",
+			expected: false,
+		},
+		{
+			name: "nil value treated as absent",
+			data: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"permissions": nil,
+				},
+			},
+			path:     "spec.permissions",
+			expected: false,
+		},
+		{
+			name:     "empty map",
+			data:     map[string]interface{}{},
+			path:     "spec.permissions",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := hasFieldPath(tt.data, tt.path)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestFieldsAbsentFromYAML(t *testing.T) {
+	tests := []struct {
+		name     string
+		yamlStr  string
+		fields   []string
+		expected []string
+	}{
+		{
+			name: "field present - not returned",
+			yamlStr: `
+spec:
+  permissions:
+    - role: admin
+`,
+			fields:   []string{"spec.permissions"},
+			expected: nil,
+		},
+		{
+			name: "field absent - returned",
+			yamlStr: `
+spec:
+  enabled: true
+`,
+			fields:   []string{"spec.permissions"},
+			expected: []string{"spec.permissions"},
+		},
+		{
+			name: "mix of present and absent fields",
+			yamlStr: `
+spec:
+  enabled: true
+  permissions:
+    - role: admin
+`,
+			fields:   []string{"spec.permissions", "spec.notifications"},
+			expected: []string{"spec.notifications"},
+		},
+		{
+			name:     "invalid YAML returns nil (safe default)",
+			yamlStr:  "invalid: : : yaml",
+			fields:   []string{"spec.permissions"},
+			expected: nil,
+		},
+		{
+			name: "all fields present - returns nil",
+			yamlStr: `
+spec:
+  permissions:
+    - role: admin
+  notifications:
+    channels: []
+`,
+			fields:   []string{"spec.permissions", "spec.notifications"},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FieldsAbsentFromYAML(tt.yamlStr, tt.fields)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

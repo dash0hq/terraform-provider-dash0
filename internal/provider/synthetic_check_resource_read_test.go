@@ -69,6 +69,10 @@ spec:
         url: https://different.example.com
 `
 
+	// API response with permissions added by the API (JSON format, matching real API behavior).
+	// The API stores permissions in a separate table and enriches the response on retrieval.
+	apiResponseWithPermissions := `{"kind":"Dash0SyntheticCheck","metadata":{"annotations":{},"labels":{"dash0.com/dataset":"test-dataset","dash0.com/id":"test-uuid","dash0.com/origin":"tf_test-origin","dash0.com/version":"1"},"name":"test-check"},"spec":{"enabled":true,"permissions":[{"actions":["synthetic_check:read","synthetic_check:delete"],"role":"admin"},{"actions":["synthetic_check:read"],"role":"basic_member"}],"plugin":{"kind":"http","spec":{"request":{"url":"https://test.example.com"}}}}}`
+
 	tests := []struct {
 		name              string
 		currentState      string
@@ -80,6 +84,13 @@ spec:
 			name:              "metadata changes only - no significant diff",
 			currentState:      baseYAML,
 			apiResponse:       yamlWithMetadataChanges,
+			expectStateUpdate: false,
+			expectWarning:     false,
+		},
+		{
+			name:              "API adds permissions - no significant diff",
+			currentState:      baseYAML,
+			apiResponse:       apiResponseWithPermissions,
 			expectStateUpdate: false,
 			expectWarning:     false,
 		},

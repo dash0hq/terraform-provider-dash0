@@ -146,6 +146,97 @@ spec:
 			description: "Should use state value when duration formats differ but represent same duration",
 		},
 		{
+			name: "config without permissions, state with permissions - should use state",
+			configValue: types.StringValue(`
+spec:
+  enabled: true
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://test.example.com
+`),
+			stateValue: types.StringValue(`
+spec:
+  enabled: true
+  permissions:
+    - actions:
+        - "synthetic_check:read"
+        - "synthetic_check:delete"
+      role: admin
+    - actions:
+        - "synthetic_check:read"
+      role: basic_member
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://test.example.com
+`),
+			expectedPlan: types.StringValue(`
+spec:
+  enabled: true
+  permissions:
+    - actions:
+        - "synthetic_check:read"
+        - "synthetic_check:delete"
+      role: admin
+    - actions:
+        - "synthetic_check:read"
+      role: basic_member
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://test.example.com
+`),
+			description: "Should use state value when config omits permissions (API-added field conditionally ignored)",
+		},
+		{
+			name: "config with permissions, state with different permissions - should use config",
+			configValue: types.StringValue(`
+spec:
+  enabled: true
+  permissions:
+    - actions:
+        - "synthetic_check:read"
+      role: admin
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://test.example.com
+`),
+			stateValue: types.StringValue(`
+spec:
+  enabled: true
+  permissions:
+    - actions:
+        - "synthetic_check:read"
+        - "synthetic_check:delete"
+      role: admin
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://test.example.com
+`),
+			expectedPlan: types.StringValue(`
+spec:
+  enabled: true
+  permissions:
+    - actions:
+        - "synthetic_check:read"
+      role: admin
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://test.example.com
+`),
+			description: "Should use config value when config includes permissions and they differ (drift detected)",
+		},
+		{
 			name: "complex nested structure with ordering differences - should use state",
 			configValue: types.StringValue(`
 spec:
