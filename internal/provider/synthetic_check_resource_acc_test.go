@@ -72,7 +72,7 @@ spec:
   schedule:
     interval: 5m
     locations:
-      - gcp-us-west1
+      - us-oregon
     strategy: all_locations`
 
 const updatedSyntheticCheckYaml = `
@@ -133,7 +133,7 @@ spec:
   schedule:
     interval: 5m
     locations:
-      - gcp-us-west1
+      - us-oregon
     strategy: all_locations`
 
 func TestAccSyntheticCheckResource(t *testing.T) {
@@ -261,7 +261,7 @@ spec:
   schedule:
     interval: 5m
     locations:
-      - gcp-us-west1
+      - us-oregon
     strategy: all_locations`
 
 // TestAccSyntheticCheckResource_WithoutPermissions verifies that configs without
