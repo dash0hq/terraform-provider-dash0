@@ -1,6 +1,9 @@
 kind: Dash0RecordingRuleGroup
 metadata:
   name: http_metrics
+  annotations:
+    "dash0.com/folder-path": "/infrastructure/http"
+    "dash0.com/sharing": "team:team_01abc,user:alice@example.com"
 spec:
   enabled: true
   display:
@@ -15,3 +18,5 @@ spec:
       expression: rate(http_requests_total{status=~"5.."}[5m])
       labels:
         env: production
+    - record: http_request_duration_seconds:p99
+      expression: histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service_name))

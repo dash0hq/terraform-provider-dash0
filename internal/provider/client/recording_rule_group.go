@@ -80,9 +80,9 @@ func (c *dash0Client) DeleteRecordingRuleGroup(ctx context.Context, origin strin
 	return c.delete(ctx, origin, dataset, apiPath, "Recording Rule Group")
 }
 
-// injectRecordingRuleGroupLabels injects the dash0.com/dataset, dash0.com/origin, and dash0.com/source
-// labels into the JSON body for create/update requests. The API expects dataset to be conveyed via
-// metadata.labels rather than as a query parameter.
+// injectRecordingRuleGroupLabels injects the dash0.com/dataset and dash0.com/origin labels into the
+// JSON body for create/update requests. The API expects dataset to be conveyed via metadata.labels
+// rather than as a query parameter.
 func injectRecordingRuleGroupLabels(jsonStr string, dataset, origin string) (string, error) {
 	var obj map[string]interface{}
 	if err := json.Unmarshal([]byte(jsonStr), &obj); err != nil {
@@ -103,7 +103,6 @@ func injectRecordingRuleGroupLabels(jsonStr string, dataset, origin string) (str
 
 	labels["dash0.com/dataset"] = dataset
 	labels["dash0.com/origin"] = origin
-	labels["dash0.com/source"] = "terraform"
 
 	result, err := json.Marshal(obj)
 	if err != nil {
