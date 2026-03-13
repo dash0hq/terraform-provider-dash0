@@ -14,7 +14,7 @@ import (
 )
 
 func (c *dash0Client) CreateRecordingRuleGroup(ctx context.Context, group model.RecordingRuleGroup) error {
-	apiPath := fmt.Sprintf("/api/recording-rule-groups/%s", group.Origin.ValueString())
+	apiPath := "/api/recording-rule-groups"
 
 	jsonBody, err := converter.ConvertYAMLToJSON(group.RecordingRuleGroupYaml.ValueString())
 	if err != nil {
@@ -28,7 +28,7 @@ func (c *dash0Client) CreateRecordingRuleGroup(ctx context.Context, group model.
 
 	tflog.Debug(ctx, fmt.Sprintf("Creating Recording Rule Group with JSON payload: %s", jsonBody))
 
-	resp, err := c.doRequest(ctx, http.MethodPut, apiPath, jsonBody)
+	resp, err := c.doRequest(ctx, http.MethodPost, apiPath, jsonBody)
 	if err != nil {
 		return err
 	}
