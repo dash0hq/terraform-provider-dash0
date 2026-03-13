@@ -54,12 +54,28 @@ func (c *dash0Client) GetRecordingRuleGroup(ctx context.Context, dataset string,
 func (c *dash0Client) UpdateRecordingRuleGroup(ctx context.Context, group model.RecordingRuleGroup) error {
 	apiPath := fmt.Sprintf("/api/recording-rule-groups/%s", group.Origin.ValueString())
 
+	// Fetch the current version from the API (required for optimistic concurrency control)
+	currentResp, err := c.get(ctx, group.Origin.ValueString(), group.Dataset.ValueString(), apiPath, "Recording Rule Group")
+	if err != nil {
+		return fmt.Errorf("error fetching current recording rule group for version: %w", err)
+	}
+
+	version, err := extractRecordingRuleGroupVersion(string(currentResp))
+	if err != nil {
+		return err
+	}
+
 	jsonBody, err := converter.ConvertYAMLToJSON(group.RecordingRuleGroupYaml.ValueString())
 	if err != nil {
 		return fmt.Errorf("error converting recording rule group YAML to JSON: %w", err)
 	}
 
 	jsonBody, err = injectRecordingRuleGroupLabels(jsonBody, group.Dataset.ValueString(), group.Origin.ValueString())
+	if err != nil {
+		return err
+	}
+
+	jsonBody, err = injectRecordingRuleGroupVersion(jsonBody, version)
 	if err != nil {
 		return err
 	}
@@ -78,6 +94,59 @@ func (c *dash0Client) UpdateRecordingRuleGroup(ctx context.Context, group model.
 func (c *dash0Client) DeleteRecordingRuleGroup(ctx context.Context, origin string, dataset string) error {
 	apiPath := fmt.Sprintf("/api/recording-rule-groups/%s", origin)
 	return c.delete(ctx, origin, dataset, apiPath, "Recording Rule Group")
+}
+
+// extractRecordingRuleGroupVersion extracts the dash0.com/version label from a JSON response body.
+func extractRecordingRuleGroupVersion(jsonStr string) (string, error) {
+	var obj map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &obj); err != nil {
+		return "", fmt.Errorf("error parsing recording rule group JSON for version extraction: %w", err)
+	}
+
+	metadata, ok := obj["metadata"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("recording rule group response missing metadata")
+	}
+
+	labels, ok := metadata["labels"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("recording rule group response missing metadata.labels")
+	}
+
+	version, ok := labels["dash0.com/version"]
+	if !ok {
+		return "", fmt.Errorf("recording rule group response missing dash0.com/version label")
+	}
+
+	return fmt.Sprintf("%v", version), nil
+}
+
+// injectRecordingRuleGroupVersion injects the dash0.com/version label into the JSON body for update requests.
+func injectRecordingRuleGroupVersion(jsonStr string, version string) (string, error) {
+	var obj map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &obj); err != nil {
+		return "", fmt.Errorf("error parsing recording rule group JSON: %w", err)
+	}
+
+	metadata, ok := obj["metadata"].(map[string]interface{})
+	if !ok {
+		metadata = make(map[string]interface{})
+		obj["metadata"] = metadata
+	}
+
+	labels, ok := metadata["labels"].(map[string]interface{})
+	if !ok {
+		labels = make(map[string]interface{})
+		metadata["labels"] = labels
+	}
+
+	labels["dash0.com/version"] = version
+
+	result, err := json.Marshal(obj)
+	if err != nil {
+		return "", fmt.Errorf("error marshaling recording rule group JSON: %w", err)
+	}
+	return string(result), nil
 }
 
 // injectRecordingRuleGroupLabels injects the dash0.com/dataset and dash0.com/origin labels into the
