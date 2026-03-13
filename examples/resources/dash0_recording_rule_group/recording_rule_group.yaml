@@ -1,0 +1,17 @@
+kind: Dash0RecordingRuleGroup
+metadata:
+  name: http_metrics
+spec:
+  enabled: true
+  display:
+    name: HTTP Metrics
+  interval: 1m
+  rules:
+    - record: http_requests_total:rate5m
+      expression: rate(http_requests_total[5m])
+      labels:
+        env: production
+    - record: http_errors_total:rate5m
+      expression: rate(http_requests_total{status=~"5.."}[5m])
+      labels:
+        env: production
