@@ -314,5 +314,5 @@ func TestDash0Provider_Resources(t *testing.T) {
 	p := &dash0Provider{}
 	resources := p.Resources(context.Background())
 	assert.NotEmpty(t, resources)
-	assert.Len(t, resources, 4) // DashboardResource, SyntheticCheckResource, ViewResource, CheckRuleResource
+	assert.Len(t, resources, 5) // DashboardResource, SyntheticCheckResource, ViewResource, CheckRuleResource, RecordingRuleGroupResource
 }
