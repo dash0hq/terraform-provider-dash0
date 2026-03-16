@@ -28,6 +28,7 @@ func (c *dash0Client) CreateRecordingRuleGroup(ctx context.Context, group model.
 
 	tflog.Debug(ctx, fmt.Sprintf("Creating Recording Rule Group with JSON payload: %s", jsonBody))
 
+	// we are not using the helper because we don't send dataset as query param. it is mandatory in body.
 	resp, err := c.doRequest(ctx, http.MethodPost, apiPath, jsonBody)
 	if err != nil {
 		return err
@@ -82,6 +83,7 @@ func (c *dash0Client) UpdateRecordingRuleGroup(ctx context.Context, group model.
 
 	tflog.Debug(ctx, fmt.Sprintf("Updating Recording Rule Group with JSON payload: %s", jsonBody))
 
+	// we are not using the helper because we don't send dataset as query param. it is mandatory in body.
 	_, err = c.doRequest(ctx, http.MethodPut, apiPath, jsonBody)
 	if err != nil {
 		return err
