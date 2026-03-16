@@ -50,7 +50,6 @@ spec:
         env: production
 `
 
-
 func TestAccRecordingRuleGroupResource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
