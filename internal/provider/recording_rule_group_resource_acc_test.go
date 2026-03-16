@@ -50,25 +50,6 @@ spec:
         env: production
 `
 
-const updatedDatasetRecordingRuleGroupYaml = `
-kind: Dash0RecordingRuleGroup
-metadata:
-  name: http_metrics
-spec:
-  enabled: true
-  display:
-    name: HTTP Metrics Updated
-  interval: 2m
-  rules:
-    - record: http_requests_total:rate5m
-      expression: rate(http_requests_total[5m])
-      labels:
-        env: production
-    - record: http_errors_total:rate5m
-      expression: rate(http_requests_total{status=~"5.."}[5m])
-      labels:
-        env: production
-`
 
 func TestAccRecordingRuleGroupResource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
@@ -123,11 +104,11 @@ func TestAccRecordingRuleGroupResource(t *testing.T) {
 			},
 			// Test changing dataset (should force recreation)
 			{
-				Config: testAccRecordingRuleGroupResourceConfig("another-dataset", updatedDatasetRecordingRuleGroupYaml),
+				Config: testAccRecordingRuleGroupResourceConfig("another-dataset", updatedRecordingRuleGroupYaml),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckRecordingRuleGroupExists(recordingRuleGroupResourceName),
 					resource.TestCheckResourceAttr(recordingRuleGroupResourceName, "dataset", "another-dataset"),
-					resource.TestCheckResourceAttr(recordingRuleGroupResourceName, "recording_rule_group_yaml", updatedDatasetRecordingRuleGroupYaml),
+					resource.TestCheckResourceAttr(recordingRuleGroupResourceName, "recording_rule_group_yaml", updatedRecordingRuleGroupYaml),
 				),
 			},
 			// Test deleting
