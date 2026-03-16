@@ -98,21 +98,41 @@ func (c *dash0Client) DeleteRecordingRuleGroup(ctx context.Context, origin strin
 	return c.delete(ctx, origin, dataset, apiPath, "Recording Rule Group")
 }
 
-// extractRecordingRuleGroupVersion extracts the dash0.com/version label from a JSON response body.
-func extractRecordingRuleGroupVersion(jsonStr string) (string, error) {
+// parseRecordingRuleGroupJSON unmarshals jsonStr and returns the top-level object plus its
+// metadata.labels map. When orCreate is true, missing metadata/labels maps are created instead
+// of returning an error.
+func parseRecordingRuleGroupJSON(jsonStr string, orCreate bool) (map[string]interface{}, map[string]interface{}, error) {
 	var obj map[string]interface{}
 	if err := json.Unmarshal([]byte(jsonStr), &obj); err != nil {
-		return "", fmt.Errorf("error parsing recording rule group JSON for version extraction: %w", err)
+		return nil, nil, fmt.Errorf("error parsing recording rule group JSON: %w", err)
 	}
 
 	metadata, ok := obj["metadata"].(map[string]interface{})
 	if !ok {
-		return "", fmt.Errorf("recording rule group response missing metadata")
+		if !orCreate {
+			return nil, nil, fmt.Errorf("recording rule group response missing metadata")
+		}
+		metadata = make(map[string]interface{})
+		obj["metadata"] = metadata
 	}
 
 	labels, ok := metadata["labels"].(map[string]interface{})
 	if !ok {
-		return "", fmt.Errorf("recording rule group response missing metadata.labels")
+		if !orCreate {
+			return nil, nil, fmt.Errorf("recording rule group response missing metadata.labels")
+		}
+		labels = make(map[string]interface{})
+		metadata["labels"] = labels
+	}
+
+	return obj, labels, nil
+}
+
+// extractRecordingRuleGroupVersion extracts the dash0.com/version label from a JSON response body.
+func extractRecordingRuleGroupVersion(jsonStr string) (string, error) {
+	_, labels, err := parseRecordingRuleGroupJSON(jsonStr, false)
+	if err != nil {
+		return "", err
 	}
 
 	version, ok := labels["dash0.com/version"]
@@ -125,21 +145,9 @@ func extractRecordingRuleGroupVersion(jsonStr string) (string, error) {
 
 // injectRecordingRuleGroupVersion injects the dash0.com/version label into the JSON body for update requests.
 func injectRecordingRuleGroupVersion(jsonStr string, version string) (string, error) {
-	var obj map[string]interface{}
-	if err := json.Unmarshal([]byte(jsonStr), &obj); err != nil {
-		return "", fmt.Errorf("error parsing recording rule group JSON: %w", err)
-	}
-
-	metadata, ok := obj["metadata"].(map[string]interface{})
-	if !ok {
-		metadata = make(map[string]interface{})
-		obj["metadata"] = metadata
-	}
-
-	labels, ok := metadata["labels"].(map[string]interface{})
-	if !ok {
-		labels = make(map[string]interface{})
-		metadata["labels"] = labels
+	obj, labels, err := parseRecordingRuleGroupJSON(jsonStr, true)
+	if err != nil {
+		return "", err
 	}
 
 	labels["dash0.com/version"] = version
