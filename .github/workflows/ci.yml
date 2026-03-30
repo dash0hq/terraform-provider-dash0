@@ -21,6 +21,15 @@ jobs:
         with:
           version: v2.9
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+        with:
+          aws-access-key-id: ${{ secrets.CI_CD_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.CI_CD_AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::211528226525:role/Dash0DeveloperAssumeRole
+          role-skip-session-tagging: true
+          aws-region: eu-west-1
+
       - name: Build & Test
         run: |
           go mod download
@@ -29,3 +38,4 @@ jobs:
         env:
           DASH0_URL: ${{ secrets.DASH0_URL }}
           DASH0_AUTH_TOKEN: ${{ secrets.DASH0_AUTH_TOKEN }}
+          DASH0_TEST_EXTERNAL_ID: ${{ secrets.DASH0_TEST_EXTERNAL_ID }}

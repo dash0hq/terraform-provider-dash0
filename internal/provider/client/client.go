@@ -31,6 +31,9 @@ type Client interface {
 	GetRecordingRuleGroup(ctx context.Context, dataset string, origin string) (*model.RecordingRuleGroup, error)
 	UpdateRecordingRuleGroup(ctx context.Context, group model.RecordingRuleGroup) error
 	DeleteRecordingRuleGroup(ctx context.Context, origin string, dataset string) error
+
+	CreateOrUpdateAwsIntegration(ctx context.Context, payload model.AwsIntegrationApiPayload) error
+	DeleteAwsIntegration(ctx context.Context, sourceStateID string, externalID string) error
 }
 
 // Ensure dash0Client implements dash0ClientInterface

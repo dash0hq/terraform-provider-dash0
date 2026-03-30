@@ -134,5 +134,6 @@ func (p *dash0Provider) Resources(_ context.Context) []func() resource.Resource 
 		NewViewResource,
 		NewCheckRuleResource,
 		NewRecordingRuleGroupResource,
+		NewAwsIntegrationResource,
 	}
 }
