@@ -116,112 +116,106 @@ func buildTrustPolicy(dash0AwsAccountID, externalID string) (string, error) {
 	return string(b), nil
 }
 
-// buildReadOnlyCustomPolicy constructs the custom inline policy for read-only resource discovery.
-func buildReadOnlyCustomPolicy() (string, error) {
-	policy := map[string]interface{}{
-		"Version": "2012-10-17",
-		"Statement": []map[string]interface{}{
-			{
-				"Effect": "Allow",
-				"Action": []string{
-					"resource-explorer-2:Search",
-					"resource-explorer-2:GetView",
-				},
-				"Resource": "*",
+// readOnlyCustomPolicyJSON is the pre-marshaled custom inline policy for read-only resource discovery.
+var readOnlyCustomPolicyJSON = mustMarshalJSON(map[string]interface{}{
+	"Version": "2012-10-17",
+	"Statement": []map[string]interface{}{
+		{
+			"Effect": "Allow",
+			"Action": []string{
+				"resource-explorer-2:Search",
+				"resource-explorer-2:GetView",
 			},
-			{
-				"Effect": "Allow",
-				"Action": []string{
-					"tag:GetResources",
-					"tag:GetTagKeys",
-					"tag:GetTagValues",
-				},
-				"Resource": "*",
-			},
-			{
-				"Effect": "Allow",
-				"Action": []string{
-					"lambda:GetFunction",
-					"lambda:GetFunctionConfiguration",
-				},
-				"Resource": "*",
-			},
-			{
-				"Effect": "Allow",
-				"Action": []string{
-					"eks:ListClusters",
-					"eks:DescribeCluster",
-					"eks:ListNodegroups",
-					"eks:DescribeNodegroup",
-					"eks:ListFargateProfiles",
-					"eks:DescribeFargateProfile",
-					"eks:ListAddons",
-					"eks:DescribeAddon",
-				},
-				"Resource": "*",
-			},
-			{
-				"Effect": "Allow",
-				"Action": []string{
-					"appsync:ListGraphqlApis",
-					"appsync:GetGraphqlApi",
-					"appsync:GetSchemaCreationStatus",
-					"appsync:GetIntrospectionSchema",
-					"appsync:ListDataSources",
-					"appsync:ListResolvers",
-					"appsync:ListFunctions",
-					"appsync:ListTagsForResource",
-				},
-				"Resource": "*",
-			},
-			{
-				"Effect": "Allow",
-				"Action": []string{
-					"xray:GetTraceSegmentDestination",
-					"xray:GetIndexingRules",
-				},
-				"Resource": "*",
-			},
+			"Resource": "*",
 		},
-	}
-	b, err := json.Marshal(policy)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal read-only custom policy: %w", err)
-	}
-	return string(b), nil
-}
+		{
+			"Effect": "Allow",
+			"Action": []string{
+				"tag:GetResources",
+				"tag:GetTagKeys",
+				"tag:GetTagValues",
+			},
+			"Resource": "*",
+		},
+		{
+			"Effect": "Allow",
+			"Action": []string{
+				"lambda:GetFunction",
+				"lambda:GetFunctionConfiguration",
+			},
+			"Resource": "*",
+		},
+		{
+			"Effect": "Allow",
+			"Action": []string{
+				"eks:ListClusters",
+				"eks:DescribeCluster",
+				"eks:ListNodegroups",
+				"eks:DescribeNodegroup",
+				"eks:ListFargateProfiles",
+				"eks:DescribeFargateProfile",
+				"eks:ListAddons",
+				"eks:DescribeAddon",
+			},
+			"Resource": "*",
+		},
+		{
+			"Effect": "Allow",
+			"Action": []string{
+				"appsync:ListGraphqlApis",
+				"appsync:GetGraphqlApi",
+				"appsync:GetSchemaCreationStatus",
+				"appsync:GetIntrospectionSchema",
+				"appsync:ListDataSources",
+				"appsync:ListResolvers",
+				"appsync:ListFunctions",
+				"appsync:ListTagsForResource",
+			},
+			"Resource": "*",
+		},
+		{
+			"Effect": "Allow",
+			"Action": []string{
+				"xray:GetTraceSegmentDestination",
+				"xray:GetIndexingRules",
+			},
+			"Resource": "*",
+		},
+	},
+})
 
-// buildInstrumentationPolicy constructs the policy for Lambda auto-instrumentation.
-func buildInstrumentationPolicy() (string, error) {
-	policy := map[string]interface{}{
-		"Version": "2012-10-17",
-		"Statement": []map[string]interface{}{
-			{
-				"Effect": "Allow",
-				"Action": []string{
-					"lambda:GetFunctionConfiguration",
-					"lambda:UpdateFunctionConfiguration",
-				},
-				"Resource": "arn:aws:lambda:*:*:function:*",
+// instrumentationPolicyJSON is the pre-marshaled policy for Lambda auto-instrumentation.
+var instrumentationPolicyJSON = mustMarshalJSON(map[string]interface{}{
+	"Version": "2012-10-17",
+	"Statement": []map[string]interface{}{
+		{
+			"Effect": "Allow",
+			"Action": []string{
+				"lambda:GetFunctionConfiguration",
+				"lambda:UpdateFunctionConfiguration",
 			},
-			{
-				"Effect": "Allow",
-				"Action": []string{
-					"ec2:DescribeRouteTables",
-					"ec2:DescribeSecurityGroups",
-					"ec2:DescribeVpcAttribute",
-					"lambda:GetLayerVersion",
-					"lambda:GetLayerVersionPolicy",
-				},
-				"Resource": "*",
-			},
+			"Resource": "arn:aws:lambda:*:*:function:*",
 		},
-	}
-	b, err := json.Marshal(policy)
+		{
+			"Effect": "Allow",
+			"Action": []string{
+				"ec2:DescribeRouteTables",
+				"ec2:DescribeSecurityGroups",
+				"ec2:DescribeVpcAttribute",
+				"lambda:GetLayerVersion",
+				"lambda:GetLayerVersionPolicy",
+			},
+			"Resource": "*",
+		},
+	},
+})
+
+func mustMarshalJSON(v interface{}) string {
+	b, err := json.Marshal(v)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal instrumentation policy: %w", err)
+		panic(fmt.Sprintf("failed to marshal static policy JSON: %s", err))
 	}
-	return string(b), nil
+	return string(b)
 }
 
 // convertTags converts a map of tags to IAM tag format.
@@ -270,17 +264,11 @@ func (c *IAMClient) CreateReadOnlyRole(ctx context.Context, params RoleParams) (
 		return nil, fmt.Errorf("failed to attach ViewOnlyAccess policy to role %q: %w", roleName, err)
 	}
 
-	// Create and attach custom inline policy
-	customPolicy, err := buildReadOnlyCustomPolicy()
-	if err != nil {
-		c.deleteRoleBestEffort(ctx, roleName)
-		return nil, err
-	}
-
+	// Attach custom inline policy
 	_, err = c.iamClient.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
 		RoleName:       aws.String(roleName),
 		PolicyName:     aws.String(customPolicyName),
-		PolicyDocument: aws.String(customPolicy),
+		PolicyDocument: aws.String(readOnlyCustomPolicyJSON),
 	})
 	if err != nil {
 		c.deleteRoleBestEffort(ctx, roleName)
@@ -319,15 +307,9 @@ func (c *IAMClient) CreateInstrumentationRole(ctx context.Context, params RolePa
 	roleArn := *createOutput.Role.Arn
 
 	// Create the managed policy
-	instrPolicy, err := buildInstrumentationPolicy()
-	if err != nil {
-		c.deleteRoleBestEffort(ctx, roleName)
-		return nil, err
-	}
-
 	policyOutput, err := c.iamClient.CreatePolicy(ctx, &iam.CreatePolicyInput{
 		PolicyName:     aws.String(instrPolicyName),
-		PolicyDocument: aws.String(instrPolicy),
+		PolicyDocument: aws.String(instrumentationPolicyJSON),
 		Tags:           convertTags(params.Tags),
 	})
 	if err != nil {
@@ -481,13 +463,43 @@ func (c *IAMClient) UpdateRoleTags(ctx context.Context, roleName string, tags ma
 }
 
 // WaitForRolePropagation waits briefly for IAM eventual consistency.
-func WaitForRolePropagation() {
-	time.Sleep(10 * time.Second)
+// It respects context cancellation.
+func WaitForRolePropagation(ctx context.Context) {
+	select {
+	case <-time.After(10 * time.Second):
+	case <-ctx.Done():
+	}
 }
 
-// deleteRoleBestEffort attempts to delete a role, logging any errors.
+// deleteRoleBestEffort attempts to detach all policies and delete a role, logging any errors.
 func (c *IAMClient) deleteRoleBestEffort(ctx context.Context, roleName string) {
-	_, err := c.iamClient.DeleteRole(ctx, &iam.DeleteRoleInput{
+	// List and detach managed policies
+	attached, err := c.iamClient.ListAttachedRolePolicies(ctx, &iam.ListAttachedRolePoliciesInput{
+		RoleName: aws.String(roleName),
+	})
+	if err == nil {
+		for _, p := range attached.AttachedPolicies {
+			_, _ = c.iamClient.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
+				RoleName:  aws.String(roleName),
+				PolicyArn: p.PolicyArn,
+			})
+		}
+	}
+
+	// List and delete inline policies
+	inline, err := c.iamClient.ListRolePolicies(ctx, &iam.ListRolePoliciesInput{
+		RoleName: aws.String(roleName),
+	})
+	if err == nil {
+		for _, pName := range inline.PolicyNames {
+			_, _ = c.iamClient.DeleteRolePolicy(ctx, &iam.DeleteRolePolicyInput{
+				RoleName:   aws.String(roleName),
+				PolicyName: aws.String(pName),
+			})
+		}
+	}
+
+	_, err = c.iamClient.DeleteRole(ctx, &iam.DeleteRoleInput{
 		RoleName: aws.String(roleName),
 	})
 	if err != nil {

@@ -217,11 +217,11 @@ func (r *AwsIntegrationResource) Create(ctx context.Context, req resource.Create
 		instrRoleArn = &instrRole.RoleArn
 		plan.InstrumentationRoleArn = types.StringValue(instrRole.RoleArn)
 	} else {
-		plan.InstrumentationRoleArn = types.StringValue("")
+		plan.InstrumentationRoleArn = types.StringNull()
 	}
 
 	// Wait for IAM propagation before registering with Dash0
-	awsclient.WaitForRolePropagation()
+	awsclient.WaitForRolePropagation(ctx)
 
 	// Register with Dash0 API
 	sourceStateID := fmt.Sprintf("%s-%s", accountID, plan.ExternalID.ValueString())
@@ -351,7 +351,7 @@ func (r *AwsIntegrationResource) Update(ctx context.Context, req resource.Update
 			resp.Diagnostics.AddError("AWS IAM Error", fmt.Sprintf("Unable to delete instrumentation IAM role: %s", err))
 			return
 		}
-		plan.InstrumentationRoleArn = types.StringValue("")
+		plan.InstrumentationRoleArn = types.StringNull()
 	} else if isEnabled {
 		err = iamClient.UpdateRoleTags(ctx, awsclient.InstrumentationRoleName(prefix), params.Tags)
 		if err != nil {
@@ -360,7 +360,7 @@ func (r *AwsIntegrationResource) Update(ctx context.Context, req resource.Update
 		}
 		plan.InstrumentationRoleArn = state.InstrumentationRoleArn
 	} else {
-		plan.InstrumentationRoleArn = types.StringValue("")
+		plan.InstrumentationRoleArn = types.StringNull()
 	}
 
 	// Re-register with Dash0 API
