@@ -4,53 +4,57 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hashicorp/terraform-plugin-framework/types"
-
-	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-func (c *dash0Client) CreateView(ctx context.Context, check model.ViewResource) error {
-	// Build URL with dataset query parameter
-	apiPath := fmt.Sprintf("/api/views/%s", check.Origin.ValueString())
-
-	// Convert YAML to JSON
-	jsonBody, err := converter.ConvertYAMLToJSON(check.ViewYaml.ValueString())
+func (c *dash0Client) CreateView(ctx context.Context, origin string, viewJSON string, dataset string) error {
+	def, err := unmarshalView(viewJSON)
 	if err != nil {
-		return fmt.Errorf("error converting view YAML to JSON: %w", err)
+		return fmt.Errorf("error parsing view JSON: %w", err)
 	}
 
-	return c.create(ctx, check.Dataset.ValueString(), apiPath, jsonBody, "View")
-}
+	tflog.Debug(ctx, fmt.Sprintf("Creating view with origin: %s", origin))
 
-func (c *dash0Client) GetView(ctx context.Context, dataset string, origin string) (*model.ViewResource, error) {
-	apiPath := fmt.Sprintf("/api/views/%s", origin)
-	resp, err := c.get(ctx, origin, dataset, apiPath, "View")
+	_, err = c.inner.UpdateView(ctx, origin, def, &dataset)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &model.ViewResource{
-		Origin:   types.StringValue(origin),
-		Dataset:  types.StringValue(dataset),
-		ViewYaml: types.StringValue(string(resp)),
-	}, nil
+	tflog.Debug(ctx, fmt.Sprintf("View created with origin: %s", origin))
+	return nil
 }
 
-func (c *dash0Client) UpdateView(ctx context.Context, check model.ViewResource) error {
-	// Build URL with dataset query parameter
-	apiPath := fmt.Sprintf("/api/views/%s", check.Origin.ValueString())
-
-	// Convert YAML to JSON
-	jsonBody, err := converter.ConvertYAMLToJSON(check.ViewYaml.ValueString())
+func (c *dash0Client) GetView(ctx context.Context, origin string, dataset string) (string, error) {
+	def, err := c.inner.GetView(ctx, origin, &dataset)
 	if err != nil {
-		return fmt.Errorf("error converting view YAML to JSON: %w", err)
+		return "", err
 	}
 
-	return c.update(ctx, check.Origin.ValueString(), check.Dataset.ValueString(), apiPath, jsonBody, "View")
+	tflog.Debug(ctx, fmt.Sprintf("View retrieved with origin: %s", origin))
+	return marshalToJSON(def)
 }
+
+func (c *dash0Client) UpdateView(ctx context.Context, origin string, viewJSON string, dataset string) error {
+	def, err := unmarshalView(viewJSON)
+	if err != nil {
+		return fmt.Errorf("error parsing view JSON: %w", err)
+	}
+
+	_, err = c.inner.UpdateView(ctx, origin, def, &dataset)
+	if err != nil {
+		return err
+	}
+
+	tflog.Debug(ctx, fmt.Sprintf("View updated with origin: %s", origin))
+	return nil
+}
+
 func (c *dash0Client) DeleteView(ctx context.Context, origin string, dataset string) error {
-	// Build URL with dataset query parameter
-	apiPath := fmt.Sprintf("/api/views/%s", origin)
-	return c.delete(ctx, origin, dataset, apiPath, "View")
+	err := c.inner.DeleteView(ctx, origin, &dataset)
+	if err != nil {
+		return err
+	}
+
+	tflog.Debug(ctx, fmt.Sprintf("View deleted with origin: %s", origin))
+	return nil
 }

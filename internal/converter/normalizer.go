@@ -237,6 +237,8 @@ func normalizeNumericTypes(v interface{}) interface{} {
 
 // ResourceYAMLEquivalent checks if two resource YAMLs are equivalent,
 // ignoring fields we don't care about for drift detection.
+// yamlA is the reference (typically the user's config) and yamlB is the
+// value to compare against (typically the API response).
 // Additional fields to ignore can be passed via additionalIgnoredFields
 // (e.g., conditionally ignored fields that are absent from the user's config).
 func ResourceYAMLEquivalent(yamlA, yamlB string, additionalIgnoredFields ...string) (bool, error) {
@@ -264,6 +266,16 @@ func ResourceYAMLEquivalent(yamlA, yamlB string, additionalIgnoredFields ...stri
 	parsedA = normalizeNumericTypes(parsedA)
 	parsedB = normalizeNumericTypes(parsedB)
 
+	// Strip zero-value fields from B that are absent in A. This prevents
+	// API-enriched defaults (e.g., "enabled": false, "retries": null) from
+	// being treated as drift when the user didn't set those fields. If the
+	// user explicitly set a zero value, it will be present in A and preserved.
+	if mapA, ok := parsedA.(map[string]interface{}); ok {
+		if mapB, ok := parsedB.(map[string]interface{}); ok {
+			stripAbsentZeroValues(mapA, mapB)
+		}
+	}
+
 	cmpOptions := []cmp.Option{
 		// Ignore order of slices deeper in the structure
 		cmpopts.SortSlices(func(x, y interface{}) bool {
@@ -286,6 +298,55 @@ func ResourceYAMLEquivalent(yamlA, yamlB string, additionalIgnoredFields ...stri
 	}
 	// Compare the parsed structures
 	return cmp.Equal(parsedA, parsedB, cmpOptions...), nil
+}
+
+// stripAbsentZeroValues removes keys from target that don't exist in reference
+// and have zero values (false, 0, empty string, empty map, empty slice, nil).
+// This is applied recursively to nested maps.
+func stripAbsentZeroValues(reference, target map[string]interface{}) {
+	for key, targetVal := range target {
+		refVal, existsInRef := reference[key]
+		if !existsInRef {
+			// Key is in target but not in reference — strip if zero value
+			if isZeroValue(targetVal) {
+				delete(target, key)
+			}
+			continue
+		}
+		// Both have the key — recurse into nested maps
+		if refMap, ok := refVal.(map[string]interface{}); ok {
+			if targetMap, ok := targetVal.(map[string]interface{}); ok {
+				stripAbsentZeroValues(refMap, targetMap)
+				if len(targetMap) == 0 {
+					delete(target, key)
+				}
+			}
+		}
+	}
+}
+
+// isZeroValue returns true if v is a JSON zero value (false, 0, "", nil,
+// empty map, or empty slice).
+func isZeroValue(v interface{}) bool {
+	if v == nil {
+		return true
+	}
+	switch val := v.(type) {
+	case bool:
+		return !val
+	case float64:
+		return val == 0
+	case int:
+		return val == 0
+	case string:
+		return val == ""
+	case map[string]interface{}:
+		return isEmpty(val)
+	case []interface{}:
+		return len(val) == 0
+	default:
+		return false
+	}
 }
 
 // FieldsAbsentFromYAML returns which of the given dot-separated field paths

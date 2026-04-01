@@ -7,22 +7,20 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
 // Custom mock client implementation for this test
 type testDashboardClient struct {
 	client.Client
-	getResponse *model.Dashboard
+	getResponse string
 	getError    error
 }
 
-func (c *testDashboardClient) GetDashboard(_ context.Context, _, _ string) (*model.Dashboard, error) {
+func (c *testDashboardClient) GetDashboard(_ context.Context, _, _ string) (string, error) {
 	return c.getResponse, c.getError
 }
 
@@ -36,7 +34,7 @@ func TestDashboardResource_ReadWithDiffs(t *testing.T) {
 kind: Dashboard
 metadata:
   name: test-dashboard
-  dash0Extensions: 
+  dash0Extensions:
     projectId: test-project
 spec:
   title: Test Dashboard
@@ -109,13 +107,9 @@ spec:
 				},
 			}
 
-			// Create a test client
+			// Create a test client that returns the JSON string directly
 			testClient := &testDashboardClient{
-				getResponse: &model.Dashboard{
-					Origin:        types.StringValue(testOrigin),
-					Dataset:       types.StringValue(testDataset),
-					DashboardYaml: types.StringValue(tc.apiResponseYaml),
-				},
+				getResponse: tc.apiResponseYaml,
 			}
 
 			// Create the resource with the test client
@@ -158,7 +152,7 @@ spec:
 			r.Read(ctx, req, &resp)
 
 			// Extract the resulting state
-			var resultState model.Dashboard
+			var resultState dashboardModel
 			resp.State.Get(ctx, &resultState)
 
 			// Check if the result matches expectations

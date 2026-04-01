@@ -9,21 +9,19 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
 type testRecordingRuleGroupClient struct {
 	client.Client
-	getResponse *model.RecordingRuleGroup
+	getResponse string
 	getError    error
 }
 
-func (c *testRecordingRuleGroupClient) GetRecordingRuleGroup(_ context.Context, _, _ string) (*model.RecordingRuleGroup, error) {
+func (c *testRecordingRuleGroupClient) GetRecordingRuleGroup(_ context.Context, _, _ string) (string, error) {
 	return c.getResponse, c.getError
 }
 
@@ -122,11 +120,7 @@ spec:
 			ctx := context.Background()
 
 			mockClient := &testRecordingRuleGroupClient{
-				getResponse: &model.RecordingRuleGroup{
-					Origin:                 types.StringValue("test-origin"),
-					Dataset:                types.StringValue("test-dataset"),
-					RecordingRuleGroupYaml: types.StringValue(tt.apiResponse),
-				},
+				getResponse: tt.apiResponse,
 			}
 
 			r := &RecordingRuleGroupResource{
@@ -181,7 +175,7 @@ spec:
 			}
 
 			if !resp.Diagnostics.HasError() {
-				var state model.RecordingRuleGroup
+				var state recordingRuleGroupModel
 				resp.State.Get(ctx, &state)
 
 				if tt.expectStateUpdate {

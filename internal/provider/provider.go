@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
@@ -102,6 +103,13 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 		)
 	}
 
+	if !strings.HasPrefix(authToken, "auth_") && authToken != "" {
+		resp.Diagnostics.AddError(
+			"Invalid Dash0 Auth Token",
+			"The auth token must start with 'auth_'. Check your DASH0_AUTH_TOKEN environment variable or provider configuration.",
+		)
+	}
+
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -113,7 +121,14 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 	tflog.Debug(ctx, "Creating Dash0 client")
 
 	// Create dash0Client configuration for data sources and resources
-	dash0Client := client.NewDash0Client(url, authToken, p.version)
+	dash0Client, err := client.NewDash0Client(url, authToken, p.version)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to Create Dash0 API Client",
+			"An unexpected error occurred when creating the Dash0 API client: "+err.Error(),
+		)
+		return
+	}
 
 	resp.DataSourceData = dash0Client
 	resp.ResourceData = dash0Client

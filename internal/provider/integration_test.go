@@ -61,6 +61,7 @@ func (m *mockDash0API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodPut:
+		// Strip null/zero fields before storing, like a real API would
 		m.resources[key] = body
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -313,10 +314,15 @@ resource "dash0_synthetic_check" "test" {
     spec:
       plugin:
         kind: http
-        url: https://example.com
-        method: GET
-      scheduling:
-        cron: "*/5 * * * *"
+        spec:
+          request:
+            url: https://example.com
+            method: GET
+      schedule:
+        interval: 5m
+        strategy: all_locations
+        locations:
+          - us-oregon
   EOT
 }`,
 				Check: resource.ComposeAggregateTestCheckFunc(

@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
 func TestRecordingRuleGroupResourceModel(t *testing.T) {
@@ -31,7 +30,7 @@ spec:
     - record: http_requests_total:rate5m
       expression: rate(http_requests_total[5m])`
 
-	m := model.RecordingRuleGroup{
+	m := recordingRuleGroupModel{
 		Origin:                 types.StringValue(origin),
 		Dataset:                types.StringValue(dataset),
 		RecordingRuleGroupYaml: types.StringValue(yaml),
@@ -180,8 +179,9 @@ func TestRecordingRuleGroupResource_ReadError(t *testing.T) {
 	mockClient := &MockClient{}
 	r := &RecordingRuleGroupResource{client: mockClient}
 
-	mockClient.On("GetRecordingRuleGroup", mock.Anything, "test-dataset", "test-origin").Return(
-		(*model.RecordingRuleGroup)(nil), errors.New("not found"))
+	// Mock client to return error - GetRecordingRuleGroup(ctx, origin, dataset)
+	mockClient.On("GetRecordingRuleGroup", mock.Anything, "test-origin", "test-dataset").Return(
+		"", errors.New("not found"))
 
 	req := resource.ReadRequest{}
 	resp := &resource.ReadResponse{}

@@ -135,13 +135,16 @@ func testAccCheckRecordingRuleGroupExists(resourceName string) resource.TestChec
 		origin := rs.Primary.Attributes["origin"]
 		dataset := rs.Primary.Attributes["dataset"]
 
-		c := client.NewDash0Client(
+		c, err := client.NewDash0Client(
 			os.Getenv("DASH0_URL"),
 			os.Getenv("DASH0_AUTH_TOKEN"),
 			"test",
 		)
+		if err != nil {
+			return fmt.Errorf("Error creating client: %s", err)
+		}
 
-		_, err := c.GetRecordingRuleGroup(context.Background(), dataset, origin)
+		_, err = c.GetRecordingRuleGroup(context.Background(), origin, dataset)
 		if err != nil {
 			return fmt.Errorf("Error retrieving recording rule group: %s", err)
 		}

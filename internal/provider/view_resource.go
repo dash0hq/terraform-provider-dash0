@@ -10,7 +10,6 @@ import (
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -39,6 +38,13 @@ type ViewResource struct {
 	client client.Client
 }
 
+// viewModel is the Terraform state model for a view resource.
+type viewModel struct {
+	Origin   types.String `tfsdk:"origin"`
+	Dataset  types.String `tfsdk:"dataset"`
+	ViewYaml types.String `tfsdk:"view_yaml"`
+}
+
 // Configure adds the provider configured client to the resource.
 func (r *ViewResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
@@ -49,7 +55,7 @@ func (r *ViewResource) Configure(_ context.Context, req resource.ConfigureReques
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected dash0ClientInterface, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected client.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 		return
 	}
@@ -91,27 +97,34 @@ func (r *ViewResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 }
 
 func (r *ViewResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var m model.ViewResource
-	diags := req.Plan.Get(ctx, &m)
+	var model viewModel
+	diags := req.Plan.Get(ctx, &model)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	m.Origin = types.StringValue("tf_" + uuid.New().String())
+	model.Origin = types.StringValue("tf_" + uuid.New().String())
 
 	// Validate YAML format
 	var viewYaml interface{}
-	err := yaml.Unmarshal([]byte(m.ViewYaml.ValueString()), &viewYaml)
+	err := yaml.Unmarshal([]byte(model.ViewYaml.ValueString()), &viewYaml)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Invalid YAML",
-			fmt.Sprintf("view definition is not valid YAML: %s", err),
+			fmt.Sprintf("View definition is not valid YAML: %s", err),
 		)
 		return
 	}
 
-	err = r.client.CreateView(ctx, m)
+	// Convert YAML to JSON for the API
+	jsonBody, err := converter.ConvertYAMLToJSON(model.ViewYaml.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Conversion Error", fmt.Sprintf("Unable to convert view YAML to JSON: %s", err))
+		return
+	}
+
+	err = r.client.CreateView(ctx, model.Origin.ValueString(), jsonBody, model.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create view, got error: %s", err))
 		return
@@ -120,22 +133,21 @@ func (r *ViewResource) Create(ctx context.Context, req resource.CreateRequest, r
 	tflog.Trace(ctx, "created a view resource")
 
 	// Set state to fully populated data
-	diags = resp.State.Set(ctx, m)
+	diags = resp.State.Set(ctx, model)
 	resp.Diagnostics.Append(diags...)
 }
 
 func (r *ViewResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state model.ViewResource
+	var state viewModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	check, err := r.client.GetView(ctx, state.Dataset.ValueString(), state.Origin.ValueString())
+	apiResponseJSON, err := r.client.GetView(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
 	if err != nil {
-		// Handle 404 case by returning an empty state
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read view, got error: %s", err))
 		return
 	}
@@ -143,29 +155,24 @@ func (r *ViewResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	tflog.Trace(ctx, "read a view resource")
 
 	// Compare the current state with the retrieved view
-	// Only update state if there's a significant change (ignoring certain fields)
 	if state.ViewYaml.ValueString() != "" {
 		stateYAML := state.ViewYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, check.ViewYaml.ValueString(), additionalIgnored...)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored...)
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"View Comparison Error",
 				fmt.Sprintf("Error comparing views: %s. Using API response as source of truth.", err),
 			)
-			// Fall back to updating with API response on error
-			state.ViewYaml = check.ViewYaml
+			state.ViewYaml = types.StringValue(apiResponseJSON)
 		} else if !equivalent {
-			// Only update if view are not equivalent
-			tflog.Debug(ctx, "view has changed, updating state")
-			state.ViewYaml = check.ViewYaml
+			tflog.Debug(ctx, "View has changed, updating state")
+			state.ViewYaml = types.StringValue(apiResponseJSON)
 		} else {
-			tflog.Debug(ctx, "view is equivalent, ignoring changes in metadata fields")
-			// Keep the current state since the views are equivalent
+			tflog.Debug(ctx, "View is equivalent, ignoring changes in metadata fields")
 		}
 	} else {
-		// If there's no current views YAML, use the one from the API
-		state.ViewYaml = check.ViewYaml
+		state.ViewYaml = types.StringValue(apiResponseJSON)
 	}
 
 	// Set refreshed state
@@ -174,8 +181,8 @@ func (r *ViewResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 }
 
 func (r *ViewResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// get current state
-	var state model.ViewResource
+	// Get current state
+	var state viewModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -183,7 +190,7 @@ func (r *ViewResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 
 	// Retrieve values from plan
-	var plan model.ViewResource
+	var plan viewModel
 	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -201,9 +208,16 @@ func (r *ViewResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
+	// Convert YAML to JSON for the API
+	jsonBody, err := converter.ConvertYAMLToJSON(plan.ViewYaml.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Conversion Error", fmt.Sprintf("Unable to convert view YAML to JSON: %s", err))
+		return
+	}
+
 	// Update the existing view (dataset changes force recreation via RequiresReplace)
 	plan.Origin = state.Origin
-	err = r.client.UpdateView(ctx, plan)
+	err = r.client.UpdateView(ctx, plan.Origin.ValueString(), jsonBody, plan.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update view, got error: %s", err))
 		return
@@ -217,8 +231,7 @@ func (r *ViewResource) Update(ctx context.Context, req resource.UpdateRequest, r
 }
 
 func (r *ViewResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	// Get current state
-	var state model.ViewResource
+	var state viewModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -236,7 +249,6 @@ func (r *ViewResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 
 // ImportState function is required for resources that support import
 func (r *ViewResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	// Expect the import ID in the format "dataset,origin"
 	idParts := strings.Split(req.ID, ",")
 	if len(idParts) != 2 {
 		resp.Diagnostics.AddError(
@@ -249,18 +261,16 @@ func (r *ViewResource) ImportState(ctx context.Context, req resource.ImportState
 	dataset := idParts[0]
 	origin := idParts[1]
 
-	// Retrieve the view using the client
-	check, err := r.client.GetView(ctx, dataset, origin)
+	apiResponseJSON, err := r.client.GetView(ctx, origin, dataset)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error Importing view",
+			"Error Importing View",
 			fmt.Sprintf("Could not get view with origin=%s, dataset=%s: %s", origin, dataset, err),
 		)
 		return
 	}
 
-	// Set the resource state with the retrieved view
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), check.Origin)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), check.Dataset)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("view_yaml"), check.ViewYaml)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("view_yaml"), apiResponseJSON)...)
 }

@@ -10,7 +10,6 @@ import (
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -39,6 +38,13 @@ type RecordingRuleGroupResource struct {
 	client client.Client
 }
 
+// recordingRuleGroupModel is the Terraform state model for a recording rule group resource.
+type recordingRuleGroupModel struct {
+	Origin                 types.String `tfsdk:"origin"`
+	Dataset                types.String `tfsdk:"dataset"`
+	RecordingRuleGroupYaml types.String `tfsdk:"recording_rule_group_yaml"`
+}
+
 // Configure adds the provider configured client to the resource.
 func (r *RecordingRuleGroupResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
@@ -49,7 +55,7 @@ func (r *RecordingRuleGroupResource) Configure(_ context.Context, req resource.C
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected dash0ClientInterface, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected client.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 		return
 	}
@@ -91,18 +97,18 @@ func (r *RecordingRuleGroupResource) Schema(_ context.Context, _ resource.Schema
 }
 
 func (r *RecordingRuleGroupResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var m model.RecordingRuleGroup
-	diags := req.Plan.Get(ctx, &m)
+	var model recordingRuleGroupModel
+	diags := req.Plan.Get(ctx, &model)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	m.Origin = types.StringValue("tf_" + uuid.New().String())
+	model.Origin = types.StringValue("tf_" + uuid.New().String())
 
 	// Validate YAML format
 	var yamlContent interface{}
-	err := yaml.Unmarshal([]byte(m.RecordingRuleGroupYaml.ValueString()), &yamlContent)
+	err := yaml.Unmarshal([]byte(model.RecordingRuleGroupYaml.ValueString()), &yamlContent)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Invalid YAML",
@@ -111,7 +117,14 @@ func (r *RecordingRuleGroupResource) Create(ctx context.Context, req resource.Cr
 		return
 	}
 
-	err = r.client.CreateRecordingRuleGroup(ctx, m)
+	// Convert YAML to JSON for the API
+	jsonBody, err := converter.ConvertYAMLToJSON(model.RecordingRuleGroupYaml.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Conversion Error", fmt.Sprintf("Unable to convert recording rule group YAML to JSON: %s", err))
+		return
+	}
+
+	err = r.client.CreateRecordingRuleGroup(ctx, model.Origin.ValueString(), jsonBody, model.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create recording rule group, got error: %s", err))
 		return
@@ -120,20 +133,20 @@ func (r *RecordingRuleGroupResource) Create(ctx context.Context, req resource.Cr
 	tflog.Trace(ctx, "created a recording rule group resource")
 
 	// Set state to fully populated data
-	diags = resp.State.Set(ctx, m)
+	diags = resp.State.Set(ctx, model)
 	resp.Diagnostics.Append(diags...)
 }
 
 func (r *RecordingRuleGroupResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state model.RecordingRuleGroup
+	var state recordingRuleGroupModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	group, err := r.client.GetRecordingRuleGroup(ctx, state.Dataset.ValueString(), state.Origin.ValueString())
+	apiResponseJSON, err := r.client.GetRecordingRuleGroup(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read recording rule group, got error: %s", err))
 		return
@@ -142,25 +155,24 @@ func (r *RecordingRuleGroupResource) Read(ctx context.Context, req resource.Read
 	tflog.Trace(ctx, "read a recording rule group resource")
 
 	// Compare the current state with the retrieved recording rule group
-	// Only update state if there's a significant change (ignoring certain fields)
 	if state.RecordingRuleGroupYaml.ValueString() != "" {
 		stateYAML := state.RecordingRuleGroupYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, group.RecordingRuleGroupYaml.ValueString(), additionalIgnored...)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored...)
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Recording Rule Group Comparison Error",
 				fmt.Sprintf("Error comparing recording rule groups: %s. Using API response as source of truth.", err),
 			)
-			state.RecordingRuleGroupYaml = group.RecordingRuleGroupYaml
+			state.RecordingRuleGroupYaml = types.StringValue(apiResponseJSON)
 		} else if !equivalent {
-			tflog.Debug(ctx, "recording rule group has changed, updating state")
-			state.RecordingRuleGroupYaml = group.RecordingRuleGroupYaml
+			tflog.Debug(ctx, "Recording rule group has changed, updating state")
+			state.RecordingRuleGroupYaml = types.StringValue(apiResponseJSON)
 		} else {
-			tflog.Debug(ctx, "recording rule group is equivalent, ignoring changes in metadata fields")
+			tflog.Debug(ctx, "Recording rule group is equivalent, ignoring changes in metadata fields")
 		}
 	} else {
-		state.RecordingRuleGroupYaml = group.RecordingRuleGroupYaml
+		state.RecordingRuleGroupYaml = types.StringValue(apiResponseJSON)
 	}
 
 	// Set refreshed state
@@ -170,7 +182,7 @@ func (r *RecordingRuleGroupResource) Read(ctx context.Context, req resource.Read
 
 func (r *RecordingRuleGroupResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Get current state
-	var state model.RecordingRuleGroup
+	var state recordingRuleGroupModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -178,7 +190,7 @@ func (r *RecordingRuleGroupResource) Update(ctx context.Context, req resource.Up
 	}
 
 	// Retrieve values from plan
-	var plan model.RecordingRuleGroup
+	var plan recordingRuleGroupModel
 	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -196,9 +208,16 @@ func (r *RecordingRuleGroupResource) Update(ctx context.Context, req resource.Up
 		return
 	}
 
+	// Convert YAML to JSON for the API
+	jsonBody, err := converter.ConvertYAMLToJSON(plan.RecordingRuleGroupYaml.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Conversion Error", fmt.Sprintf("Unable to convert recording rule group YAML to JSON: %s", err))
+		return
+	}
+
 	// Update the existing recording rule group (dataset changes force recreation via RequiresReplace)
 	plan.Origin = state.Origin
-	err = r.client.UpdateRecordingRuleGroup(ctx, plan)
+	err = r.client.UpdateRecordingRuleGroup(ctx, plan.Origin.ValueString(), jsonBody, plan.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update recording rule group, got error: %s", err))
 		return
@@ -212,8 +231,7 @@ func (r *RecordingRuleGroupResource) Update(ctx context.Context, req resource.Up
 }
 
 func (r *RecordingRuleGroupResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	// Get current state
-	var state model.RecordingRuleGroup
+	var state recordingRuleGroupModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -231,7 +249,6 @@ func (r *RecordingRuleGroupResource) Delete(ctx context.Context, req resource.De
 
 // ImportState function is required for resources that support import
 func (r *RecordingRuleGroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	// Expect the import ID in the format "dataset,origin"
 	idParts := strings.Split(req.ID, ",")
 	if len(idParts) != 2 {
 		resp.Diagnostics.AddError(
@@ -244,8 +261,7 @@ func (r *RecordingRuleGroupResource) ImportState(ctx context.Context, req resour
 	dataset := idParts[0]
 	origin := idParts[1]
 
-	// Retrieve the recording rule group using the client
-	group, err := r.client.GetRecordingRuleGroup(ctx, dataset, origin)
+	apiResponseJSON, err := r.client.GetRecordingRuleGroup(ctx, origin, dataset)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Importing Recording Rule Group",
@@ -254,8 +270,7 @@ func (r *RecordingRuleGroupResource) ImportState(ctx context.Context, req resour
 		return
 	}
 
-	// Set the resource state with the retrieved recording rule group
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), group.Origin)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), group.Dataset)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("recording_rule_group_yaml"), group.RecordingRuleGroupYaml)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("recording_rule_group_yaml"), apiResponseJSON)...)
 }

@@ -4,30 +4,25 @@ import (
 	"context"
 
 	"github.com/stretchr/testify/mock"
-
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
-// MockClient mocks the client.Client for synthetic checks
+// MockClient mocks the client.Client interface
 type MockClient struct {
 	mock.Mock
 }
 
-func (m *MockClient) CreateDashboard(ctx context.Context, dashboard model.Dashboard) error {
-	args := m.Called(ctx, dashboard)
+func (m *MockClient) CreateDashboard(ctx context.Context, origin string, dashboardJSON string, dataset string) error {
+	args := m.Called(ctx, origin, dashboardJSON, dataset)
 	return args.Error(0)
 }
 
-func (m *MockClient) GetDashboard(ctx context.Context, dataset string, origin string) (*model.Dashboard, error) {
-	args := m.Called(ctx, dataset, origin)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*model.Dashboard), args.Error(1)
+func (m *MockClient) GetDashboard(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
 }
 
-func (m *MockClient) UpdateDashboard(ctx context.Context, dashboard model.Dashboard) error {
-	args := m.Called(ctx, dashboard)
+func (m *MockClient) UpdateDashboard(ctx context.Context, origin string, dashboardJSON string, dataset string) error {
+	args := m.Called(ctx, origin, dashboardJSON, dataset)
 	return args.Error(0)
 }
 
@@ -36,21 +31,18 @@ func (m *MockClient) DeleteDashboard(ctx context.Context, origin string, dataset
 	return args.Error(0)
 }
 
-func (m *MockClient) CreateSyntheticCheck(ctx context.Context, check model.SyntheticCheck) error {
-	args := m.Called(ctx, check)
+func (m *MockClient) CreateSyntheticCheck(ctx context.Context, origin string, checkJSON string, dataset string) error {
+	args := m.Called(ctx, origin, checkJSON, dataset)
 	return args.Error(0)
 }
 
-func (m *MockClient) GetSyntheticCheck(ctx context.Context, dataset string, origin string) (*model.SyntheticCheck, error) {
-	args := m.Called(ctx, dataset, origin)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*model.SyntheticCheck), args.Error(1)
+func (m *MockClient) GetSyntheticCheck(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
 }
 
-func (m *MockClient) UpdateSyntheticCheck(ctx context.Context, check model.SyntheticCheck) error {
-	args := m.Called(ctx, check)
+func (m *MockClient) UpdateSyntheticCheck(ctx context.Context, origin string, checkJSON string, dataset string) error {
+	args := m.Called(ctx, origin, checkJSON, dataset)
 	return args.Error(0)
 }
 
@@ -59,21 +51,18 @@ func (m *MockClient) DeleteSyntheticCheck(ctx context.Context, origin string, da
 	return args.Error(0)
 }
 
-func (m *MockClient) CreateView(ctx context.Context, check model.ViewResource) error {
-	args := m.Called(ctx, check)
+func (m *MockClient) CreateView(ctx context.Context, origin string, viewJSON string, dataset string) error {
+	args := m.Called(ctx, origin, viewJSON, dataset)
 	return args.Error(0)
 }
 
-func (m *MockClient) GetView(ctx context.Context, dataset string, origin string) (*model.ViewResource, error) {
-	args := m.Called(ctx, dataset, origin)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*model.ViewResource), args.Error(1)
+func (m *MockClient) GetView(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
 }
 
-func (m *MockClient) UpdateView(ctx context.Context, check model.ViewResource) error {
-	args := m.Called(ctx, check)
+func (m *MockClient) UpdateView(ctx context.Context, origin string, viewJSON string, dataset string) error {
+	args := m.Called(ctx, origin, viewJSON, dataset)
 	return args.Error(0)
 }
 
@@ -81,21 +70,19 @@ func (m *MockClient) DeleteView(ctx context.Context, origin string, dataset stri
 	args := m.Called(ctx, origin, dataset)
 	return args.Error(0)
 }
-func (m *MockClient) CreateCheckRule(ctx context.Context, checkRule model.CheckRule) error {
-	args := m.Called(ctx, checkRule)
+
+func (m *MockClient) CreateCheckRule(ctx context.Context, origin string, ruleYAML string, dataset string) error {
+	args := m.Called(ctx, origin, ruleYAML, dataset)
 	return args.Error(0)
 }
 
-func (m *MockClient) GetCheckRule(ctx context.Context, dataset string, origin string) (*model.CheckRule, error) {
-	args := m.Called(ctx, dataset, origin)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*model.CheckRule), args.Error(1)
+func (m *MockClient) GetCheckRule(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
 }
 
-func (m *MockClient) UpdateCheckRule(ctx context.Context, checkRule model.CheckRule) error {
-	args := m.Called(ctx, checkRule)
+func (m *MockClient) UpdateCheckRule(ctx context.Context, origin string, ruleYAML string, dataset string) error {
+	args := m.Called(ctx, origin, ruleYAML, dataset)
 	return args.Error(0)
 }
 
@@ -104,21 +91,18 @@ func (m *MockClient) DeleteCheckRule(ctx context.Context, origin string, dataset
 	return args.Error(0)
 }
 
-func (m *MockClient) CreateRecordingRuleGroup(ctx context.Context, group model.RecordingRuleGroup) error {
-	args := m.Called(ctx, group)
+func (m *MockClient) CreateRecordingRuleGroup(ctx context.Context, origin string, groupJSON string, dataset string) error {
+	args := m.Called(ctx, origin, groupJSON, dataset)
 	return args.Error(0)
 }
 
-func (m *MockClient) GetRecordingRuleGroup(ctx context.Context, dataset string, origin string) (*model.RecordingRuleGroup, error) {
-	args := m.Called(ctx, dataset, origin)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*model.RecordingRuleGroup), args.Error(1)
+func (m *MockClient) GetRecordingRuleGroup(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
 }
 
-func (m *MockClient) UpdateRecordingRuleGroup(ctx context.Context, group model.RecordingRuleGroup) error {
-	args := m.Called(ctx, group)
+func (m *MockClient) UpdateRecordingRuleGroup(ctx context.Context, origin string, groupJSON string, dataset string) error {
+	args := m.Called(ctx, origin, groupJSON, dataset)
 	return args.Error(0)
 }
 

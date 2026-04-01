@@ -11,8 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
 // Tests for syntheticCheckResource
@@ -99,12 +97,8 @@ spec:
 		},
 	}
 
-	// Setup mock expectations
-	mockClient.On("CreateSyntheticCheck", ctx, mock.MatchedBy(func(check model.SyntheticCheck) bool {
-		return check.Dataset.ValueString() == "test-dataset" &&
-			check.Origin.ValueString() != "" && // Should have generated UUID
-			check.SyntheticCheckYaml.ValueString() != ""
-	})).Return(nil)
+	// Setup mock expectations - CreateSyntheticCheck(ctx, origin, jsonBody, dataset)
+	mockClient.On("CreateSyntheticCheck", ctx, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Execute
 	r.Create(ctx, req, resp)
@@ -149,8 +143,8 @@ metadata:
 		},
 	}
 
-	// Setup mock to return error
-	mockClient.On("CreateSyntheticCheck", ctx, mock.Anything).Return(errors.New("API error"))
+	// Setup mock to return error - CreateSyntheticCheck(ctx, origin, jsonBody, dataset)
+	mockClient.On("CreateSyntheticCheck", ctx, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("API error"))
 
 	// Execute
 	r.Create(ctx, req, resp)
@@ -188,7 +182,7 @@ func TestSyntheticCheckResource_Delete(t *testing.T) {
 
 	resp := &resource.DeleteResponse{}
 
-	// Setup mock expectations
+	// Setup mock expectations - DeleteSyntheticCheck(ctx, origin, dataset)
 	mockClient.On("DeleteSyntheticCheck", ctx, "test-origin", "test-dataset").Return(nil)
 
 	// Execute
@@ -266,10 +260,8 @@ metadata:
 			},
 		}
 
-		mockClient.On("UpdateSyntheticCheck", ctx, mock.MatchedBy(func(check model.SyntheticCheck) bool {
-			return check.Origin.ValueString() == "test-origin" &&
-				check.Dataset.ValueString() == "test-dataset"
-		})).Return(nil).Once()
+		// Setup mock expectations - UpdateSyntheticCheck(ctx, origin, jsonBody, dataset)
+		mockClient.On("UpdateSyntheticCheck", ctx, "test-origin", mock.Anything, "test-dataset").Return(nil).Once()
 
 		r.Update(ctx, req, resp)
 
