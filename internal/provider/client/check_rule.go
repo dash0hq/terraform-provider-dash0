@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	dash0 "github.com/dash0hq/dash0-api-client-go"
+	dash0yaml "github.com/dash0hq/dash0-api-client-go/yaml"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 func (c *dash0Client) CreateCheckRule(ctx context.Context, origin string, ruleYAML string, dataset string) error {
-	alertRule, err := dash0.ConvertPromYAMLToAlertRule(ruleYAML, dataset)
+	alertRule, err := dash0yaml.UnmarshalPrometheusRule([]byte(ruleYAML))
 	if err != nil {
 		return fmt.Errorf("error converting check rule YAML to Dash0 format: %w", err)
 	}
@@ -34,16 +34,16 @@ func (c *dash0Client) GetCheckRule(ctx context.Context, origin string, dataset s
 	tflog.Debug(ctx, fmt.Sprintf("Check rule retrieved with origin: %s", origin))
 
 	// Convert Dash0 API format back to Prometheus YAML
-	promYAML, err := dash0.ConvertAlertRuleToPromYAML(alertRule)
+	promYAML, err := dash0yaml.MarshalPrometheusRule(alertRule)
 	if err != nil {
 		return "", fmt.Errorf("error converting check rule to Prometheus format: %w", err)
 	}
 
-	return promYAML, nil
+	return string(promYAML), nil
 }
 
 func (c *dash0Client) UpdateCheckRule(ctx context.Context, origin string, ruleYAML string, dataset string) error {
-	alertRule, err := dash0.ConvertPromYAMLToAlertRule(ruleYAML, dataset)
+	alertRule, err := dash0yaml.UnmarshalPrometheusRule([]byte(ruleYAML))
 	if err != nil {
 		return fmt.Errorf("error converting check rule YAML to Dash0 format: %w", err)
 	}

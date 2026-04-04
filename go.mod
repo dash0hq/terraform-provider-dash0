@@ -2,10 +2,8 @@ module github.com/dash0hq/terraform-provider-dash0
 
 go 1.26
 
-replace github.com/dash0hq/dash0-api-client-go => ../dash0-api-client-go
-
 require (
-	github.com/dash0hq/dash0-api-client-go v1.5.1
+	github.com/dash0hq/dash0-api-client-go v1.6.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/terraform-plugin-docs v0.24.0
@@ -84,6 +82,7 @@ require (
 	go.opentelemetry.io/collector/featuregate v1.51.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.51.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
+	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
 	golang.org/x/mod v0.33.0 // indirect
@@ -97,4 +96,5 @@ require (
 	google.golang.org/grpc v1.79.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
+	sigs.k8s.io/yaml v1.6.0 // indirect
 )

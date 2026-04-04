@@ -83,7 +83,7 @@ func (m *mockDash0API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							storageKey := "/api/recording-rule-groups/" + origin
 							m.resources[storageKey] = updated
 							w.Header().Set("Content-Type", "application/json")
-							w.WriteHeader(http.StatusOK)
+							w.WriteHeader(http.StatusCreated)
 							w.Write(updated)
 							return
 						}
@@ -93,13 +93,13 @@ func (m *mockDash0API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Fallback: store at the POST path
 			m.resources[key] = body
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusCreated)
 			w.Write(body)
 			return
 		}
 		m.resources[key] = body
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusCreated)
 		w.Write(body)
 
 	case http.MethodGet:
