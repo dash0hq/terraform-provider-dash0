@@ -18,6 +18,6 @@ jobs:
       - name: Build test image and run roundtrip tests
         run: ./test/roundtrip/run_all.sh
         env:
-          DASH0_API_URL: ${{ secrets.DASH0_API_URL }}
+          DASH0_API_URL: ${{ secrets.DASH0_URL }}
           DASH0_AUTH_TOKEN: ${{ secrets.DASH0_AUTH_TOKEN }}
           DASH0_DATASET: ${{ secrets.DASH0_DATASET }}

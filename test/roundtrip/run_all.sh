@@ -23,17 +23,8 @@ NC='\033[0m'
 IMAGE_NAME="dash0-roundtrip-tests"
 
 # ---------------------------------------------------------------------------
-# Build the Docker image (provider + tools + test scripts).
-# ---------------------------------------------------------------------------
-echo "Building Docker image (provider + test harness)..."
-docker build \
-  -t "$IMAGE_NAME" \
-  -f "${SCRIPT_DIR}/Dockerfile" \
-  "$REPO_DIR"
-echo ""
-
-# ---------------------------------------------------------------------------
-# Resolve credentials: prefer env vars, fall back to dash0 CLI active profile.
+# Resolve credentials first (fail fast before expensive Docker build).
+# Prefer env vars, fall back to dash0 CLI active profile.
 # ---------------------------------------------------------------------------
 if [[ -n "${DASH0_API_URL:-}" && -n "${DASH0_AUTH_TOKEN:-}" ]]; then
   DASH0_DATASET="${DASH0_DATASET:-default}"
@@ -52,8 +43,20 @@ print(json.dumps(p['configuration']))
   echo "Using credentials from dash0 CLI profile: ${ACTIVE_PROFILE}"
 else
   echo "ERROR: Set DASH0_API_URL and DASH0_AUTH_TOKEN env vars, or configure a dash0 CLI profile." >&2
+  echo "       In CI, ensure the repository secrets DASH0_API_URL and DASH0_AUTH_TOKEN are configured." >&2
   exit 1
 fi
+
+# ---------------------------------------------------------------------------
+# Build the Docker image (provider + tools + test scripts).
+# ---------------------------------------------------------------------------
+echo ""
+echo "Building Docker image (provider + test harness)..."
+docker build \
+  -t "$IMAGE_NAME" \
+  -f "${SCRIPT_DIR}/Dockerfile" \
+  "$REPO_DIR"
+echo ""
 
 # ---------------------------------------------------------------------------
 # Decide which tests to run.
