@@ -3,6 +3,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,25 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"golang.org/x/sync/semaphore"
 )
+
+// APIError represents an HTTP error response from the Dash0 API.
+type APIError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("API error (%d): %s", e.StatusCode, e.Body)
+}
+
+// IsNotFound returns true if the error is a 404 API response.
+func IsNotFound(err error) bool {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.StatusCode == http.StatusNotFound
+	}
+	return false
+}
 
 // dash0Client is the client implementation for interacting with the Dash0 API.
 type dash0Client struct {
@@ -80,7 +100,7 @@ func (c *dash0Client) doRequest(ctx context.Context, method, path string, body s
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("API error (%d): %s", resp.StatusCode, string(respBody))
+		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(respBody)}
 	}
 
 	return respBody, nil

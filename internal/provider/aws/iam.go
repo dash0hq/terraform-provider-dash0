@@ -18,10 +18,10 @@ import (
 const (
 	viewOnlyAccessPolicyArn = "arn:aws:iam::aws:policy/job-function/ViewOnlyAccess"
 	customPolicyName        = "Dash0ReadOnly"
-	instrPolicyName         = "Dash0LambdaInstrumentation"
 
-	readOnlyRoleSuffix        = "-read-only"
-	instrumentationRoleSuffix = "-instrumentation"
+	readOnlyRoleSuffix          = "-read-only"
+	instrumentationRoleSuffix   = "-instrumentation"
+	instrumentationPolicySuffix = "-lambda-instrumentation"
 )
 
 // ReadOnlyRoleName returns the full read-only role name for the given prefix.
@@ -32,6 +32,11 @@ func ReadOnlyRoleName(prefix string) string {
 // InstrumentationRoleName returns the full instrumentation role name for the given prefix.
 func InstrumentationRoleName(prefix string) string {
 	return prefix + instrumentationRoleSuffix
+}
+
+// InstrumentationPolicyName returns the full instrumentation policy name for the given prefix.
+func InstrumentationPolicyName(prefix string) string {
+	return prefix + instrumentationPolicySuffix
 }
 
 // IAMClient wraps the AWS IAM and STS clients for role management.
@@ -306,9 +311,10 @@ func (c *IAMClient) CreateInstrumentationRole(ctx context.Context, params RolePa
 
 	roleArn := *createOutput.Role.Arn
 
-	// Create the managed policy
+	// Create the managed policy (name is prefix-scoped to avoid collisions)
+	policyName := InstrumentationPolicyName(params.RoleNamePrefix)
 	policyOutput, err := c.iamClient.CreatePolicy(ctx, &iam.CreatePolicyInput{
-		PolicyName:     aws.String(instrPolicyName),
+		PolicyName:     aws.String(policyName),
 		PolicyDocument: aws.String(instrumentationPolicyJSON),
 		Tags:           convertTags(params.Tags),
 	})
@@ -391,7 +397,7 @@ func (c *IAMClient) DeleteReadOnlyRole(ctx context.Context, roleNamePrefix strin
 // DeleteInstrumentationRole deletes the instrumentation role and its policy.
 func (c *IAMClient) DeleteInstrumentationRole(ctx context.Context, roleNamePrefix string, accountID string) error {
 	roleName := InstrumentationRoleName(roleNamePrefix)
-	policyArn := fmt.Sprintf("arn:aws:iam::%s:policy/%s", accountID, instrPolicyName)
+	policyArn := fmt.Sprintf("arn:aws:iam::%s:policy/%s", accountID, InstrumentationPolicyName(roleNamePrefix))
 
 	tflog.Debug(ctx, fmt.Sprintf("Deleting instrumentation IAM role: %s", roleName))
 

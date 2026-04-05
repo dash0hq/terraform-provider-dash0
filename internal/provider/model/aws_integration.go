@@ -35,7 +35,7 @@ type AwsIntegration struct {
 }
 
 const (
-	PermissionTypeReadOnly                = "read_only"
+	PermissionTypeReadOnly                 = "read_only"
 	PermissionTypeResourcesInstrumentation = "resources_instrumentation"
 )
 
@@ -47,9 +47,9 @@ func AwsIntegrationOrigin(accountID, externalID string) string {
 
 // IntegrationDefinition is the top-level envelope for PUT/GET /api/integrations/{origin}.
 type IntegrationDefinition struct {
-	Kind     string                `json:"kind"`
-	Metadata IntegrationMetadata   `json:"metadata"`
-	Spec     IntegrationSpec       `json:"spec"`
+	Kind     string              `json:"kind"`
+	Metadata IntegrationMetadata `json:"metadata"`
+	Spec     IntegrationSpec     `json:"spec"`
 }
 
 type IntegrationMetadata struct {
@@ -57,10 +57,10 @@ type IntegrationMetadata struct {
 }
 
 type IntegrationSpec struct {
-	Enabled     bool                `json:"enabled"`
-	Display     IntegrationDisplay  `json:"display"`
-	AI          IntegrationAI       `json:"ai"`
-	Integration IntegrationInner    `json:"integration"`
+	Enabled     bool               `json:"enabled"`
+	Display     IntegrationDisplay `json:"display"`
+	AI          IntegrationAI      `json:"ai"`
+	Integration IntegrationInner   `json:"integration"`
 }
 
 type IntegrationDisplay struct {
@@ -72,8 +72,8 @@ type IntegrationAI struct {
 }
 
 type IntegrationInner struct {
-	Kind string              `json:"kind"`
-	Spec AwsIntegrationSpec  `json:"spec"`
+	Kind string             `json:"kind"`
+	Spec AwsIntegrationSpec `json:"spec"`
 }
 
 type AwsIntegrationSpec struct {

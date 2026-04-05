@@ -249,14 +249,31 @@ func (r *AwsIntegrationResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
+	// Resolve AWS account ID if missing (e.g. after terraform import)
+	accountID := state.AwsAccountID.ValueString()
+	if accountID == "" {
+		iamClient, err := r.newIAMClient(ctx, state)
+		if err != nil {
+			resp.Diagnostics.AddError("AWS Configuration Error", fmt.Sprintf("Unable to create AWS client: %s", err))
+			return
+		}
+		accountID, err = iamClient.GetCallerAccountID(ctx)
+		if err != nil {
+			resp.Diagnostics.AddError("AWS Error", fmt.Sprintf("Unable to get AWS account ID: %s", err))
+			return
+		}
+		state.AwsAccountID = types.StringValue(accountID)
+		state.ID = types.StringValue(fmt.Sprintf("%s-%s", accountID, state.ExternalID.ValueString()))
+	}
+
 	// Read from Dash0 API to detect drift
 	apiResp, err := r.client.GetAwsIntegration(ctx,
 		state.Dataset.ValueString(),
-		state.AwsAccountID.ValueString(),
+		accountID,
 		state.ExternalID.ValueString(),
 	)
 	if err != nil {
-		if strings.Contains(err.Error(), "(404)") {
+		if client.IsNotFound(err) {
 			tflog.Warn(ctx, fmt.Sprintf("AWS integration not found in Dash0 API, removing resource from state: %s", err))
 			resp.State.RemoveResource(ctx)
 			return
