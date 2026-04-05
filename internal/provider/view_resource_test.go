@@ -28,7 +28,7 @@ func TestViewResource_Schema(t *testing.T) {
 	r.Schema(context.Background(), resource.SchemaRequest{}, resp)
 
 	assert.NotNil(t, resp.Schema)
-	assert.Equal(t, "Manages a Dash0 View.", resp.Schema.Description)
+	assert.Contains(t, resp.Schema.Description, "Manages a Dash0 View.")
 
 	// Verify schema attributes
 	assert.Contains(t, resp.Schema.Attributes, "origin")

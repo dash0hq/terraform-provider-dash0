@@ -69,27 +69,27 @@ func (r *CheckRuleResource) Metadata(_ context.Context, req resource.MetadataReq
 
 func (r *CheckRuleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: `Manages a Dash0 Check Rule (in Prometheus Rule format).
+		Description: `Manages a Dash0 Check Rule. Check rules define alerting conditions based on PromQL expressions that are continuously evaluated against your telemetry data. See [About Alerting](https://dash0.com/docs/dash0/monitoring/alerting/alerting) and [Configure Alert Checks](https://dash0.com/docs/dash0/monitoring/alerting/configure-checks) for more details. The check rule definition uses the [Prometheus Rule format](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/).
 
-More information on how prometheus rules are mapped to Dash0 check rules can be found in the [Dash0 Operator documentation](https://github.com/dash0hq/dash0-operator/blob/main/helm-chart/dash0-operator/README.md#managing-dash0-check-rules).`,
+More information on how Prometheus rules are mapped to Dash0 check rules can be found in the [Dash0 Operator documentation](https://dash0.com/docs/dash0/monitoring/kubernetes/about-kubernetes#managing-dash0-check-rules).`,
 
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
-				Description: "Identifier of the check rule.",
+				Description: "A unique identifier for the check rule, automatically generated on creation. Used to reference the check rule for updates, reads, deletes, and imports.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"dataset": schema.StringAttribute{
-				Description: "The dataset for which the check rule is created.",
+				Description: "The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the check rule belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"check_rule_yaml": schema.StringAttribute{
-				Description: "The check rule definition in YAML format (Prometheus Rule format).",
+				Description: "The check rule definition in YAML format, following the [Prometheus alerting rule specification](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/).",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					customplanmodifier.YAMLSemanticEqual(),

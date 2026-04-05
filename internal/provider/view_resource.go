@@ -69,24 +69,24 @@ func (r *ViewResource) Metadata(_ context.Context, req resource.MetadataRequest,
 
 func (r *ViewResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a Dash0 View.",
+		Description: `Manages a Dash0 View. Views are saved configurations of filters, queries, and display settings that let you quickly navigate to a specific perspective on your telemetry data.`,
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
-				Description: "Identifier of the view.",
+				Description: "A unique identifier for the view, automatically generated on creation. Used to reference the view for updates, reads, deletes, and imports.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"dataset": schema.StringAttribute{
-				Description: "The dataset for which the view is created.",
+				Description: "The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the view belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"view_yaml": schema.StringAttribute{
-				Description: "The view definition in YAML format.",
+				Description: "The view definition in YAML format, specifying the filters, queries, and display settings for the view.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					customplanmodifier.YAMLSemanticEqual(),

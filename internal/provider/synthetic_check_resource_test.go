@@ -34,7 +34,7 @@ func TestSyntheticCheckResource_Schema(t *testing.T) {
 	r.Schema(context.Background(), req, resp)
 
 	assert.NotNil(t, resp.Schema)
-	assert.Equal(t, "Manages a Dash0 Synthetic Check.", resp.Schema.Description)
+	assert.Contains(t, resp.Schema.Description, "Manages a Dash0 Synthetic Check.")
 
 	// Check attributes
 	attrs := resp.Schema.Attributes

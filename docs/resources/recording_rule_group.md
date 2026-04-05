@@ -3,12 +3,12 @@
 page_title: "dash0_recording_rule_group Resource - Dash0"
 subcategory: ""
 description: |-
-  Manages a Dash0 Recording Rule Group.
+  Manages a Dash0 Recording Rule Group. Recording rules precompute frequently used or computationally expensive PromQL expressions and save the results as new time series. This is useful for dashboards and alerts that query the same expression repeatedly. The definition uses the Prometheus recording rule format https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/.
 ---
 
 # dash0_recording_rule_group (Resource)
 
-Manages a Dash0 Recording Rule Group.
+Manages a Dash0 Recording Rule Group. Recording rules precompute frequently used or computationally expensive PromQL expressions and save the results as new time series. This is useful for dashboards and alerts that query the same expression repeatedly. The definition uses the [Prometheus recording rule format](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/).
 
 ## Example Usage
 
@@ -24,12 +24,12 @@ resource "dash0_recording_rule_group" "http_metrics" {
 
 ### Required
 
-- `dataset` (String) The dataset for which the recording rule group is created.
-- `recording_rule_group_yaml` (String) The recording rule group definition in YAML format (Dash0 CRD format).
+- `dataset` (String) The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the recording rule group belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
+- `recording_rule_group_yaml` (String) The recording rule group definition in YAML format, following the [Prometheus recording rule specification](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/).
 
 ### Read-Only
 
-- `origin` (String) Identifier of the recording rule group.
+- `origin` (String) A unique identifier for the recording rule group, automatically generated on creation. Used to reference the recording rule group for updates, reads, deletes, and imports.
 
 ## Import
 

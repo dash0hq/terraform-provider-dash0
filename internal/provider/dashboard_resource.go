@@ -69,24 +69,24 @@ func (r *DashboardResource) Metadata(_ context.Context, req resource.MetadataReq
 
 func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a Dash0 Dashboard (in Perses format).",
+		Description: `Manages a Dash0 Dashboard. Dashboards provide visualizations of your telemetry data such as metrics, logs, and traces. See [About Dashboards](https://dash0.com/docs/dash0/dashboards/about-dashboards) for more details. The dashboard definition uses the [Perses Dashboard format](https://dash0.com/docs/dash0/dashboards/reference-dashboard-source-format).`,
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
-				Description: "Identifier of the dashboard.",
+				Description: "A unique identifier for the dashboard, automatically generated on creation. Used to reference the dashboard for updates, reads, deletes, and imports.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"dataset": schema.StringAttribute{
-				Description: "The dataset for which the dashboard is created.",
+				Description: "The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the dashboard belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"dashboard_yaml": schema.StringAttribute{
-				Description: "The dashboard definition in YAML format (Perses Dashboard format).",
+				Description: "The dashboard definition in YAML format, following the [Perses Dashboard specification](https://dash0.com/docs/dash0/dashboards/reference-dashboard-source-format).",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					customplanmodifier.YAMLSemanticEqual(),

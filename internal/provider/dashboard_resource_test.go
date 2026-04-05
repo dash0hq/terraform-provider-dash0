@@ -28,7 +28,7 @@ func TestDashboardResource_Schema(t *testing.T) {
 	r.Schema(context.Background(), resource.SchemaRequest{}, resp)
 
 	assert.NotNil(t, resp.Schema)
-	assert.Equal(t, "Manages a Dash0 Dashboard (in Perses format).", resp.Schema.Description)
+	assert.Contains(t, resp.Schema.Description, "Manages a Dash0 Dashboard.")
 
 	// Verify schema attributes
 	assert.Contains(t, resp.Schema.Attributes, "origin")

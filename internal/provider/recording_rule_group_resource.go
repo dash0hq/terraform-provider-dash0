@@ -69,24 +69,24 @@ func (r *RecordingRuleGroupResource) Metadata(_ context.Context, req resource.Me
 
 func (r *RecordingRuleGroupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a Dash0 Recording Rule Group.",
+		Description: `Manages a Dash0 Recording Rule Group. Recording rules precompute frequently used or computationally expensive PromQL expressions and save the results as new time series. This is useful for dashboards and alerts that query the same expression repeatedly. The definition uses the [Prometheus recording rule format](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/).`,
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
-				Description: "Identifier of the recording rule group.",
+				Description: "A unique identifier for the recording rule group, automatically generated on creation. Used to reference the recording rule group for updates, reads, deletes, and imports.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"dataset": schema.StringAttribute{
-				Description: "The dataset for which the recording rule group is created.",
+				Description: "The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the recording rule group belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"recording_rule_group_yaml": schema.StringAttribute{
-				Description: "The recording rule group definition in YAML format (Dash0 CRD format).",
+				Description: "The recording rule group definition in YAML format, following the [Prometheus recording rule specification](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/).",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					customplanmodifier.YAMLSemanticEqual(),

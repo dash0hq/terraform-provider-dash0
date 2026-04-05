@@ -49,16 +49,16 @@ func (p *dash0Provider) Metadata(_ context.Context, _ provider.MetadataRequest, 
 // Schema defines the provider-level schema for configuration data.
 func (p *dash0Provider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Interact with Dash0 observability platform. Authentication can be provided via provider configuration attributes `url` and `auth_token` or via environment variables DASH0_URL and DASH0_AUTH_TOKEN.",
+		Description: `The Dash0 provider allows you to manage resources on the [Dash0](https://www.dash0.com) observability platform, including dashboards, check rules, recording rule groups, synthetic checks, and views. Authentication can be provided via provider configuration attributes or via the DASH0_URL and DASH0_AUTH_TOKEN environment variables.`,
 		Attributes: map[string]schema.Attribute{
 			"url": schema.StringAttribute{
 				Optional:    true,
-				Description: "Dash0 base URL. If omitted, the DASH0_URL environment variable will be used.",
+				Description: "The base URL of the Dash0 API (e.g. \"https://api.us-west-2.aws.dash0.com\"). If omitted, the DASH0_URL environment variable will be used.",
 			},
 			"auth_token": schema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,
-				Description: "Dash0 auth token. If omitted, the DASH0_AUTH_TOKEN environment variable will be used.",
+				Description: "The API auth token for Dash0. Tokens can be created in [Dash0 Settings > Auth Tokens](https://app.dash0.com/settings/auth-tokens). If omitted, the DASH0_AUTH_TOKEN environment variable will be used.",
 			},
 		},
 	}
