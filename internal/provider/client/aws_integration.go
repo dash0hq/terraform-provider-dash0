@@ -4,55 +4,47 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
-const awsIacIntegrationPath = "/public/aws/iac-integration"
+func (c *dash0Client) CreateOrUpdateAwsIntegration(ctx context.Context, integration model.AwsIntegration, accountID string) error {
+	origin := model.AwsIntegrationOrigin(accountID, integration.ExternalID.ValueString())
+	apiPath := fmt.Sprintf("/api/integrations/%s", origin)
 
-func (c *dash0Client) CreateOrUpdateAwsIntegration(ctx context.Context, payload model.AwsIntegrationApiPayload) error {
-	payload.Action = "create_or_update"
-	payload.Source = "terraform"
-
-	body, err := json.Marshal(payload)
+	definition := model.BuildAwsIntegrationDefinition(integration, accountID)
+	body, err := json.Marshal(definition)
 	if err != nil {
-		return fmt.Errorf("error marshaling AWS integration payload: %w", err)
+		return fmt.Errorf("error marshaling AWS integration: %w", err)
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("Registering AWS integration with Dash0 API: %s", string(body)))
-
-	resp, err := c.doRequest(ctx, http.MethodPost, awsIacIntegrationPath, string(body))
-	if err != nil {
-		return fmt.Errorf("error registering AWS integration with Dash0: %w", err)
-	}
-
-	tflog.Debug(ctx, fmt.Sprintf("AWS integration registered successfully. Response: %s", string(resp)))
-	return nil
+	tflog.Debug(ctx, fmt.Sprintf("Creating/updating AWS integration with origin %s", origin))
+	return c.create(ctx, integration.Dataset.ValueString(), apiPath, string(body), "AwsIntegration")
 }
 
-func (c *dash0Client) DeleteAwsIntegration(ctx context.Context, sourceStateID string, externalID string) error {
-	payload := model.AwsIntegrationApiPayload{
-		Action:        "delete",
-		Source:        "terraform",
-		SourceStateID: sourceStateID,
-		ExternalID:    externalID,
-	}
+func (c *dash0Client) GetAwsIntegration(ctx context.Context, dataset, accountID, externalID string) (*model.AwsIntegrationSpec, error) {
+	origin := model.AwsIntegrationOrigin(accountID, externalID)
+	apiPath := fmt.Sprintf("/api/integrations/%s", origin)
 
-	body, err := json.Marshal(payload)
+	resp, err := c.get(ctx, origin, dataset, apiPath, "AwsIntegration")
 	if err != nil {
-		return fmt.Errorf("error marshaling AWS integration delete payload: %w", err)
+		return nil, err
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("Deleting AWS integration from Dash0 API: %s", string(body)))
-
-	resp, err := c.doRequest(ctx, http.MethodPost, awsIacIntegrationPath, string(body))
-	if err != nil {
-		return fmt.Errorf("error deleting AWS integration from Dash0: %w", err)
+	var definition model.IntegrationDefinition
+	if err := json.Unmarshal(resp, &definition); err != nil {
+		return nil, fmt.Errorf("error parsing AWS integration response: %w", err)
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("AWS integration deleted successfully. Response: %s", string(resp)))
-	return nil
+	return &definition.Spec.Integration.Spec, nil
+}
+
+func (c *dash0Client) DeleteAwsIntegration(ctx context.Context, dataset, accountID, externalID string) error {
+	origin := model.AwsIntegrationOrigin(accountID, externalID)
+	apiPath := fmt.Sprintf("/api/integrations/%s", origin)
+
+	tflog.Debug(ctx, fmt.Sprintf("Deleting AWS integration with origin %s", origin))
+	return c.delete(ctx, origin, dataset, apiPath, "AwsIntegration")
 }

@@ -127,12 +127,20 @@ func (m *MockClient) DeleteRecordingRuleGroup(ctx context.Context, origin string
 	return args.Error(0)
 }
 
-func (m *MockClient) CreateOrUpdateAwsIntegration(ctx context.Context, payload model.AwsIntegrationApiPayload) error {
-	args := m.Called(ctx, payload)
+func (m *MockClient) CreateOrUpdateAwsIntegration(ctx context.Context, integration model.AwsIntegration, accountID string) error {
+	args := m.Called(ctx, integration, accountID)
 	return args.Error(0)
 }
 
-func (m *MockClient) DeleteAwsIntegration(ctx context.Context, sourceStateID string, externalID string) error {
-	args := m.Called(ctx, sourceStateID, externalID)
+func (m *MockClient) GetAwsIntegration(ctx context.Context, dataset, accountID, externalID string) (*model.AwsIntegrationSpec, error) {
+	args := m.Called(ctx, dataset, accountID, externalID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.AwsIntegrationSpec), args.Error(1)
+}
+
+func (m *MockClient) DeleteAwsIntegration(ctx context.Context, dataset, accountID, externalID string) error {
+	args := m.Called(ctx, dataset, accountID, externalID)
 	return args.Error(0)
 }

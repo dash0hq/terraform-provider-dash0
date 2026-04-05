@@ -204,7 +204,6 @@ func (r *AwsIntegrationResource) Create(ctx context.Context, req resource.Create
 	plan.ReadOnlyRoleArn = types.StringValue(readOnlyRole.RoleArn)
 
 	// Create instrumentation role (optional)
-	var instrRoleArn *string
 	if plan.EnableResourcesInstrumentation.ValueBool() {
 		instrRole, err := iamClient.CreateInstrumentationRole(ctx, params)
 		if err != nil {
@@ -214,7 +213,6 @@ func (r *AwsIntegrationResource) Create(ctx context.Context, req resource.Create
 					readOnlyRole.RoleArn, err))
 			return
 		}
-		instrRoleArn = &instrRole.RoleArn
 		plan.InstrumentationRoleArn = types.StringValue(instrRole.RoleArn)
 	} else {
 		plan.InstrumentationRoleArn = types.StringNull()
@@ -224,29 +222,18 @@ func (r *AwsIntegrationResource) Create(ctx context.Context, req resource.Create
 	awsclient.WaitForRolePropagation(ctx)
 
 	// Register with Dash0 API
-	sourceStateID := fmt.Sprintf("%s-%s", accountID, plan.ExternalID.ValueString())
-	payload := model.AwsIntegrationApiPayload{
-		SourceStateID:                   sourceStateID,
-		RoleArn:                         readOnlyRole.RoleArn,
-		ResourcesInstrumentationRoleArn: instrRoleArn,
-		ExternalID:                      plan.ExternalID.ValueString(),
-		Dataset:                         plan.Dataset.ValueString(),
-	}
+	plan.AwsAccountID = types.StringValue(accountID)
+	plan.ID = types.StringValue(fmt.Sprintf("%s-%s", accountID, plan.ExternalID.ValueString()))
 
-	err = r.client.CreateOrUpdateAwsIntegration(ctx, payload)
+	err = r.client.CreateOrUpdateAwsIntegration(ctx, plan, accountID)
 	if err != nil {
 		// Store partial state so destroy can clean up IAM roles
-		plan.ID = types.StringValue(sourceStateID)
-		plan.AwsAccountID = types.StringValue(accountID)
 		resp.State.Set(ctx, plan)
 		resp.Diagnostics.AddError("Dash0 API Error",
 			fmt.Sprintf("IAM roles were created successfully, but failed to register integration with Dash0 API: %s. "+
 				"Run 'terraform destroy' to clean up the IAM roles, or 'terraform apply' to retry the registration.", err))
 		return
 	}
-
-	plan.ID = types.StringValue(sourceStateID)
-	plan.AwsAccountID = types.StringValue(accountID)
 
 	tflog.Trace(ctx, "created AWS integration resource")
 
@@ -262,6 +249,23 @@ func (r *AwsIntegrationResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
+	// Read from Dash0 API to detect drift
+	apiResp, err := r.client.GetAwsIntegration(ctx,
+		state.Dataset.ValueString(),
+		state.AwsAccountID.ValueString(),
+		state.ExternalID.ValueString(),
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "(404)") {
+			tflog.Warn(ctx, fmt.Sprintf("AWS integration not found in Dash0 API, removing resource from state: %s", err))
+			resp.State.RemoveResource(ctx)
+			return
+		}
+		resp.Diagnostics.AddError("Dash0 API Error", fmt.Sprintf("Unable to read AWS integration from Dash0 API: %s", err))
+		return
+	}
+
+	// Verify IAM roles still exist in AWS
 	iamClient, err := r.newIAMClient(ctx, state)
 	if err != nil {
 		resp.Diagnostics.AddError("AWS Configuration Error", fmt.Sprintf("Unable to create AWS client: %s", err))
@@ -270,7 +274,6 @@ func (r *AwsIntegrationResource) Read(ctx context.Context, req resource.ReadRequ
 
 	prefix := state.IamRoleNamePrefix.ValueString()
 
-	// Verify read-only role exists
 	readOnlyRoleName := awsclient.ReadOnlyRoleName(prefix)
 	readOnlyRole, err := iamClient.ReadRole(ctx, readOnlyRoleName)
 	if err != nil {
@@ -280,8 +283,19 @@ func (r *AwsIntegrationResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 	state.ReadOnlyRoleArn = types.StringValue(readOnlyRole.RoleArn)
 
-	// Verify instrumentation role if enabled
-	if state.EnableResourcesInstrumentation.ValueBool() {
+	// Update dataset from API response (drift detection)
+	state.Dataset = types.StringValue(apiResp.Dataset)
+
+	// Check instrumentation role from API response
+	hasInstrRole := false
+	for _, role := range apiResp.Roles {
+		if role.PermissionType == model.PermissionTypeResourcesInstrumentation {
+			hasInstrRole = true
+			break
+		}
+	}
+
+	if hasInstrRole {
 		instrRoleName := awsclient.InstrumentationRoleName(prefix)
 		instrRole, err := iamClient.ReadRole(ctx, instrRoleName)
 		if err != nil {
@@ -290,6 +304,8 @@ func (r *AwsIntegrationResource) Read(ctx context.Context, req resource.ReadRequ
 			return
 		}
 		state.InstrumentationRoleArn = types.StringValue(instrRole.RoleArn)
+	} else {
+		state.InstrumentationRoleArn = types.StringNull()
 	}
 
 	tflog.Trace(ctx, "read AWS integration resource")
@@ -363,22 +379,8 @@ func (r *AwsIntegrationResource) Update(ctx context.Context, req resource.Update
 		plan.InstrumentationRoleArn = types.StringNull()
 	}
 
-	// Re-register with Dash0 API
-	var instrRoleArn *string
-	if isEnabled && plan.InstrumentationRoleArn.ValueString() != "" {
-		arn := plan.InstrumentationRoleArn.ValueString()
-		instrRoleArn = &arn
-	}
-
-	payload := model.AwsIntegrationApiPayload{
-		SourceStateID:                   plan.ID.ValueString(),
-		RoleArn:                         plan.ReadOnlyRoleArn.ValueString(),
-		ResourcesInstrumentationRoleArn: instrRoleArn,
-		ExternalID:                      plan.ExternalID.ValueString(),
-		Dataset:                         plan.Dataset.ValueString(),
-	}
-
-	err = r.client.CreateOrUpdateAwsIntegration(ctx, payload)
+	// Re-register with Dash0 API (PUT is an upsert)
+	err = r.client.CreateOrUpdateAwsIntegration(ctx, plan, plan.AwsAccountID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Dash0 API Error", fmt.Sprintf("Unable to update AWS integration registration: %s", err))
 		return
@@ -421,8 +423,11 @@ func (r *AwsIntegrationResource) Delete(ctx context.Context, req resource.Delete
 	}
 
 	// Unregister from Dash0 API
-	sourceStateID := state.ID.ValueString()
-	err = r.client.DeleteAwsIntegration(ctx, sourceStateID, state.ExternalID.ValueString())
+	err = r.client.DeleteAwsIntegration(ctx,
+		state.Dataset.ValueString(),
+		state.AwsAccountID.ValueString(),
+		state.ExternalID.ValueString(),
+	)
 	if err != nil {
 		tflog.Warn(ctx, fmt.Sprintf("Failed to delete AWS integration from Dash0 API: %s. IAM roles were cleaned up successfully.", err))
 	}
