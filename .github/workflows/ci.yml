@@ -5,6 +5,10 @@ on:
     branches:
       - '*'
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,19 +31,28 @@ jobs:
           make build
           make test
 
+  acceptance-tests:
+    runs-on: ubuntu-latest
+    needs: build
+    environment: staging
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: './go.mod'
+
       - name: Configure AWS credentials
-        if: ${{ secrets.CI_CD_AWS_ACCESS_KEY_ID != '' }}
         uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
         with:
-          aws-access-key-id: ${{ secrets.CI_CD_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.CI_CD_AWS_SECRET_ACCESS_KEY }}
-          role-to-assume: arn:aws:iam::211528226525:role/Dash0DeveloperAssumeRole
-          role-skip-session-tagging: true
-          aws-region: eu-west-1
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
 
       - name: Acceptance Tests
-        if: ${{ secrets.DASH0_AUTH_TOKEN != '' }}
-        run: make testacc
+        run: |
+          go mod download
+          make testacc
         env:
           DASH0_URL: ${{ secrets.DASH0_URL }}
           DASH0_AUTH_TOKEN: ${{ secrets.DASH0_AUTH_TOKEN }}
