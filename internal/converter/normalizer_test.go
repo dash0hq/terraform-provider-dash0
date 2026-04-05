@@ -812,6 +812,46 @@ spec:
 			wantErr:    false,
 		},
 		{
+			name: "equivalent when for is 0s vs absent",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - alert: test
+          for: 0s
+          expr: test > 0
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - alert: test
+          expr: test > 0
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
+		{
+			name: "NOT equivalent when for is non-zero vs absent",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - alert: test
+          for: 30s
+          expr: test > 0
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - alert: test
+          expr: test > 0
+`,
+			equivalent: false,
+			wantErr:    false,
+		},
+		{
 			name: "equivalent when keep_firing_for is 0s vs absent",
 			yaml1: `
 spec:

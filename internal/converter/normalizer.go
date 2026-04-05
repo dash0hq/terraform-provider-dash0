@@ -165,10 +165,11 @@ func cleanupMap(data map[string]interface{}, fieldsToRemove []string) {
 		case string:
 			if v == "" {
 				delete(data, key)
-			} else if key == "keep_firing_for" {
-				// keep_firing_for uses Duration with omitempty, so yaml.Marshal drops
-				// it when the value is zero. Remove it here so "keep_firing_for: 0s"
-				// in user YAML matches the round-tripped YAML that omits the field.
+			} else if key == "for" || key == "keep_firing_for" {
+				// for and keep_firing_for use Duration with omitempty, so yaml.Marshal
+				// drops them when the value is zero. Remove them here so "for: 0s" /
+				// "keep_firing_for: 0s" in user YAML matches the round-tripped YAML
+				// that omits the field.
 				// If parsing fails, the value is not a duration, so keep it as-is.
 				if d, err := time.ParseDuration(v); err == nil && d == 0 {
 					delete(data, key)
