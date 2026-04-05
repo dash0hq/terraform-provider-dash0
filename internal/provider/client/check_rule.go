@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	dash0yaml "github.com/dash0hq/dash0-api-client-go/yaml"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+
+	dash0yaml "github.com/dash0hq/dash0-api-client-go/yaml"
 )
 
 func (c *dash0Client) CreateCheckRule(ctx context.Context, origin string, ruleYAML string, dataset string) error {

@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	dash0 "github.com/dash0hq/dash0-api-client-go"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 )
 

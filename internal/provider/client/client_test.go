@@ -17,4 +17,3 @@ func TestNewDash0Client_InvalidToken(t *testing.T) {
 	_, err := NewDash0Client("https://api.example.com", "invalid-token", "test")
 	assert.Error(t, err)
 }
-

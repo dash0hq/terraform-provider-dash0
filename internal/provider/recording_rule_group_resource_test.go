@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-
 )
 
 func TestRecordingRuleGroupResourceModel(t *testing.T) {

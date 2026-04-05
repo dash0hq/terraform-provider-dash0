@@ -131,10 +131,10 @@ func TestAccDashboardResource(t *testing.T) {
 // Test PreCheck function to validate required environment variables
 func testAccPreCheck(t *testing.T) {
 	if v := os.Getenv("DASH0_URL"); v == "" {
-		t.Fatal("DASH0_URL must be set for acceptance tests")
+		t.Skip("DASH0_URL must be set for acceptance tests")
 	}
 	if v := os.Getenv("DASH0_AUTH_TOKEN"); v == "" {
-		t.Fatal("DASH0_AUTH_TOKEN must be set for acceptance tests")
+		t.Skip("DASH0_AUTH_TOKEN must be set for acceptance tests")
 	}
 }
 

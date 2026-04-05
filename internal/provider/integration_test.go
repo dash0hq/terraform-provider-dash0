@@ -65,7 +65,7 @@ func (m *mockDash0API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.resources[key] = body
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write(body)
+		_, _ = w.Write(body)
 
 	case http.MethodPost:
 		// For recording rule groups, POST creates and the API assigns an ID.
@@ -84,7 +84,7 @@ func (m *mockDash0API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							m.resources[storageKey] = updated
 							w.Header().Set("Content-Type", "application/json")
 							w.WriteHeader(http.StatusCreated)
-							w.Write(updated)
+							_, _ = w.Write(updated)
 							return
 						}
 					}
@@ -94,28 +94,28 @@ func (m *mockDash0API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			m.resources[key] = body
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
-			w.Write(body)
+			_, _ = w.Write(body)
 			return
 		}
 		m.resources[key] = body
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		w.Write(body)
+		_, _ = w.Write(body)
 
 	case http.MethodGet:
 		if data, ok := m.resources[key]; ok {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write(data)
+			_, _ = w.Write(data)
 		} else {
 			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(`{"message":"not found"}`))
+			_, _ = w.Write([]byte(`{"message":"not found"}`))
 		}
 
 	case http.MethodDelete:
 		delete(m.resources, key)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{}`))
+		_, _ = w.Write([]byte(`{}`))
 
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -692,9 +692,9 @@ func TestIntegration_AuthHeaderSent(t *testing.T) {
 		// Return whatever was sent
 		body, _ := io.ReadAll(r.Body)
 		if len(body) > 0 {
-			w.Write(body)
+			_, _ = w.Write(body)
 		} else {
-			w.Write([]byte(`{}`))
+			_, _ = w.Write([]byte(`{}`))
 		}
 	}))
 	defer server.Close()
