@@ -14,7 +14,7 @@ func (c *dash0Client) CreateOrUpdateAwsIntegration(ctx context.Context, integrat
 	origin := model.AwsIntegrationOrigin(accountID, integration.ExternalID.ValueString())
 	apiPath := fmt.Sprintf("/api/integrations/%s", origin)
 
-	definition := model.BuildAwsIntegrationDefinition(integration, accountID)
+	definition := model.BuildAwsIntegrationDefinition(integration, accountID, origin)
 	body, err := json.Marshal(definition)
 	if err != nil {
 		return fmt.Errorf("error marshaling AWS integration: %w", err)

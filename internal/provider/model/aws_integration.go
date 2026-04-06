@@ -53,7 +53,12 @@ type IntegrationDefinition struct {
 }
 
 type IntegrationMetadata struct {
-	Name string `json:"name"`
+	Name   string             `json:"name"`
+	Labels *IntegrationLabels `json:"labels,omitempty"`
+}
+
+type IntegrationLabels struct {
+	Origin string `json:"dash0.com/origin,omitempty"`
 }
 
 type IntegrationSpec struct {
@@ -91,7 +96,7 @@ type AwsIntegrationRole struct {
 
 // BuildAwsIntegrationDefinition constructs the IntegrationDefinition
 // expected by PUT /api/integrations/{origin}.
-func BuildAwsIntegrationDefinition(integration AwsIntegration, accountID string) IntegrationDefinition {
+func BuildAwsIntegrationDefinition(integration AwsIntegration, accountID, origin string) IntegrationDefinition {
 	displayName := fmt.Sprintf("AWS %s (terraform)", accountID)
 
 	roles := []AwsIntegrationRole{
@@ -114,6 +119,9 @@ func BuildAwsIntegrationDefinition(integration AwsIntegration, accountID string)
 		Kind: "Dash0Integration",
 		Metadata: IntegrationMetadata{
 			Name: displayName,
+			Labels: &IntegrationLabels{
+				Origin: origin,
+			},
 		},
 		Spec: IntegrationSpec{
 			Enabled: true,

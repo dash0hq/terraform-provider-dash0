@@ -266,22 +266,6 @@ func (r *AwsIntegrationResource) Read(ctx context.Context, req resource.ReadRequ
 		state.ID = types.StringValue(fmt.Sprintf("%s-%s", accountID, state.ExternalID.ValueString()))
 	}
 
-	// Read from Dash0 API to detect drift
-	apiResp, err := r.client.GetAwsIntegration(ctx,
-		state.Dataset.ValueString(),
-		accountID,
-		state.ExternalID.ValueString(),
-	)
-	if err != nil {
-		if client.IsNotFound(err) {
-			tflog.Warn(ctx, fmt.Sprintf("AWS integration not found in Dash0 API, removing resource from state: %s", err))
-			resp.State.RemoveResource(ctx)
-			return
-		}
-		resp.Diagnostics.AddError("Dash0 API Error", fmt.Sprintf("Unable to read AWS integration from Dash0 API: %s", err))
-		return
-	}
-
 	// Verify IAM roles still exist in AWS
 	iamClient, err := r.newIAMClient(ctx, state)
 	if err != nil {
@@ -300,29 +284,47 @@ func (r *AwsIntegrationResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 	state.ReadOnlyRoleArn = types.StringValue(readOnlyRole.RoleArn)
 
-	// Update dataset from API response (drift detection)
-	state.Dataset = types.StringValue(apiResp.Dataset)
-
-	// Check instrumentation role from API response
-	hasInstrRole := false
-	for _, role := range apiResp.Roles {
-		if role.PermissionType == model.PermissionTypeResourcesInstrumentation {
-			hasInstrRole = true
-			break
+	// Read from Dash0 API to detect drift
+	apiResp, err := r.client.GetAwsIntegration(ctx,
+		state.Dataset.ValueString(),
+		accountID,
+		state.ExternalID.ValueString(),
+	)
+	if err != nil {
+		if client.IsNotFound(err) {
+			// API says integration doesn't exist, but IAM roles do exist (checked above).
+			// Keep the resource in state so terraform destroy can clean up the IAM roles.
+			tflog.Warn(ctx, fmt.Sprintf("AWS integration not found in Dash0 API, but IAM roles exist — keeping in state: %s", err))
+		} else {
+			resp.Diagnostics.AddError("Dash0 API Error", fmt.Sprintf("Unable to read AWS integration from Dash0 API: %s", err))
+			return
 		}
 	}
 
-	if hasInstrRole {
-		instrRoleName := awsclient.InstrumentationRoleName(prefix)
-		instrRole, err := iamClient.ReadRole(ctx, instrRoleName)
-		if err != nil {
-			tflog.Warn(ctx, fmt.Sprintf("Instrumentation IAM role %q not found, removing resource from state: %s", instrRoleName, err))
-			resp.State.RemoveResource(ctx)
-			return
+	// Update state from API response if available (drift detection)
+	if apiResp != nil {
+		state.Dataset = types.StringValue(apiResp.Dataset)
+
+		hasInstrRole := false
+		for _, role := range apiResp.Roles {
+			if role.PermissionType == model.PermissionTypeResourcesInstrumentation {
+				hasInstrRole = true
+				break
+			}
 		}
-		state.InstrumentationRoleArn = types.StringValue(instrRole.RoleArn)
-	} else {
-		state.InstrumentationRoleArn = types.StringNull()
+
+		if hasInstrRole {
+			instrRoleName := awsclient.InstrumentationRoleName(prefix)
+			instrRole, err := iamClient.ReadRole(ctx, instrRoleName)
+			if err != nil {
+				tflog.Warn(ctx, fmt.Sprintf("Instrumentation IAM role %q not found, removing resource from state: %s", instrRoleName, err))
+				resp.State.RemoveResource(ctx)
+				return
+			}
+			state.InstrumentationRoleArn = types.StringValue(instrRole.RoleArn)
+		} else {
+			state.InstrumentationRoleArn = types.StringNull()
+		}
 	}
 
 	tflog.Trace(ctx, "read AWS integration resource")
