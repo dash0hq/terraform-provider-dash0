@@ -103,26 +103,3 @@ func (m *MockClient) DeleteCheckRule(ctx context.Context, origin string, dataset
 	args := m.Called(ctx, origin, dataset)
 	return args.Error(0)
 }
-
-func (m *MockClient) CreateRecordingRuleGroup(ctx context.Context, group model.RecordingRuleGroup) error {
-	args := m.Called(ctx, group)
-	return args.Error(0)
-}
-
-func (m *MockClient) GetRecordingRuleGroup(ctx context.Context, dataset string, origin string) (*model.RecordingRuleGroup, error) {
-	args := m.Called(ctx, dataset, origin)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*model.RecordingRuleGroup), args.Error(1)
-}
-
-func (m *MockClient) UpdateRecordingRuleGroup(ctx context.Context, group model.RecordingRuleGroup) error {
-	args := m.Called(ctx, group)
-	return args.Error(0)
-}
-
-func (m *MockClient) DeleteRecordingRuleGroup(ctx context.Context, origin string, dataset string) error {
-	args := m.Called(ctx, origin, dataset)
-	return args.Error(0)
-}

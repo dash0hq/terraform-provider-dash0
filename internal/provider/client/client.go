@@ -26,11 +26,6 @@ type Client interface {
 	GetCheckRule(ctx context.Context, dataset string, origin string) (*model.CheckRule, error)
 	UpdateCheckRule(ctx context.Context, checkRule model.CheckRule) error
 	DeleteCheckRule(ctx context.Context, origin string, dataset string) error
-
-	CreateRecordingRuleGroup(ctx context.Context, group model.RecordingRuleGroup) error
-	GetRecordingRuleGroup(ctx context.Context, dataset string, origin string) (*model.RecordingRuleGroup, error)
-	UpdateRecordingRuleGroup(ctx context.Context, group model.RecordingRuleGroup) error
-	DeleteRecordingRuleGroup(ctx context.Context, origin string, dataset string) error
 }
 
 // Ensure dash0Client implements dash0ClientInterface
