@@ -12,22 +12,9 @@ import (
 	awsclient "github.com/dash0hq/terraform-provider-dash0/internal/provider/aws"
 )
 
-// testAccAwsIntegrationPreCheck validates required environment variables for AWS integration acceptance tests.
-func testAccAwsIntegrationPreCheck(t *testing.T) {
-	t.Helper()
-
-	// AWS credentials are resolved via the SDK default chain (env vars, shared config, instance profile).
-	// In CI, aws-actions/configure-aws-credentials sets AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
-	// AWS_SESSION_TOKEN, and AWS_REGION as environment variables.
-	// For local development, set DASH0_TEST_AWS_PROFILE to use a named profile (e.g. "DevRel").
-	if os.Getenv("DASH0_TEST_EXTERNAL_ID") == "" {
-		t.Fatal("DASH0_TEST_EXTERNAL_ID must be set for AWS integration acceptance tests")
-	}
-}
-
-func testExternalID() string {
-	return os.Getenv("DASH0_TEST_EXTERNAL_ID")
-}
+// testExternalID is a fixed test value for the STS AssumeRole external ID.
+// It does not need to be a real Dash0 org ID — it's only embedded in the IAM trust policy condition.
+const testExternalID = "dash0-acc-test-external-id"
 
 // newTestIAMClient creates an IAM client using the optional test profile or default chain.
 func newTestIAMClient(t *testing.T) *awsclient.IAMClient {
@@ -45,7 +32,7 @@ func TestAccAwsIntegrationResource_IAMRoles(t *testing.T) {
 	if os.Getenv("TF_ACC") != "1" {
 		t.Skip("Acceptance tests skipped unless TF_ACC=1")
 	}
-	testAccAwsIntegrationPreCheck(t)
+
 
 	ctx := context.Background()
 	iamClient := newTestIAMClient(t)
@@ -53,7 +40,7 @@ func TestAccAwsIntegrationResource_IAMRoles(t *testing.T) {
 	params := awsclient.RoleParams{
 		RoleNamePrefix:    "dash0-acc-test",
 		Dash0AwsAccountID: "115813213817",
-		ExternalID:        testExternalID(),
+		ExternalID:        testExternalID,
 		Tags: map[string]string{
 			"ManagedBy": "dash0-acc-test",
 		},
@@ -115,7 +102,7 @@ func TestAccAwsIntegrationResource_IAMRoleTags(t *testing.T) {
 	if os.Getenv("TF_ACC") != "1" {
 		t.Skip("Acceptance tests skipped unless TF_ACC=1")
 	}
-	testAccAwsIntegrationPreCheck(t)
+
 
 	ctx := context.Background()
 	iamClient := newTestIAMClient(t)
@@ -123,7 +110,7 @@ func TestAccAwsIntegrationResource_IAMRoleTags(t *testing.T) {
 	params := awsclient.RoleParams{
 		RoleNamePrefix:    "dash0-acc-test-tags",
 		Dash0AwsAccountID: "115813213817",
-		ExternalID:        testExternalID(),
+		ExternalID:        testExternalID,
 		Tags: map[string]string{
 			"Environment": "test",
 			"ManagedBy":   "dash0-acc-test",
