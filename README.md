@@ -4,7 +4,7 @@
 
 # Terraform Provider for Dash0
 
-The Dash0 provider allows Terraform to manage resources such as dashboards and check rules within [Dash0](https://dash0.com).
+The Dash0 provider allows Terraform to manage resources such as dashboards, check rules, and recording rules within [Dash0](https://dash0.com).
 
 ## Usage
 Learn how to use this Terraform provider by heading to the docs hosted on the [Terraform Registry](https://registry.terraform.io/providers/dash0hq/dash0/latest/docs).

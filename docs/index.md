@@ -2,12 +2,12 @@
 layout: ""
 page_title: "Provider: Dash0"
 description: |-
-  The Dash0 provider provides dashboard, check rule and more resources for Dash0.
+  The Dash0 provider provides dashboard, check rule, recording rule and more resources for Dash0.
 ---
 
 # Dash0 Provider
 
-The Dash0 provider provides dashboard, check rule and more resources for [Dash0](https://dash0.com/).
+The Dash0 provider provides dashboard, check rule, recording rule and more resources for [Dash0](https://dash0.com/).
 
 The changelog for this provider can be found [on GitHub](https://github.com/dash0hq/terraform-provider-dash0/releases).
 
@@ -133,5 +133,14 @@ spec:
             dash0-enabled: true
           labels: {}
 EOF
+}
+```
+
+### Managing a Recording Rule Group
+
+```terraform
+resource "dash0_recording_rule_group" "http_metrics" {
+  dataset                   = "default"
+  recording_rule_group_yaml = file("${path.module}/recording_rule_group.yaml")
 }
 ```
