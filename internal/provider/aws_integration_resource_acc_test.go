@@ -33,7 +33,6 @@ func TestAccAwsIntegrationResource_IAMRoles(t *testing.T) {
 		t.Skip("Acceptance tests skipped unless TF_ACC=1")
 	}
 
-
 	ctx := context.Background()
 	iamClient := newTestIAMClient(t)
 
@@ -102,7 +101,6 @@ func TestAccAwsIntegrationResource_IAMRoleTags(t *testing.T) {
 	if os.Getenv("TF_ACC") != "1" {
 		t.Skip("Acceptance tests skipped unless TF_ACC=1")
 	}
-
 
 	ctx := context.Background()
 	iamClient := newTestIAMClient(t)
