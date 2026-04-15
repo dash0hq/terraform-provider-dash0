@@ -6,20 +6,19 @@
 # Path 1 — Turnkey via the Dash0 AWS integration module
 ############################################################
 #
-# Recommended for most users. The module composes aws_iam_role + policies
-# (via terraform-aws-modules/iam/aws) and registers with Dash0 for you.
+# Recommended for most users. The module ships alongside this provider in
+# modules/aws_integration/. It creates the aws_iam_role + policies and calls
+# dash0_aws_integration for you. Pin `ref=` to a provider release tag.
 # Pass `providers = { aws = aws }` to cascade `default_tags` from your root
 # AWS provider, or pass an explicit `tags` variable.
 
 # module "dash0_integration" {
-#   source  = "dash0hq/dash0-aws-integration/aws"
-#   version = "~> 1.0"
+#   source = "git::https://github.com/dash0hq/terraform-provider-dash0.git//modules/aws_integration?ref=v0.2.0"
 #
 #   external_id            = var.dash0_org_id
 #   dataset                = "default"
 #   enable_instrumentation = true
 #
-#   # Optional: cascade provider default_tags
 #   providers = { aws = aws }
 # }
 

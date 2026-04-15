@@ -3,12 +3,12 @@
 page_title: "dash0_aws_integration Resource - Dash0"
 subcategory: ""
 description: |-
-  Registers an AWS integration with the Dash0 API. This resource does NOT create IAM roles — you manage them separately and pass the role ARNs here. Three supported paths: (1) Use the dash0hq/dash0-aws-integration/aws Terraform module for a turnkey experience (recommended); (2) Create the roles yourself with the hashicorp/aws provider for full control; (3) Pass ARNs of pre-existing roles created by your platform team. Keeping IAM as first-class aws_iam_role resources enables default_tags cascade, lifecycle rules, cross-resource references, and centralized IAM workflows.
+  Registers an AWS integration with the Dash0 API. This resource does NOT create IAM roles — you manage them separately and pass the role ARNs here. Three supported paths: (1) Use the turnkey Terraform module shipped at modules/aws_integration in this repo (recommended; consume via source = "git::https://github.com/dash0hq/terraform-provider-dash0.git//modules/aws_integration?ref=..."); (2) Create the roles yourself with the hashicorp/aws provider for full control; (3) Pass ARNs of pre-existing roles created by your platform team. Keeping IAM as first-class aws_iam_role resources enables default_tags cascade, lifecycle rules, cross-resource references, and centralized IAM workflows.
 ---
 
 # dash0_aws_integration (Resource)
 
-Registers an AWS integration with the Dash0 API. This resource does NOT create IAM roles — you manage them separately and pass the role ARNs here. Three supported paths: (1) Use the `dash0hq/dash0-aws-integration/aws` Terraform module for a turnkey experience (recommended); (2) Create the roles yourself with the `hashicorp/aws` provider for full control; (3) Pass ARNs of pre-existing roles created by your platform team. Keeping IAM as first-class `aws_iam_role` resources enables `default_tags` cascade, `lifecycle` rules, cross-resource references, and centralized IAM workflows.
+Registers an AWS integration with the Dash0 API. This resource does NOT create IAM roles — you manage them separately and pass the role ARNs here. Three supported paths: (1) Use the turnkey Terraform module shipped at `modules/aws_integration` in this repo (recommended; consume via `source = "git::https://github.com/dash0hq/terraform-provider-dash0.git//modules/aws_integration?ref=..."`); (2) Create the roles yourself with the `hashicorp/aws` provider for full control; (3) Pass ARNs of pre-existing roles created by your platform team. Keeping IAM as first-class `aws_iam_role` resources enables `default_tags` cascade, `lifecycle` rules, cross-resource references, and centralized IAM workflows.
 
 ## Example Usage
 
@@ -21,20 +21,19 @@ Registers an AWS integration with the Dash0 API. This resource does NOT create I
 # Path 1 — Turnkey via the Dash0 AWS integration module
 ############################################################
 #
-# Recommended for most users. The module composes aws_iam_role + policies
-# (via terraform-aws-modules/iam/aws) and registers with Dash0 for you.
+# Recommended for most users. The module ships alongside this provider in
+# modules/aws_integration/. It creates the aws_iam_role + policies and calls
+# dash0_aws_integration for you. Pin `ref=` to a provider release tag.
 # Pass `providers = { aws = aws }` to cascade `default_tags` from your root
 # AWS provider, or pass an explicit `tags` variable.
 
 # module "dash0_integration" {
-#   source  = "dash0hq/dash0-aws-integration/aws"
-#   version = "~> 1.0"
+#   source = "git::https://github.com/dash0hq/terraform-provider-dash0.git//modules/aws_integration?ref=v0.2.0"
 #
 #   external_id            = var.dash0_org_id
 #   dataset                = "default"
 #   enable_instrumentation = true
 #
-#   # Optional: cascade provider default_tags
 #   providers = { aws = aws }
 # }
 

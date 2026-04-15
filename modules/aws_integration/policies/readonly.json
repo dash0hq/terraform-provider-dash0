@@ -1,0 +1,66 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "resource-explorer-2:Search",
+        "resource-explorer-2:GetView"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "tag:GetResources",
+        "tag:GetTagKeys",
+        "tag:GetTagValues"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "lambda:GetFunction",
+        "lambda:GetFunctionConfiguration"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "eks:ListClusters",
+        "eks:DescribeCluster",
+        "eks:ListNodegroups",
+        "eks:DescribeNodegroup",
+        "eks:ListFargateProfiles",
+        "eks:DescribeFargateProfile",
+        "eks:ListAddons",
+        "eks:DescribeAddon"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "appsync:ListGraphqlApis",
+        "appsync:GetGraphqlApi",
+        "appsync:GetSchemaCreationStatus",
+        "appsync:GetIntrospectionSchema",
+        "appsync:ListDataSources",
+        "appsync:ListResolvers",
+        "appsync:ListFunctions",
+        "appsync:ListTagsForResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "xray:GetTraceSegmentDestination",
+        "xray:GetIndexingRules"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
