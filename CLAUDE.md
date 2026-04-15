@@ -117,8 +117,9 @@ Before considering a change complete, run:
 1. `make build` — verify the project compiles.
 2. `make test-unit` — run all unit tests.
 3. `make test-roundtrip` — run the Dockerized roundtrip tests against the real Dash0 API. These catch integration issues (serialization mismatches, server-side validation failures, idempotency regressions) that unit tests cannot.
+4. `make lint` — run Go and shell linters. Fix all issues before proceeding.
 
-All three must pass. Do not skip the roundtrip tests — they are the final gate before a change is ready.
+All four must pass. Do not skip any step.
 
 ## Code style
 
