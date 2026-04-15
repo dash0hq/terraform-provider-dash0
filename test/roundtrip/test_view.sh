@@ -94,9 +94,9 @@ echo "$CLI_OUTPUT" | grep -qi "roundtrip-test-view\|Roundtrip Test View" \
   || fail "CLI output does not contain expected view name"
 
 info "Step 2b: Checking YAML equivalence (uploaded vs downloaded)..."
-assert_yaml_equivalent "${WORK_DIR}/view.yaml" "$CLI_OUTPUT" \
-  || fail "Uploaded and downloaded view YAMLs are not equivalent"
-info "View equivalence check PASSED."
+# Uses retry to tolerate eventual consistency of server-managed fields like
+# permissions, which are stored separately and enriched on retrieval.
+assert_yaml_equivalent_eventually "${WORK_DIR}/view.yaml" "dash0 views" "$ORIGIN" "$DATASET"
 
 # ---------------------------------------------------------------------------
 # Step 3: Update
@@ -158,18 +158,9 @@ info "Update verified via CLI."
 # ---------------------------------------------------------------------------
 info "Step 4: Re-applying without changes (idempotency test)..."
 
-set +e
-TF_VAR_dataset="$DATASET" tf_plan_detailed_exitcode "$WORK_DIR"
-EXIT_CODE=$?
-set -e
-
-if [[ "$EXIT_CODE" -eq 0 ]]; then
-  info "Idempotency check PASSED: no changes detected."
-elif [[ "$EXIT_CODE" -eq 2 ]]; then
-  fail "Idempotency check FAILED: Terraform detected changes on a no-op re-apply."
-else
-  fail "Idempotency check ERROR: tofu plan exited with code ${EXIT_CODE}."
-fi
+# Uses retry to tolerate eventual consistency of server-managed fields like
+# permissions, which are stored separately and enriched on retrieval.
+assert_idempotent "$WORK_DIR"
 
 # ---------------------------------------------------------------------------
 # Step 5: Destroy

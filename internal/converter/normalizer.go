@@ -2,6 +2,7 @@ package converter
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -207,6 +208,35 @@ func isEmpty(m map[string]interface{}) bool {
 	return true
 }
 
+// canonicalString produces a deterministic string representation of a value,
+// recursively sorting maps by key and slices by their canonical representation.
+// This ensures that the SortSlices comparator produces stable sort keys even
+// when nested structures (like action lists within permissions) differ in order.
+func canonicalString(v interface{}) string {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		keys := make([]string, 0, len(val))
+		for k := range val {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		parts := make([]string, 0, len(keys))
+		for _, k := range keys {
+			parts = append(parts, k+":"+canonicalString(val[k]))
+		}
+		return "{" + strings.Join(parts, ",") + "}"
+	case []interface{}:
+		strs := make([]string, len(val))
+		for i, item := range val {
+			strs[i] = canonicalString(item)
+		}
+		sort.Strings(strs)
+		return "[" + strings.Join(strs, ",") + "]"
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
 // normalizeNumericTypes recursively converts all integer and float types to float64
 // in a parsed YAML/JSON structure. This ensures consistent comparison when the same
 // numeric value appears as different types (e.g., int in YAML and float64 in JSON).
@@ -277,9 +307,12 @@ func ResourceYAMLEquivalent(yamlA, yamlB string, additionalIgnoredFields ...stri
 	}
 
 	cmpOptions := []cmp.Option{
-		// Ignore order of slices deeper in the structure
+		// Ignore order of slices deeper in the structure.
+		// Uses canonicalString which recursively sorts nested structures so that
+		// the sort key is stable regardless of inner element ordering (e.g., if
+		// the API returns list items in a different order than the user's config).
 		cmpopts.SortSlices(func(x, y interface{}) bool {
-			return fmt.Sprint(x) < fmt.Sprint(y)
+			return canonicalString(x) < canonicalString(y)
 		}),
 		// Duration-aware string comparison: treats "2m" and "2m0s" as equivalent
 		// when both strings are valid Go duration strings

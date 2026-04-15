@@ -163,19 +163,7 @@ info "Update verified via CLI."
 # Step 4: Idempotency
 # ---------------------------------------------------------------------------
 info "Step 4: Re-applying without changes (idempotency test)..."
-
-set +e
-TF_VAR_dataset="$DATASET" tf_plan_detailed_exitcode "$WORK_DIR"
-EXIT_CODE=$?
-set -e
-
-if [[ "$EXIT_CODE" -eq 0 ]]; then
-  info "Idempotency check PASSED: no changes detected."
-elif [[ "$EXIT_CODE" -eq 2 ]]; then
-  fail "Idempotency check FAILED: Terraform detected changes on a no-op re-apply."
-else
-  fail "Idempotency check ERROR: tofu plan exited with code ${EXIT_CODE}."
-fi
+assert_idempotent "$WORK_DIR"
 
 # ---------------------------------------------------------------------------
 # Step 5: Destroy

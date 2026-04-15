@@ -1126,6 +1126,94 @@ func TestRemoveYAMLField(t *testing.T) {
 	}
 }
 
+func TestCanonicalString(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    interface{}
+		expected string
+	}{
+		{
+			name:     "string value",
+			input:    "hello",
+			expected: "hello",
+		},
+		{
+			name:     "int value",
+			input:    42,
+			expected: "42",
+		},
+		{
+			name:     "bool value",
+			input:    true,
+			expected: "true",
+		},
+		{
+			name:     "map with sorted keys",
+			input:    map[string]interface{}{"b": "2", "a": "1"},
+			expected: "{a:1,b:2}",
+		},
+		{
+			name:     "slice elements are sorted",
+			input:    []interface{}{"cherry", "apple", "banana"},
+			expected: "[apple,banana,cherry]",
+		},
+		{
+			name: "nested map with unsorted inner list produces same canonical form regardless of list order",
+			input: map[string]interface{}{
+				"role":    "admin",
+				"actions": []interface{}{"views:read", "views:delete"},
+			},
+			expected: "{actions:[views:delete,views:read],role:admin}",
+		},
+		{
+			name: "same nested map with different inner list order produces identical canonical form",
+			input: map[string]interface{}{
+				"role":    "admin",
+				"actions": []interface{}{"views:delete", "views:read"},
+			},
+			expected: "{actions:[views:delete,views:read],role:admin}",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := canonicalString(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestResourceYAMLEquivalent_PermissionsWithReorderedActions(t *testing.T) {
+	// This test verifies that permissions with actions in different order are
+	// treated as equivalent, and that the outer permissions sort is stable even
+	// when inner action lists differ in order.
+	yaml1 := `
+spec:
+  permissions:
+    - actions:
+        - "views:read"
+        - "views:delete"
+      role: admin
+    - actions:
+        - "views:read"
+      role: basic_member
+`
+	yaml2 := `
+spec:
+  permissions:
+    - actions:
+        - "views:read"
+      role: basic_member
+    - actions:
+        - "views:delete"
+        - "views:read"
+      role: admin
+`
+	result, err := ResourceYAMLEquivalent(yaml1, yaml2)
+	require.NoError(t, err)
+	assert.True(t, result, "permissions with reordered actions and reordered entries should be equivalent")
+}
+
 func TestNormalizeNumericTypes(t *testing.T) {
 	tests := []struct {
 		name     string
