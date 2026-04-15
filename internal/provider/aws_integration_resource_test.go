@@ -313,6 +313,79 @@ func TestAwsIntegrationResource_Read_Success(t *testing.T) {
 	assert.Equal(t, "arn:aws:iam::123456789012:role/instrumentation", result.InstrumentationRoleArn.ValueString())
 }
 
+// TestAwsIntegrationResource_Read_DriftReconciliation verifies that when the Dash0 API returns
+// values that differ from the prior Terraform state, Read updates the state to match the API
+// (e.g., a role ARN was changed via the Dash0 UI, or an instrumentation role was added/removed).
+func TestAwsIntegrationResource_Read_DriftReconciliation(t *testing.T) {
+	r, c, sch := buildResourceForCRUDTest(t)
+
+	// Prior state: read-only role with old ARN, no instrumentation role.
+	priorState := model.AwsIntegration{
+		Dataset:                types.StringValue("default"),
+		ExternalID:             types.StringValue("org-1"),
+		AwsAccountID:           types.StringValue("123456789012"),
+		ReadOnlyRoleArn:        types.StringValue("arn:aws:iam::123456789012:role/readonly-old"),
+		InstrumentationRoleArn: types.StringNull(),
+	}
+
+	// API reports: different read-only ARN AND an instrumentation role now exists.
+	apiResp := &model.AwsIntegrationSpec{
+		Dataset:   "default",
+		AccountID: "123456789012",
+		Roles: []model.AwsIntegrationRole{
+			{Arn: "arn:aws:iam::123456789012:role/readonly-new", ExternalID: "org-1", PermissionType: model.PermissionTypeReadOnly},
+			{Arn: "arn:aws:iam::123456789012:role/instrumentation", ExternalID: "org-1", PermissionType: model.PermissionTypeResourcesInstrumentation},
+		},
+	}
+	c.On("GetAwsIntegration", mock.Anything, "default", "123456789012", "org-1").Return(apiResp, nil)
+
+	resp := &resource.ReadResponse{
+		State: tfsdk.State{Schema: sch, Raw: emptyAwsIntegrationState()},
+	}
+	r.Read(context.Background(), resource.ReadRequest{State: stateForTest(t, sch, priorState)}, resp)
+
+	assert.False(t, resp.Diagnostics.HasError(), "diags: %s", resp.Diagnostics)
+
+	var result model.AwsIntegration
+	resp.State.Get(context.Background(), &result)
+	// State must be reconciled to the API values, not the prior state values.
+	assert.Equal(t, "arn:aws:iam::123456789012:role/readonly-new", result.ReadOnlyRoleArn.ValueString(),
+		"read-only ARN must be updated to the API value")
+	assert.Equal(t, "arn:aws:iam::123456789012:role/instrumentation", result.InstrumentationRoleArn.ValueString(),
+		"instrumentation ARN must be populated from the API value")
+}
+
+// TestAwsIntegrationResource_Read_NoReadOnlyRole_Errors verifies that Read returns an error
+// (rather than writing an empty ARN) when the Dash0 API returns an integration without a
+// read-only role.
+func TestAwsIntegrationResource_Read_NoReadOnlyRole_Errors(t *testing.T) {
+	r, c, sch := buildResourceForCRUDTest(t)
+
+	state := model.AwsIntegration{
+		Dataset:         types.StringValue("default"),
+		ExternalID:      types.StringValue("org-1"),
+		AwsAccountID:    types.StringValue("123456789012"),
+		ReadOnlyRoleArn: types.StringValue("arn:aws:iam::123456789012:role/readonly"),
+	}
+
+	// API returns only an instrumentation role — no read-only role at all.
+	apiResp := &model.AwsIntegrationSpec{
+		Dataset:   "default",
+		AccountID: "123456789012",
+		Roles: []model.AwsIntegrationRole{
+			{Arn: "arn:aws:iam::123456789012:role/instrumentation", ExternalID: "org-1", PermissionType: model.PermissionTypeResourcesInstrumentation},
+		},
+	}
+	c.On("GetAwsIntegration", mock.Anything, "default", "123456789012", "org-1").Return(apiResp, nil)
+
+	resp := &resource.ReadResponse{
+		State: tfsdk.State{Schema: sch, Raw: emptyAwsIntegrationState()},
+	}
+	r.Read(context.Background(), resource.ReadRequest{State: stateForTest(t, sch, state)}, resp)
+
+	assert.True(t, resp.Diagnostics.HasError(), "expected an error when API returns no read-only role")
+}
+
 func TestAwsIntegrationResource_Read_NotFound_RemovesFromState(t *testing.T) {
 	r, c, sch := buildResourceForCRUDTest(t)
 

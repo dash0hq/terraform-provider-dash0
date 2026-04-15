@@ -119,7 +119,7 @@ resource "dash0_aws_integration" "direct" {
 
 ### Optional
 
-- `instrumentation_role_arn` (String) The ARN of the Dash0 resources instrumentation IAM role (e.g., for Lambda auto-instrumentation). Omit if not using resources instrumentation.
+- `instrumentation_role_arn` (String) The ARN of the Dash0 resources instrumentation IAM role (e.g., for Lambda auto-instrumentation). Omit (null) when not using resources instrumentation — empty string is not accepted.
 
 ### Read-Only
 

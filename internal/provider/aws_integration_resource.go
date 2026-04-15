@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -74,6 +76,7 @@ func (r *AwsIntegrationResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"dataset": schema.StringAttribute{
 				Description: "The Dash0 dataset slug to associate with this integration.",
 				Required:    true,
+				Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -82,7 +85,8 @@ func (r *AwsIntegrationResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Description: "The Dash0 organization technical ID (also referred to as the organization ID in " +
 					"Dash0's UI). Used as the STS AssumeRole external ID in the IAM trust policy — the field name " +
 					"matches AWS terminology.",
-				Required: true,
+				Required:   true,
+				Validators: []validator.String{stringvalidator.LengthAtLeast(1)},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -90,6 +94,7 @@ func (r *AwsIntegrationResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"aws_account_id": schema.StringAttribute{
 				Description: "The AWS account ID that hosts the IAM roles.",
 				Required:    true,
+				Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -97,10 +102,12 @@ func (r *AwsIntegrationResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"read_only_role_arn": schema.StringAttribute{
 				Description: "The ARN of the Dash0 read-only IAM role.",
 				Required:    true,
+				Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 			},
 			"instrumentation_role_arn": schema.StringAttribute{
-				Description: "The ARN of the Dash0 resources instrumentation IAM role (e.g., for Lambda auto-instrumentation). Omit if not using resources instrumentation.",
+				Description: "The ARN of the Dash0 resources instrumentation IAM role (e.g., for Lambda auto-instrumentation). Omit (null) when not using resources instrumentation — empty string is not accepted.",
 				Optional:    true,
+				Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
 			},
 		},
 	}
