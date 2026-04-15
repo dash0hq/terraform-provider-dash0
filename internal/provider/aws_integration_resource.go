@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -17,24 +19,20 @@ import (
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
-// Ensure the implementation satisfies the expected interfaces.
 var (
 	_ resource.Resource                = &AwsIntegrationResource{}
 	_ resource.ResourceWithConfigure   = &AwsIntegrationResource{}
 	_ resource.ResourceWithImportState = &AwsIntegrationResource{}
 )
 
-// NewAwsIntegrationResource is a helper function to simplify the provider implementation.
 func NewAwsIntegrationResource() resource.Resource {
 	return &AwsIntegrationResource{}
 }
 
-// AwsIntegrationResource is the resource implementation.
 type AwsIntegrationResource struct {
 	client client.Client
 }
 
-// Configure adds the provider configured client to the resource.
 func (r *AwsIntegrationResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
@@ -81,8 +79,10 @@ func (r *AwsIntegrationResource) Schema(_ context.Context, _ resource.SchemaRequ
 				},
 			},
 			"external_id": schema.StringAttribute{
-				Description: "The Dash0 organization technical ID, used as the STS AssumeRole external ID.",
-				Required:    true,
+				Description: "The Dash0 organization technical ID (also referred to as the organization ID in " +
+					"Dash0's UI). Used as the STS AssumeRole external ID in the IAM trust policy — the field name " +
+					"matches AWS terminology.",
+				Required: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -108,31 +108,40 @@ func (r *AwsIntegrationResource) Schema(_ context.Context, _ resource.SchemaRequ
 
 func (r *AwsIntegrationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan model.AwsIntegration
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags := req.Plan.Get(ctx, &plan); diags.HasError() {
+		resp.Diagnostics.Append(diags...)
 		return
 	}
+	r.upsert(ctx, plan, "register", &resp.State, &resp.Diagnostics)
+}
 
-	plan.ID = types.StringValue(fmt.Sprintf("%s-%s", plan.AwsAccountID.ValueString(), plan.ExternalID.ValueString()))
+func (r *AwsIntegrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan model.AwsIntegration
+	if diags := req.Plan.Get(ctx, &plan); diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+	r.upsert(ctx, plan, "update", &resp.State, &resp.Diagnostics)
+}
+
+// upsert is the shared body of Create and Update: the Dash0 integrations API uses PUT for both.
+func (r *AwsIntegrationResource) upsert(ctx context.Context, plan model.AwsIntegration, verb string, state *tfsdk.State, diags *diag.Diagnostics) {
+	plan.ID = types.StringValue(model.AwsIntegrationID(plan.AwsAccountID.ValueString(), plan.ExternalID.ValueString()))
 
 	if err := r.client.CreateOrUpdateAwsIntegration(ctx, plan); err != nil {
-		resp.Diagnostics.AddError("Dash0 API Error",
-			fmt.Sprintf("Unable to register AWS integration with Dash0 API: %s", err))
+		diags.AddError("Dash0 API Error",
+			fmt.Sprintf("Unable to %s AWS integration with Dash0 API: %s", verb, err))
 		return
 	}
+	tflog.Trace(ctx, fmt.Sprintf("%sd AWS integration resource", verb))
 
-	tflog.Trace(ctx, "created AWS integration resource")
-
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
+	diags.Append(state.Set(ctx, plan)...)
 }
 
 func (r *AwsIntegrationResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state model.AwsIntegration
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags := req.State.Get(ctx, &state); diags.HasError() {
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -152,7 +161,6 @@ func (r *AwsIntegrationResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	// Reconcile state with API response (drift detection).
 	state.Dataset = types.StringValue(apiResp.Dataset)
 	state.AwsAccountID = types.StringValue(apiResp.AccountID)
 
@@ -163,7 +171,15 @@ func (r *AwsIntegrationResource) Read(ctx context.Context, req resource.ReadRequ
 			readOnlyArn = role.Arn
 		case model.PermissionTypeResourcesInstrumentation:
 			instrArn = role.Arn
+		default:
+			tflog.Warn(ctx, fmt.Sprintf("Ignoring unknown AWS integration role permission_type %q", role.PermissionType))
 		}
+	}
+	if readOnlyArn == "" {
+		resp.Diagnostics.AddError("Dash0 API Drift",
+			"Dash0 returned an AWS integration without a read-only role. The integration must be re-created or "+
+				"repaired in the Dash0 UI. Run 'terraform apply' to re-register with the current configuration.")
+		return
 	}
 	state.ReadOnlyRoleArn = types.StringValue(readOnlyArn)
 	if instrArn != "" {
@@ -172,41 +188,17 @@ func (r *AwsIntegrationResource) Read(ctx context.Context, req resource.ReadRequ
 		state.InstrumentationRoleArn = types.StringNull()
 	}
 
-	state.ID = types.StringValue(fmt.Sprintf("%s-%s", state.AwsAccountID.ValueString(), state.ExternalID.ValueString()))
+	state.ID = types.StringValue(model.AwsIntegrationID(state.AwsAccountID.ValueString(), state.ExternalID.ValueString()))
 
 	tflog.Trace(ctx, "read AWS integration resource")
 
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-}
-
-func (r *AwsIntegrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan model.AwsIntegration
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	plan.ID = types.StringValue(fmt.Sprintf("%s-%s", plan.AwsAccountID.ValueString(), plan.ExternalID.ValueString()))
-
-	if err := r.client.CreateOrUpdateAwsIntegration(ctx, plan); err != nil {
-		resp.Diagnostics.AddError("Dash0 API Error",
-			fmt.Sprintf("Unable to update AWS integration registration: %s", err))
-		return
-	}
-
-	tflog.Trace(ctx, "updated AWS integration resource")
-
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *AwsIntegrationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state model.AwsIntegration
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags := req.State.Get(ctx, &state); diags.HasError() {
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -224,11 +216,10 @@ func (r *AwsIntegrationResource) Delete(ctx context.Context, req resource.Delete
 	tflog.Trace(ctx, "deleted AWS integration resource")
 }
 
-// ImportState handles terraform import for existing AWS integrations.
-// Import ID format: "dataset,aws_account_id,external_id"
+// ImportState accepts IDs in the format "dataset,aws_account_id,external_id".
 func (r *AwsIntegrationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	idParts := strings.Split(req.ID, ",")
-	if len(idParts) != 3 {
+	parts := strings.Split(req.ID, ",")
+	if len(parts) != 3 {
 		resp.Diagnostics.AddError(
 			"Invalid Import ID",
 			fmt.Sprintf("Expected import ID in the format 'dataset,aws_account_id,external_id'. Got: %s", req.ID),
@@ -236,12 +227,9 @@ func (r *AwsIntegrationResource) ImportState(ctx context.Context, req resource.I
 		return
 	}
 
-	dataset := idParts[0]
-	accountID := idParts[1]
-	externalID := idParts[2]
-
+	dataset, accountID, externalID := parts[0], parts[1], parts[2]
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("aws_account_id"), accountID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("external_id"), externalID)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), fmt.Sprintf("%s-%s", accountID, externalID))...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), model.AwsIntegrationID(accountID, externalID))...)
 }

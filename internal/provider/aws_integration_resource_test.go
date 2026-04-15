@@ -134,7 +134,6 @@ func TestBuildAwsIntegrationDefinition_ReadOnlyOnly(t *testing.T) {
 
 	assert.Equal(t, "Dash0Integration", def.Kind)
 	assert.Equal(t, "AWS 123456789012 (terraform)", def.Metadata.Name)
-	require.NotNil(t, def.Metadata.Labels)
 	assert.Equal(t, origin, def.Metadata.Labels.Origin)
 	assert.True(t, def.Spec.Enabled)
 	assert.Equal(t, "aws", def.Spec.Integration.Kind)

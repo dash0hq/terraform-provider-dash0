@@ -8,16 +8,9 @@ import (
 )
 
 // AwsIntegration represents the Terraform state for the dash0_aws_integration resource.
-//
-// This resource registers an AWS integration with the Dash0 API. It does NOT create
-// IAM roles — users are expected to create them separately (via the hashicorp/aws
-// provider, the dash0 AWS integration Terraform module, or their platform team) and
-// pass the role ARNs here.
 type AwsIntegration struct {
-	// Computed identifier: "{aws_account_id}-{external_id}"
 	ID types.String `tfsdk:"id"`
 
-	// Required inputs
 	Dataset                types.String `tfsdk:"dataset"`
 	ExternalID             types.String `tfsdk:"external_id"`
 	AwsAccountID           types.String `tfsdk:"aws_account_id"`
@@ -25,10 +18,20 @@ type AwsIntegration struct {
 	InstrumentationRoleArn types.String `tfsdk:"instrumentation_role_arn"`
 }
 
+// API contract constants used when building the IntegrationDefinition payload.
 const (
+	integrationKindDash0 = "Dash0Integration"
+	integrationKindAWS   = "aws"
+	aiAccessNone         = "none"
+
 	PermissionTypeReadOnly                 = "read_only"
 	PermissionTypeResourcesInstrumentation = "resources_instrumentation"
 )
+
+// AwsIntegrationID composes the resource's Terraform state ID.
+func AwsIntegrationID(accountID, externalID string) string {
+	return accountID + "-" + externalID
+}
 
 // AwsIntegrationOrigin computes the deterministic origin for the integrations API.
 // Format: "terraform-<sha1_uuid(dataset + "-" + accountID + "-" + externalID)>"
@@ -44,8 +47,8 @@ type IntegrationDefinition struct {
 }
 
 type IntegrationMetadata struct {
-	Name   string             `json:"name"`
-	Labels *IntegrationLabels `json:"labels,omitempty"`
+	Name   string            `json:"name"`
+	Labels IntegrationLabels `json:"labels,omitempty"`
 }
 
 type IntegrationLabels struct {
@@ -78,15 +81,13 @@ type AwsIntegrationSpec struct {
 	Roles     []AwsIntegrationRole `json:"roles"`
 }
 
-// AwsIntegrationRole represents a single role entry in the integrations API.
 type AwsIntegrationRole struct {
 	Arn            string `json:"arn"`
 	ExternalID     string `json:"externalId"`
 	PermissionType string `json:"permissionType"`
 }
 
-// BuildAwsIntegrationDefinition constructs the IntegrationDefinition
-// expected by PUT /api/integrations/{origin}.
+// BuildAwsIntegrationDefinition constructs the IntegrationDefinition for PUT /api/integrations/{origin}.
 func BuildAwsIntegrationDefinition(integration AwsIntegration, origin string) IntegrationDefinition {
 	accountID := integration.AwsAccountID.ValueString()
 	displayName := fmt.Sprintf("AWS %s (terraform)", accountID)
@@ -108,23 +109,17 @@ func BuildAwsIntegrationDefinition(integration AwsIntegration, origin string) In
 	}
 
 	return IntegrationDefinition{
-		Kind: "Dash0Integration",
+		Kind: integrationKindDash0,
 		Metadata: IntegrationMetadata{
-			Name: displayName,
-			Labels: &IntegrationLabels{
-				Origin: origin,
-			},
+			Name:   displayName,
+			Labels: IntegrationLabels{Origin: origin},
 		},
 		Spec: IntegrationSpec{
 			Enabled: true,
-			Display: IntegrationDisplay{
-				Name: displayName,
-			},
-			AI: IntegrationAI{
-				Access: "none",
-			},
+			Display: IntegrationDisplay{Name: displayName},
+			AI:      IntegrationAI{Access: aiAccessNone},
 			Integration: IntegrationInner{
-				Kind: "aws",
+				Kind: integrationKindAWS,
 				Spec: AwsIntegrationSpec{
 					Dataset:   integration.Dataset.ValueString(),
 					AccountID: accountID,

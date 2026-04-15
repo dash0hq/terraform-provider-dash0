@@ -114,7 +114,7 @@ resource "dash0_aws_integration" "direct" {
 
 - `aws_account_id` (String) The AWS account ID that hosts the IAM roles.
 - `dataset` (String) The Dash0 dataset slug to associate with this integration.
-- `external_id` (String) The Dash0 organization technical ID, used as the STS AssumeRole external ID.
+- `external_id` (String) The Dash0 organization technical ID (also referred to as the organization ID in Dash0's UI). Used as the STS AssumeRole external ID in the IAM trust policy — the field name matches AWS terminology.
 - `read_only_role_arn` (String) The ARN of the Dash0 read-only IAM role.
 
 ### Optional
@@ -134,5 +134,6 @@ The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/c
 ```shell
 # Import an existing AWS integration.
 # Format: "dataset,aws_account_id,external_id"
+# Note: none of the three values may contain a comma — the import ID is parsed with strings.Split(",").
 terraform import dash0_aws_integration.example "default,123456789012,your-dash0-org-technical-id"
 ```

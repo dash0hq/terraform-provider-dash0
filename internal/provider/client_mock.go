@@ -8,7 +8,7 @@ import (
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
-// MockClient mocks the client.Client for synthetic checks
+// MockClient is a testify mock of the client.Client interface.
 type MockClient struct {
 	mock.Mock
 }
