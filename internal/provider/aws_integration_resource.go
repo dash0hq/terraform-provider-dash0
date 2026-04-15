@@ -58,10 +58,13 @@ func (r *AwsIntegrationResource) Metadata(_ context.Context, req resource.Metada
 
 func (r *AwsIntegrationResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Registers an AWS integration with the Dash0 API. The user is responsible for " +
-			"creating the IAM roles (either directly via the hashicorp/aws provider, via the official " +
-			"Dash0 AWS integration Terraform module, or centrally by a platform team) and passing the " +
-			"role ARNs to this resource.",
+		Description: "Registers an AWS integration with the Dash0 API. This resource does NOT create " +
+			"IAM roles — you manage them separately and pass the role ARNs here. Three supported paths: " +
+			"(1) Use the `dash0hq/dash0-aws-integration/aws` Terraform module for a turnkey experience " +
+			"(recommended); (2) Create the roles yourself with the `hashicorp/aws` provider for full " +
+			"control; (3) Pass ARNs of pre-existing roles created by your platform team. Keeping IAM " +
+			"as first-class `aws_iam_role` resources enables `default_tags` cascade, `lifecycle` rules, " +
+			"cross-resource references, and centralized IAM workflows.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Description: "Composite identifier in the format '{aws_account_id}-{external_id}'.",
