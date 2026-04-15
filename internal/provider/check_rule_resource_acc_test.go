@@ -285,14 +285,17 @@ func testAccCheckCheckRuleExists(resourceName string) resource.TestCheckFunc {
 		dataset := rs.Primary.Attributes["dataset"]
 
 		// Create a new client to verify the check rule exists
-		c := client.NewDash0Client(
+		c, err := client.NewDash0Client(
 			os.Getenv("DASH0_URL"),
 			os.Getenv("DASH0_AUTH_TOKEN"),
 			"test",
 		)
+		if err != nil {
+			return fmt.Errorf("Error creating client: %s", err)
+		}
 
 		// Attempt to retrieve the check rule
-		_, err := c.GetCheckRule(context.Background(), dataset, origin)
+		_, err = c.GetCheckRule(context.Background(), origin, dataset)
 		if err != nil {
 			return fmt.Errorf("Error retrieving check rule: %s", err)
 		}

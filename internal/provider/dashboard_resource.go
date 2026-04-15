@@ -10,7 +10,6 @@ import (
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -39,6 +38,13 @@ type DashboardResource struct {
 	client client.Client
 }
 
+// dashboardModel is the Terraform state model for a dashboard resource.
+type dashboardModel struct {
+	Origin        types.String `tfsdk:"origin"`
+	Dataset       types.String `tfsdk:"dataset"`
+	DashboardYaml types.String `tfsdk:"dashboard_yaml"`
+}
+
 // Configure adds the provider configured client to the resource.
 func (r *DashboardResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
@@ -49,7 +55,7 @@ func (r *DashboardResource) Configure(_ context.Context, req resource.ConfigureR
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected dash0ClientInterface, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected client.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 		return
 	}
@@ -63,24 +69,24 @@ func (r *DashboardResource) Metadata(_ context.Context, req resource.MetadataReq
 
 func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a Dash0 Dashboard (in Perses format).",
+		Description: `Manages a Dash0 Dashboard. Dashboards provide visualizations of your telemetry data such as metrics, logs, and traces. See [About Dashboards](https://dash0.com/docs/dash0/dashboards/about-dashboards) for more details. The dashboard definition uses the [Perses Dashboard format](https://dash0.com/docs/dash0/dashboards/reference-dashboard-source-format).`,
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
-				Description: "Identifier of the dashboard.",
+				Description: "A unique identifier for the dashboard, automatically generated on creation. Used to reference the dashboard for updates, reads, deletes, and imports.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"dataset": schema.StringAttribute{
-				Description: "The dataset for which the dashboard is created.",
+				Description: "The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the dashboard belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"dashboard_yaml": schema.StringAttribute{
-				Description: "The dashboard definition in YAML format (Perses Dashboard format).",
+				Description: "The dashboard definition in YAML format, following the [Perses Dashboard specification](https://dash0.com/docs/dash0/dashboards/reference-dashboard-source-format).",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					customplanmodifier.YAMLSemanticEqual(),
@@ -91,7 +97,7 @@ func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 }
 
 func (r *DashboardResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var model model.Dashboard
+	var model dashboardModel
 	diags := req.Plan.Get(ctx, &model)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -111,7 +117,14 @@ func (r *DashboardResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	err = r.client.CreateDashboard(ctx, model)
+	// Convert YAML to JSON for the API
+	jsonBody, err := converter.ConvertYAMLToJSON(model.DashboardYaml.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Conversion Error", fmt.Sprintf("Unable to convert dashboard YAML to JSON: %s", err))
+		return
+	}
+
+	err = r.client.CreateDashboard(ctx, model.Origin.ValueString(), jsonBody, model.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create dashboard, got error: %s", err))
 		return
@@ -126,16 +139,15 @@ func (r *DashboardResource) Create(ctx context.Context, req resource.CreateReque
 
 func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state model.Dashboard
+	var state dashboardModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	dashboard, err := r.client.GetDashboard(ctx, state.Dataset.ValueString(), state.Origin.ValueString())
+	apiResponseJSON, err := r.client.GetDashboard(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
 	if err != nil {
-		// Handle 404 case by returning an empty state
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read dashboard, got error: %s", err))
 		return
 	}
@@ -143,29 +155,24 @@ func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 	tflog.Trace(ctx, "read a dashboard resource")
 
 	// Compare the current state with the retrieved dashboard
-	// Only update state if there's a significant change (ignoring certain fields)
 	if state.DashboardYaml.ValueString() != "" {
 		stateYAML := state.DashboardYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, dashboard.DashboardYaml.ValueString(), additionalIgnored...)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored...)
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Dashboard Comparison Error",
 				fmt.Sprintf("Error comparing dashboards: %s. Using API response as source of truth.", err),
 			)
-			// Fall back to updating with API response on error
-			state.DashboardYaml = dashboard.DashboardYaml
+			state.DashboardYaml = types.StringValue(apiResponseJSON)
 		} else if !equivalent {
-			// Only update if dashboards are not equivalent
 			tflog.Debug(ctx, "Dashboard has changed, updating state")
-			state.DashboardYaml = dashboard.DashboardYaml
+			state.DashboardYaml = types.StringValue(apiResponseJSON)
 		} else {
 			tflog.Debug(ctx, "Dashboard is equivalent, ignoring changes in metadata fields")
-			// Keep the current state since the dashboards are equivalent
 		}
 	} else {
-		// If there's no current dashboard YAML, use the one from the API
-		state.DashboardYaml = dashboard.DashboardYaml
+		state.DashboardYaml = types.StringValue(apiResponseJSON)
 	}
 
 	// Set refreshed state
@@ -175,7 +182,7 @@ func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Get current state
-	var state model.Dashboard
+	var state dashboardModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -183,7 +190,7 @@ func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	// Retrieve values from plan
-	var plan model.Dashboard
+	var plan dashboardModel
 	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -201,9 +208,16 @@ func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
+	// Convert YAML to JSON for the API
+	jsonBody, err := converter.ConvertYAMLToJSON(plan.DashboardYaml.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Conversion Error", fmt.Sprintf("Unable to convert dashboard YAML to JSON: %s", err))
+		return
+	}
+
 	// Update the existing dashboard (dataset changes force recreation via RequiresReplace)
 	plan.Origin = state.Origin
-	err = r.client.UpdateDashboard(ctx, plan)
+	err = r.client.UpdateDashboard(ctx, plan.Origin.ValueString(), jsonBody, plan.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update dashboard, got error: %s", err))
 		return
@@ -217,7 +231,7 @@ func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateReque
 }
 
 func (r *DashboardResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state model.Dashboard
+	var state dashboardModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -235,7 +249,6 @@ func (r *DashboardResource) Delete(ctx context.Context, req resource.DeleteReque
 
 // ImportState function is required for resources that support import
 func (r *DashboardResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	// Expect the import ID in the format "origin,dataset"
 	idParts := strings.Split(req.ID, ",")
 	if len(idParts) != 2 {
 		resp.Diagnostics.AddError(
@@ -248,8 +261,7 @@ func (r *DashboardResource) ImportState(ctx context.Context, req resource.Import
 	dataset := idParts[0]
 	origin := idParts[1]
 
-	// Retrieve the dashboard using the client
-	dashboard, err := r.client.GetDashboard(ctx, dataset, origin)
+	apiResponseJSON, err := r.client.GetDashboard(ctx, origin, dataset)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Importing Dashboard",
@@ -258,8 +270,7 @@ func (r *DashboardResource) ImportState(ctx context.Context, req resource.Import
 		return
 	}
 
-	// Set the state with values from the imported dashboard
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dashboard_yaml"), dashboard.DashboardYaml)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dashboard_yaml"), apiResponseJSON)...)
 }

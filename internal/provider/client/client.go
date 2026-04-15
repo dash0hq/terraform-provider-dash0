@@ -2,31 +2,70 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 )
 
+// Client defines the interface for interacting with the Dash0 API.
+// All methods use raw JSON strings for request/response bodies.
 type Client interface {
-	CreateDashboard(ctx context.Context, dashboard model.Dashboard) error
-	GetDashboard(ctx context.Context, dataset string, origin string) (*model.Dashboard, error)
-	UpdateDashboard(ctx context.Context, dashboard model.Dashboard) error
+	CreateDashboard(ctx context.Context, origin string, dashboardJSON string, dataset string) error
+	GetDashboard(ctx context.Context, origin string, dataset string) (string, error)
+	UpdateDashboard(ctx context.Context, origin string, dashboardJSON string, dataset string) error
 	DeleteDashboard(ctx context.Context, origin string, dataset string) error
 
-	CreateSyntheticCheck(ctx context.Context, check model.SyntheticCheck) error
-	GetSyntheticCheck(ctx context.Context, dataset string, origin string) (*model.SyntheticCheck, error)
-	UpdateSyntheticCheck(ctx context.Context, check model.SyntheticCheck) error
+	CreateSyntheticCheck(ctx context.Context, origin string, checkJSON string, dataset string) error
+	GetSyntheticCheck(ctx context.Context, origin string, dataset string) (string, error)
+	UpdateSyntheticCheck(ctx context.Context, origin string, checkJSON string, dataset string) error
 	DeleteSyntheticCheck(ctx context.Context, origin string, dataset string) error
 
-	CreateView(ctx context.Context, check model.ViewResource) error
-	GetView(ctx context.Context, dataset string, origin string) (*model.ViewResource, error)
-	UpdateView(ctx context.Context, check model.ViewResource) error
+	CreateView(ctx context.Context, origin string, viewJSON string, dataset string) error
+	GetView(ctx context.Context, origin string, dataset string) (string, error)
+	UpdateView(ctx context.Context, origin string, viewJSON string, dataset string) error
 	DeleteView(ctx context.Context, origin string, dataset string) error
 
-	CreateCheckRule(ctx context.Context, checkRule model.CheckRule) error
-	GetCheckRule(ctx context.Context, dataset string, origin string) (*model.CheckRule, error)
-	UpdateCheckRule(ctx context.Context, checkRule model.CheckRule) error
+	CreateCheckRule(ctx context.Context, origin string, ruleYAML string, dataset string) error
+	GetCheckRule(ctx context.Context, origin string, dataset string) (string, error)
+	UpdateCheckRule(ctx context.Context, origin string, ruleYAML string, dataset string) error
 	DeleteCheckRule(ctx context.Context, origin string, dataset string) error
 }
 
-// Ensure dash0Client implements dash0ClientInterface
+// Ensure dash0Client implements Client
 var _ Client = &dash0Client{}
+
+// marshalToJSON marshals a value to a JSON string.
+func marshalToJSON(v interface{}) (string, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+// unmarshalDashboard parses a JSON string into a DashboardDefinition.
+func unmarshalDashboard(jsonStr string) (*dash0.DashboardDefinition, error) {
+	var def dash0.DashboardDefinition
+	if err := json.Unmarshal([]byte(jsonStr), &def); err != nil {
+		return nil, err
+	}
+	return &def, nil
+}
+
+// unmarshalSyntheticCheck parses a JSON string into a SyntheticCheckDefinition.
+func unmarshalSyntheticCheck(jsonStr string) (*dash0.SyntheticCheckDefinition, error) {
+	var def dash0.SyntheticCheckDefinition
+	if err := json.Unmarshal([]byte(jsonStr), &def); err != nil {
+		return nil, err
+	}
+	return &def, nil
+}
+
+// unmarshalView parses a JSON string into a ViewDefinition.
+func unmarshalView(jsonStr string) (*dash0.ViewDefinition, error) {
+	var def dash0.ViewDefinition
+	if err := json.Unmarshal([]byte(jsonStr), &def); err != nil {
+		return nil, err
+	}
+	return &def, nil
+}

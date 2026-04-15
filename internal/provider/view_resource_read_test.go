@@ -7,22 +7,20 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
 // Custom mock client implementation for this test
 type testViewClient struct {
 	client.Client
-	getResponse *model.ViewResource
+	getResponse string
 	getError    error
 }
 
-func (c *testViewClient) GetView(_ context.Context, _, _ string) (*model.ViewResource, error) {
+func (c *testViewClient) GetView(_ context.Context, _, _ string) (string, error) {
 	return c.getResponse, c.getError
 }
 
@@ -36,7 +34,7 @@ func TestViewResource_ReadWithDiffs(t *testing.T) {
 kind: View
 metadata:
   name: test-view
-  dash0Extensions: 
+  dash0Extensions:
     projectId: test-project
 spec:
   title: Test View
@@ -109,13 +107,9 @@ spec:
 				},
 			}
 
-			// Create a test client
+			// Create a test client that returns the string directly
 			testClient := &testViewClient{
-				getResponse: &model.ViewResource{
-					Origin:   types.StringValue(testOrigin),
-					Dataset:  types.StringValue(testDataset),
-					ViewYaml: types.StringValue(tc.apiResponseYaml),
-				},
+				getResponse: tc.apiResponseYaml,
 			}
 
 			// Create the resource with the test client
@@ -158,7 +152,7 @@ spec:
 			r.Read(ctx, req, &resp)
 
 			// Extract the resulting state
-			var resultState model.ViewResource
+			var resultState viewModel
 			resp.State.Get(ctx, &resultState)
 
 			// Check if the result matches expectations

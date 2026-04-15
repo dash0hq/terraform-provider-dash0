@@ -10,7 +10,6 @@ import (
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -39,6 +38,13 @@ type CheckRuleResource struct {
 	client client.Client
 }
 
+// checkRuleModel is the Terraform state model for a check rule resource.
+type checkRuleModel struct {
+	Origin        types.String `tfsdk:"origin"`
+	Dataset       types.String `tfsdk:"dataset"`
+	CheckRuleYaml types.String `tfsdk:"check_rule_yaml"`
+}
+
 // Configure adds the provider configured client to the resource.
 func (r *CheckRuleResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
@@ -49,7 +55,7 @@ func (r *CheckRuleResource) Configure(_ context.Context, req resource.ConfigureR
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected dash0ClientInterface, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected client.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 		return
 	}
@@ -63,27 +69,27 @@ func (r *CheckRuleResource) Metadata(_ context.Context, req resource.MetadataReq
 
 func (r *CheckRuleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: `Manages a Dash0 Check Rule (in Prometheus Rule format).
+		Description: `Manages a Dash0 Check Rule. Check rules define alerting conditions based on PromQL expressions that are continuously evaluated against your telemetry data. See [About Alerting](https://dash0.com/docs/dash0/monitoring/alerting/alerting) and [Configure Alert Checks](https://dash0.com/docs/dash0/monitoring/alerting/configure-checks) for more details. The check rule definition uses the [Prometheus Rule format](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/).
 
-More information on how prometheus rules are mapped to Dash0 check rules can be found in the [Dash0 Operator documentation](https://github.com/dash0hq/dash0-operator/blob/main/helm-chart/dash0-operator/README.md#managing-dash0-check-rules).`,
+More information on how Prometheus rules are mapped to Dash0 check rules can be found in the [Dash0 Operator documentation](https://dash0.com/docs/dash0/monitoring/kubernetes/about-kubernetes#managing-dash0-check-rules).`,
 
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
-				Description: "Identifier of the check rule.",
+				Description: "A unique identifier for the check rule, automatically generated on creation. Used to reference the check rule for updates, reads, deletes, and imports.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"dataset": schema.StringAttribute{
-				Description: "The dataset for which the check rule is created.",
+				Description: "The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the check rule belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"check_rule_yaml": schema.StringAttribute{
-				Description: "The check rule definition in YAML format (Prometheus Rule format).",
+				Description: "The check rule definition in YAML format, following the [Prometheus alerting rule specification](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/).",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					customplanmodifier.YAMLSemanticEqual(),
@@ -94,18 +100,18 @@ More information on how prometheus rules are mapped to Dash0 check rules can be 
 }
 
 func (r *CheckRuleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var checkRuleModel model.CheckRule
-	diags := req.Plan.Get(ctx, &checkRuleModel)
+	var model checkRuleModel
+	diags := req.Plan.Get(ctx, &model)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	checkRuleModel.Origin = types.StringValue("tf_" + uuid.New().String())
+	model.Origin = types.StringValue("tf_" + uuid.New().String())
 
 	// Validate YAML format
 	var checkRuleYaml interface{}
-	err := yaml.Unmarshal([]byte(checkRuleModel.CheckRuleYaml.ValueString()), &checkRuleYaml)
+	err := yaml.Unmarshal([]byte(model.CheckRuleYaml.ValueString()), &checkRuleYaml)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Invalid YAML",
@@ -114,7 +120,8 @@ func (r *CheckRuleResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	err = r.client.CreateCheckRule(ctx, checkRuleModel)
+	// Pass YAML directly to client (the client handles Prometheus->Dash0 conversion)
+	err = r.client.CreateCheckRule(ctx, model.Origin.ValueString(), model.CheckRuleYaml.ValueString(), model.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create check rule, got error: %s", err))
 		return
@@ -123,22 +130,22 @@ func (r *CheckRuleResource) Create(ctx context.Context, req resource.CreateReque
 	tflog.Trace(ctx, "created a check rule resource")
 
 	// Set state to fully populated data
-	diags = resp.State.Set(ctx, checkRuleModel)
+	diags = resp.State.Set(ctx, model)
 	resp.Diagnostics.Append(diags...)
 }
 
 func (r *CheckRuleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state model.CheckRule
+	var state checkRuleModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	check, err := r.client.GetCheckRule(ctx, state.Dataset.ValueString(), state.Origin.ValueString())
+	// The client returns a Prometheus YAML string (Dash0->Prometheus conversion is done internally)
+	apiResponseYAML, err := r.client.GetCheckRule(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
 	if err != nil {
-		// Handle 404 case by returning an empty state
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read check rule, got error: %s", err))
 		return
 	}
@@ -146,29 +153,24 @@ func (r *CheckRuleResource) Read(ctx context.Context, req resource.ReadRequest, 
 	tflog.Trace(ctx, "read a check rule resource")
 
 	// Compare the current state with the retrieved check rule
-	// Only update state if there's a significant change (ignoring certain fields)
 	if state.CheckRuleYaml.ValueString() != "" {
 		stateYAML := state.CheckRuleYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, check.CheckRuleYaml.ValueString(), additionalIgnored...)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseYAML, additionalIgnored...)
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Check Rule Comparison Error",
 				fmt.Sprintf("Error comparing check rules: %s. Using API response as source of truth.", err),
 			)
-			// Fall back to updating with API response on error
-			state.CheckRuleYaml = check.CheckRuleYaml
+			state.CheckRuleYaml = types.StringValue(apiResponseYAML)
 		} else if !equivalent {
-			// Only update if check rules are not equivalent
 			tflog.Debug(ctx, "Check rule has changed, updating state")
-			state.CheckRuleYaml = check.CheckRuleYaml
+			state.CheckRuleYaml = types.StringValue(apiResponseYAML)
 		} else {
 			tflog.Debug(ctx, "Check rule is equivalent, ignoring changes in metadata fields")
-			// Keep the current state since the check rules are equivalent
 		}
 	} else {
-		// If there's no current check rule YAML, use the one from the API
-		state.CheckRuleYaml = check.CheckRuleYaml
+		state.CheckRuleYaml = types.StringValue(apiResponseYAML)
 	}
 
 	// Set refreshed state
@@ -178,7 +180,7 @@ func (r *CheckRuleResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 func (r *CheckRuleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Get current state
-	var state model.CheckRule
+	var state checkRuleModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -186,7 +188,7 @@ func (r *CheckRuleResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	// Retrieve values from plan
-	var plan model.CheckRule
+	var plan checkRuleModel
 	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -205,8 +207,9 @@ func (r *CheckRuleResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	// Update the existing check rule (dataset changes force recreation via RequiresReplace)
+	// Pass YAML directly to client (the client handles Prometheus->Dash0 conversion)
 	plan.Origin = state.Origin
-	err = r.client.UpdateCheckRule(ctx, plan)
+	err = r.client.UpdateCheckRule(ctx, plan.Origin.ValueString(), plan.CheckRuleYaml.ValueString(), plan.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update check rule, got error: %s", err))
 		return
@@ -220,8 +223,7 @@ func (r *CheckRuleResource) Update(ctx context.Context, req resource.UpdateReque
 }
 
 func (r *CheckRuleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	// Get current state
-	var state model.CheckRule
+	var state checkRuleModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -230,7 +232,7 @@ func (r *CheckRuleResource) Delete(ctx context.Context, req resource.DeleteReque
 
 	err := r.client.DeleteCheckRule(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(" 6", fmt.Sprintf("Unable to delete check rule, got error: %s", err))
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete check rule, got error: %s", err))
 		return
 	}
 
@@ -239,7 +241,6 @@ func (r *CheckRuleResource) Delete(ctx context.Context, req resource.DeleteReque
 
 // ImportState function is required for resources that support import
 func (r *CheckRuleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	// Expect the import ID in the format "dataset,origin"
 	idParts := strings.Split(req.ID, ",")
 	if len(idParts) != 2 {
 		resp.Diagnostics.AddError(
@@ -252,8 +253,7 @@ func (r *CheckRuleResource) ImportState(ctx context.Context, req resource.Import
 	dataset := idParts[0]
 	origin := idParts[1]
 
-	// Retrieve the check rule using the client
-	check, err := r.client.GetCheckRule(ctx, dataset, origin)
+	apiResponseYAML, err := r.client.GetCheckRule(ctx, origin, dataset)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Importing Check Rule",
@@ -262,8 +262,7 @@ func (r *CheckRuleResource) ImportState(ctx context.Context, req resource.Import
 		return
 	}
 
-	// Set the resource state with the retrieved check rule
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), check.Origin)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), check.Dataset)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("check_rule_yaml"), check.CheckRuleYaml)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("check_rule_yaml"), apiResponseYAML)...)
 }

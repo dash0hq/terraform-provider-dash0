@@ -3,15 +3,15 @@
 page_title: "dash0_check_rule Resource - Dash0"
 subcategory: ""
 description: |-
-  Manages a Dash0 Check Rule (in Prometheus Rule format).
-  More information on how prometheus rules are mapped to Dash0 check rules can be found in the Dash0 Operator documentation https://github.com/dash0hq/dash0-operator/blob/main/helm-chart/dash0-operator/README.md#managing-dash0-check-rules.
+  Manages a Dash0 Check Rule. Check rules define alerting conditions based on PromQL expressions that are continuously evaluated against your telemetry data. See About Alerting https://dash0.com/docs/dash0/monitoring/alerting/alerting and Configure Alert Checks https://dash0.com/docs/dash0/monitoring/alerting/configure-checks for more details. The check rule definition uses the Prometheus Rule format https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/.
+  More information on how Prometheus rules are mapped to Dash0 check rules can be found in the Dash0 Operator documentation https://dash0.com/docs/dash0/monitoring/kubernetes/about-kubernetes#managing-dash0-check-rules.
 ---
 
 # dash0_check_rule (Resource)
 
-Manages a Dash0 Check Rule (in Prometheus Rule format).
+Manages a Dash0 Check Rule. Check rules define alerting conditions based on PromQL expressions that are continuously evaluated against your telemetry data. See [About Alerting](https://dash0.com/docs/dash0/monitoring/alerting/alerting) and [Configure Alert Checks](https://dash0.com/docs/dash0/monitoring/alerting/configure-checks) for more details. The check rule definition uses the [Prometheus Rule format](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/).
 
-More information on how prometheus rules are mapped to Dash0 check rules can be found in the [Dash0 Operator documentation](https://github.com/dash0hq/dash0-operator/blob/main/helm-chart/dash0-operator/README.md#managing-dash0-check-rules).
+More information on how Prometheus rules are mapped to Dash0 check rules can be found in the [Dash0 Operator documentation](https://dash0.com/docs/dash0/monitoring/kubernetes/about-kubernetes#managing-dash0-check-rules).
 
 ## Example Usage
 
@@ -50,12 +50,12 @@ EOF
 
 ### Required
 
-- `check_rule_yaml` (String) The check rule definition in YAML format (Prometheus Rule format).
-- `dataset` (String) The dataset for which the check rule is created.
+- `check_rule_yaml` (String) The check rule definition in YAML format, following the [Prometheus alerting rule specification](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/).
+- `dataset` (String) The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the check rule belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
 
 ### Read-Only
 
-- `origin` (String) Identifier of the check rule.
+- `origin` (String) A unique identifier for the check rule, automatically generated on creation. Used to reference the check rule for updates, reads, deletes, and imports.
 
 ## Import
 

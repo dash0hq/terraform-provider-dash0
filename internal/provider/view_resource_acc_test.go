@@ -272,14 +272,17 @@ func testAccCheckViewExists(resourceName string) resource.TestCheckFunc {
 		dataset := rs.Primary.Attributes["dataset"]
 
 		// Create a new client to verify the view exists
-		client := client.NewDash0Client(
+		c, err := client.NewDash0Client(
 			os.Getenv("DASH0_URL"),
 			os.Getenv("DASH0_AUTH_TOKEN"),
 			"test",
 		)
+		if err != nil {
+			return fmt.Errorf("Error creating client: %s", err)
+		}
 
 		// Attempt to retrieve the view
-		_, err := client.GetView(context.Background(), dataset, origin)
+		_, err = c.GetView(context.Background(), origin, dataset)
 		if err != nil {
 			return fmt.Errorf("Error retrieving view: %s", err)
 		}

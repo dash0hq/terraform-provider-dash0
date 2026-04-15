@@ -10,7 +10,6 @@ import (
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -39,6 +38,13 @@ type SyntheticCheckResource struct {
 	client client.Client
 }
 
+// syntheticCheckModel is the Terraform state model for a synthetic check resource.
+type syntheticCheckModel struct {
+	Origin             types.String `tfsdk:"origin"`
+	Dataset            types.String `tfsdk:"dataset"`
+	SyntheticCheckYaml types.String `tfsdk:"synthetic_check_yaml"`
+}
+
 // Configure adds the provider configured client to the resource.
 func (r *SyntheticCheckResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
@@ -49,7 +55,7 @@ func (r *SyntheticCheckResource) Configure(_ context.Context, req resource.Confi
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected dash0ClientInterface, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected client.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 		return
 	}
@@ -63,24 +69,24 @@ func (r *SyntheticCheckResource) Metadata(_ context.Context, req resource.Metada
 
 func (r *SyntheticCheckResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a Dash0 Synthetic Check.",
+		Description: `Manages a Dash0 Synthetic Check. Synthetic checks periodically probe endpoints or URLs from multiple locations to monitor availability, latency, and correctness of your services. See [Synthetic Monitoring](https://dash0.com/docs/dash0/monitoring/synthetics/synthetic-monitoring) and [Define Checks as Code](https://dash0.com/docs/dash0/monitoring/synthetics/define-checks-as-code) for more details.`,
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
-				Description: "Identifier of the synthetic check.",
+				Description: "A unique identifier for the synthetic check, automatically generated on creation. Used to reference the synthetic check for updates, reads, deletes, and imports.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"dataset": schema.StringAttribute{
-				Description: "The dataset for which the synthetic check is created.",
+				Description: "The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the synthetic check belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"synthetic_check_yaml": schema.StringAttribute{
-				Description: "The synthetic check definition in YAML format.",
+				Description: "The synthetic check definition in YAML format, specifying the check type, target URL, schedule, and assertion criteria. See [Create Synthetic Checks](https://dash0.com/docs/dash0/monitoring/synthetics/create-synthetic-checks) for the available options.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					customplanmodifier.YAMLSemanticEqual(),
@@ -91,18 +97,18 @@ func (r *SyntheticCheckResource) Schema(_ context.Context, _ resource.SchemaRequ
 }
 
 func (r *SyntheticCheckResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var m model.SyntheticCheck
-	diags := req.Plan.Get(ctx, &m)
+	var model syntheticCheckModel
+	diags := req.Plan.Get(ctx, &model)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	m.Origin = types.StringValue("tf_" + uuid.New().String())
+	model.Origin = types.StringValue("tf_" + uuid.New().String())
 
 	// Validate YAML format
 	var checkYaml interface{}
-	err := yaml.Unmarshal([]byte(m.SyntheticCheckYaml.ValueString()), &checkYaml)
+	err := yaml.Unmarshal([]byte(model.SyntheticCheckYaml.ValueString()), &checkYaml)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Invalid YAML",
@@ -111,7 +117,14 @@ func (r *SyntheticCheckResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	err = r.client.CreateSyntheticCheck(ctx, m)
+	// Convert YAML to JSON for the API
+	jsonBody, err := converter.ConvertYAMLToJSON(model.SyntheticCheckYaml.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Conversion Error", fmt.Sprintf("Unable to convert synthetic check YAML to JSON: %s", err))
+		return
+	}
+
+	err = r.client.CreateSyntheticCheck(ctx, model.Origin.ValueString(), jsonBody, model.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create synthetic check, got error: %s", err))
 		return
@@ -120,22 +133,21 @@ func (r *SyntheticCheckResource) Create(ctx context.Context, req resource.Create
 	tflog.Trace(ctx, "created a synthetic check resource")
 
 	// Set state to fully populated data
-	diags = resp.State.Set(ctx, m)
+	diags = resp.State.Set(ctx, model)
 	resp.Diagnostics.Append(diags...)
 }
 
 func (r *SyntheticCheckResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state model.SyntheticCheck
+	var state syntheticCheckModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	check, err := r.client.GetSyntheticCheck(ctx, state.Dataset.ValueString(), state.Origin.ValueString())
+	apiResponseJSON, err := r.client.GetSyntheticCheck(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
 	if err != nil {
-		// Handle 404 case by returning an empty state
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read synthetic check, got error: %s", err))
 		return
 	}
@@ -143,29 +155,24 @@ func (r *SyntheticCheckResource) Read(ctx context.Context, req resource.ReadRequ
 	tflog.Trace(ctx, "read a synthetic check resource")
 
 	// Compare the current state with the retrieved synthetic check
-	// Only update state if there's a significant change (ignoring certain fields)
 	if state.SyntheticCheckYaml.ValueString() != "" {
 		stateYAML := state.SyntheticCheckYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, check.SyntheticCheckYaml.ValueString(), additionalIgnored...)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored...)
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Synthetic Check Comparison Error",
 				fmt.Sprintf("Error comparing synthetic checks: %s. Using API response as source of truth.", err),
 			)
-			// Fall back to updating with API response on error
-			state.SyntheticCheckYaml = check.SyntheticCheckYaml
+			state.SyntheticCheckYaml = types.StringValue(apiResponseJSON)
 		} else if !equivalent {
-			// Only update if synthetic checks are not equivalent
 			tflog.Debug(ctx, "Synthetic check has changed, updating state")
-			state.SyntheticCheckYaml = check.SyntheticCheckYaml
+			state.SyntheticCheckYaml = types.StringValue(apiResponseJSON)
 		} else {
 			tflog.Debug(ctx, "Synthetic check is equivalent, ignoring changes in metadata fields")
-			// Keep the current state since the synthetic checks are equivalent
 		}
 	} else {
-		// If there's no current synthetic check YAML, use the one from the API
-		state.SyntheticCheckYaml = check.SyntheticCheckYaml
+		state.SyntheticCheckYaml = types.StringValue(apiResponseJSON)
 	}
 
 	// Set refreshed state
@@ -175,7 +182,7 @@ func (r *SyntheticCheckResource) Read(ctx context.Context, req resource.ReadRequ
 
 func (r *SyntheticCheckResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Get current state
-	var state model.SyntheticCheck
+	var state syntheticCheckModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -183,7 +190,7 @@ func (r *SyntheticCheckResource) Update(ctx context.Context, req resource.Update
 	}
 
 	// Retrieve values from plan
-	var plan model.SyntheticCheck
+	var plan syntheticCheckModel
 	diags = req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -201,9 +208,16 @@ func (r *SyntheticCheckResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
+	// Convert YAML to JSON for the API
+	jsonBody, err := converter.ConvertYAMLToJSON(plan.SyntheticCheckYaml.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Conversion Error", fmt.Sprintf("Unable to convert synthetic check YAML to JSON: %s", err))
+		return
+	}
+
 	// Update the existing synthetic check (dataset changes force recreation via RequiresReplace)
 	plan.Origin = state.Origin
-	err = r.client.UpdateSyntheticCheck(ctx, plan)
+	err = r.client.UpdateSyntheticCheck(ctx, plan.Origin.ValueString(), jsonBody, plan.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update synthetic check, got error: %s", err))
 		return
@@ -217,8 +231,7 @@ func (r *SyntheticCheckResource) Update(ctx context.Context, req resource.Update
 }
 
 func (r *SyntheticCheckResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	// Get current state
-	var state model.SyntheticCheck
+	var state syntheticCheckModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -236,7 +249,6 @@ func (r *SyntheticCheckResource) Delete(ctx context.Context, req resource.Delete
 
 // ImportState function is required for resources that support import
 func (r *SyntheticCheckResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	// Expect the import ID in the format "dataset,origin"
 	idParts := strings.Split(req.ID, ",")
 	if len(idParts) != 2 {
 		resp.Diagnostics.AddError(
@@ -249,8 +261,7 @@ func (r *SyntheticCheckResource) ImportState(ctx context.Context, req resource.I
 	dataset := idParts[0]
 	origin := idParts[1]
 
-	// Retrieve the synthetic check using the client
-	check, err := r.client.GetSyntheticCheck(ctx, dataset, origin)
+	apiResponseJSON, err := r.client.GetSyntheticCheck(ctx, origin, dataset)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Importing Synthetic Check",
@@ -259,8 +270,7 @@ func (r *SyntheticCheckResource) ImportState(ctx context.Context, req resource.I
 		return
 	}
 
-	// Set the resource state with the retrieved synthetic check
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), check.Origin)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), check.Dataset)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("synthetic_check_yaml"), check.SyntheticCheckYaml)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("synthetic_check_yaml"), apiResponseJSON)...)
 }

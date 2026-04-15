@@ -8,13 +8,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
 func TestDashboardResource_Metadata(t *testing.T) {
@@ -31,7 +28,7 @@ func TestDashboardResource_Schema(t *testing.T) {
 	r.Schema(context.Background(), resource.SchemaRequest{}, resp)
 
 	assert.NotNil(t, resp.Schema)
-	assert.Equal(t, "Manages a Dash0 Dashboard (in Perses format).", resp.Schema.Description)
+	assert.Contains(t, resp.Schema.Description, "Manages a Dash0 Dashboard.")
 
 	// Verify schema attributes
 	assert.Contains(t, resp.Schema.Attributes, "origin")
@@ -109,9 +106,8 @@ func TestDashboardResource_Create(t *testing.T) {
 		State: state,
 	}
 
-	// Setup mock expectations - using a more lenient matcher since the test framework might not be
-	// unmarshalling the exact object we expect
-	mockClient.On("CreateDashboard", mock.Anything, mock.Anything).Return(nil)
+	// Setup mock expectations - CreateDashboard(ctx, origin, jsonBody, dataset)
+	mockClient.On("CreateDashboard", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Execute the create operation
 	r.Create(context.Background(), req, &resp)
@@ -164,13 +160,9 @@ func TestDashboardResource_Read(t *testing.T) {
 		State: state,
 	}
 
-	// Setup mock expectations for the read operation
-	mockClient.On("GetDashboard", mock.Anything, testDataset, testOrigin).Return(
-		&model.Dashboard{
-			Origin:        types.StringValue(testOrigin),
-			Dataset:       types.StringValue(testDataset),
-			DashboardYaml: types.StringValue(testYaml),
-		},
+	// Setup mock expectations - GetDashboard(ctx, origin, dataset) returns (string, error)
+	mockClient.On("GetDashboard", mock.Anything, testOrigin, testDataset).Return(
+		testYaml,
 		nil,
 	)
 
@@ -182,7 +174,7 @@ func TestDashboardResource_Read(t *testing.T) {
 	assert.False(t, resp.Diagnostics.HasError())
 
 	// Create a new state object to verify
-	var resultState model.Dashboard
+	var resultState dashboardModel
 	diags := resp.State.Get(context.Background(), &resultState)
 	require.False(t, diags.HasError(), "state cannot be unmarshalled")
 
@@ -193,8 +185,8 @@ func TestDashboardResource_Read(t *testing.T) {
 	// Test with API error
 	mockClient = new(MockClient)
 	r = &DashboardResource{client: mockClient}
-	mockClient.On("GetDashboard", mock.Anything, testDataset, testOrigin).Return(
-		nil,
+	mockClient.On("GetDashboard", mock.Anything, testOrigin, testDataset).Return(
+		"",
 		errors.New("API error"),
 	)
 
@@ -214,7 +206,7 @@ func TestDashboardResource_Update(t *testing.T) {
 	testOrigin := "test-origin"
 	testDataset := "test-dataset"
 	testYaml := "kind: Dashboard\nmetadata:\n  name: system-overview\nspec:\n  title: System Overview"
-	updatedYaml := testYaml + "\n  description: Updated dashboard"
+	_ = testYaml
 
 	// Test 1: Update dashboard YAML only (no dataset change)
 	t.Run("update yaml only", func(t *testing.T) {
@@ -243,6 +235,8 @@ func TestDashboardResource_Update(t *testing.T) {
 			},
 		}
 
+		updatedYaml := testYaml + "\n  description: Updated dashboard"
+
 		// Create plan with updated YAML
 		plan := tfsdk.Plan{
 			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
@@ -262,11 +256,8 @@ func TestDashboardResource_Update(t *testing.T) {
 			State: state,
 		}
 
-		// Setup mock expectations - UpdateDashboard should be called
-		mockClient.On("UpdateDashboard", mock.Anything, mock.MatchedBy(func(dashboardModel model.Dashboard) bool {
-			return dashboardModel.Origin.ValueString() == testOrigin &&
-				dashboardModel.Dataset.ValueString() == testDataset
-		})).Return(nil)
+		// Setup mock expectations - UpdateDashboard(ctx, origin, jsonBody, dataset)
+		mockClient.On("UpdateDashboard", mock.Anything, testOrigin, mock.Anything, testDataset).Return(nil)
 
 		// Execute the update operation
 		r.Update(context.Background(), req, &resp)

@@ -812,6 +812,46 @@ spec:
 			wantErr:    false,
 		},
 		{
+			name: "equivalent when for is 0s vs absent",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - alert: test
+          for: 0s
+          expr: test > 0
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - alert: test
+          expr: test > 0
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
+		{
+			name: "NOT equivalent when for is non-zero vs absent",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - alert: test
+          for: 30s
+          expr: test > 0
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - alert: test
+          expr: test > 0
+`,
+			equivalent: false,
+			wantErr:    false,
+		},
+		{
 			name: "equivalent when keep_firing_for is 0s vs absent",
 			yaml1: `
 spec:
@@ -1231,6 +1271,91 @@ func TestHasFieldPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := hasFieldPath(tt.data, tt.path)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestStripAbsentZeroValues(t *testing.T) {
+	tests := []struct {
+		name       string
+		userYAML   string
+		apiJSON    string
+		equivalent bool
+	}{
+		{
+			name: "API has enabled false that user did not set - should be equivalent",
+			userYAML: `
+spec:
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://example.com
+`,
+			apiJSON:    `{"spec":{"enabled":false,"plugin":{"kind":"http","spec":{"request":{"url":"https://example.com"}}}}}`,
+			equivalent: true,
+		},
+		{
+			name: "API has retries null that user did not set - should be equivalent",
+			userYAML: `
+spec:
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://example.com
+`,
+			apiJSON:    `{"spec":{"plugin":{"kind":"http","spec":{"request":{"url":"https://example.com"}}},"retries":null}}`,
+			equivalent: true,
+		},
+		{
+			name: "API has nested zero-value struct that user did not set - should be equivalent",
+			userYAML: `
+spec:
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://example.com
+`,
+			apiJSON:    `{"spec":{"plugin":{"kind":"http","spec":{"request":{"url":"https://example.com"}}},"notifications":{"channels":null}}}`,
+			equivalent: true,
+		},
+		{
+			name: "user explicitly set enabled false - should preserve (both have it)",
+			userYAML: `
+spec:
+  enabled: false
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://example.com
+`,
+			apiJSON:    `{"spec":{"enabled":false,"plugin":{"kind":"http","spec":{"request":{"url":"https://example.com"}}}}}`,
+			equivalent: true,
+		},
+		{
+			name: "user set enabled true but API returns enabled false - real diff",
+			userYAML: `
+spec:
+  enabled: true
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://example.com
+`,
+			apiJSON:    `{"spec":{"enabled":false,"plugin":{"kind":"http","spec":{"request":{"url":"https://example.com"}}}}}`,
+			equivalent: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ResourceYAMLEquivalent(tt.userYAML, tt.apiJSON)
+			require.NoError(t, err)
+			assert.Equal(t, tt.equivalent, result)
 		})
 	}
 }

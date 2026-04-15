@@ -3,12 +3,12 @@
 page_title: "dash0_dashboard Resource - Dash0"
 subcategory: ""
 description: |-
-  Manages a Dash0 Dashboard (in Perses format).
+  Manages a Dash0 Dashboard. Dashboards provide visualizations of your telemetry data such as metrics, logs, and traces. See About Dashboards https://dash0.com/docs/dash0/dashboards/about-dashboards for more details. The dashboard definition uses the Perses Dashboard format https://dash0.com/docs/dash0/dashboards/reference-dashboard-source-format.
 ---
 
 # dash0_dashboard (Resource)
 
-Manages a Dash0 Dashboard (in Perses format).
+Manages a Dash0 Dashboard. Dashboards provide visualizations of your telemetry data such as metrics, logs, and traces. See [About Dashboards](https://dash0.com/docs/dash0/dashboards/about-dashboards) for more details. The dashboard definition uses the [Perses Dashboard format](https://dash0.com/docs/dash0/dashboards/reference-dashboard-source-format).
 
 ## Example Usage
 
@@ -24,12 +24,12 @@ resource "dash0_dashboard" "my_dashboard" {
 
 ### Required
 
-- `dashboard_yaml` (String) The dashboard definition in YAML format (Perses Dashboard format).
-- `dataset` (String) The dataset for which the dashboard is created.
+- `dashboard_yaml` (String) The dashboard definition in YAML format, following the [Perses Dashboard specification](https://dash0.com/docs/dash0/dashboards/reference-dashboard-source-format).
+- `dataset` (String) The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the dashboard belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
 
 ### Read-Only
 
-- `origin` (String) Identifier of the dashboard.
+- `origin` (String) A unique identifier for the dashboard, automatically generated on creation. Used to reference the dashboard for updates, reads, deletes, and imports.
 
 ## Import
 
