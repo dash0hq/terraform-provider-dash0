@@ -110,6 +110,27 @@ If the API is documented in the [Dash0 API reference](https://api-docs.dash0.com
 7. Run `make docs` to regenerate documentation.
 8. Run `make test` to verify the build and all tests pass.
 
+## Changelog
+
+This project uses [chloggen](https://github.com/open-telemetry/opentelemetry-go-build-tools/tree/main/chloggen) to manage changelog entries.
+Every user-facing PR must include a `.chloggen/*.yaml` entry. PRs prefixed with `chore:`, labeled `Skip Changelog`, or from dependabot are exempt.
+
+- Create a new entry: `make chlog-new` (creates a YAML file named after the current branch)
+- Validate entries: `make chlog-validate`
+- Preview the changelog: `make chlog-preview`
+
+### Writing a changelog entry
+
+Fill in the generated `.chloggen/<branch>.yaml` file:
+
+- `change_type`: one of `breaking`, `deprecation`, `new_component`, `enhancement`, `bug_fix`
+- `component`: the area of concern (e.g. `dashboards`, `check_rules`, `views`, `provider`, `synthetic_checks`, `recording_rule_groups`)
+- `note`: a brief, user-facing description of the change
+- `issues`: list of related issue or PR numbers (e.g. `[42]`)
+- `subtext`: (optional) additional detail, rendered indented below the note
+
+Do not edit `CHANGELOG.md` directly — it is generated automatically during the release process.
+
 ## Validating changes
 
 Before considering a change complete, run:

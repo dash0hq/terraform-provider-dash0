@@ -48,7 +48,8 @@ archives:
       - terraform-registry-manifest.json
 
 release:
-  prerelease: "false"
+  prerelease: auto
+  mode: replace
 
 signs:
   - artifacts: checksum
@@ -62,12 +63,6 @@ signs:
       - "${artifact}"
 
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
-      - "^ci:"
-      - "^chore:"
-      - Merge pull request
-      - Merge branch
+  # Release notes are extracted from CHANGELOG.md and provided via --release-notes.
+  # See .github/scripts/extract-release-notes.sh and .chloggen/ for configuration.
+  disable: true

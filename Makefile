@@ -2,6 +2,8 @@
 TOOLS_BIN_DIR?=$(shell pwd)/.tools
 GOLANGCI_LINT_VERSION=v2.9.0
 GOLANGCI_LINT=$(TOOLS_BIN_DIR)/golangci-lint
+CHLOGGEN_VERSION=v0.23.1
+CHLOGGEN=$(TOOLS_BIN_DIR)/chloggen
 
 default: build
 
@@ -58,3 +60,22 @@ lint-sh:
 fmt:
 	golangci-lint fmt --enable goimports
 	golangci-lint run --fix --allow-parallel-runners --verbose --timeout=30m
+
+# Changelog management
+$(CHLOGGEN):
+	@mkdir -p $(TOOLS_BIN_DIR)
+	GOBIN=$(TOOLS_BIN_DIR) go install go.opentelemetry.io/build-tools/chloggen@$(CHLOGGEN_VERSION)
+
+chlog-install: $(CHLOGGEN)
+
+chlog-new: $(CHLOGGEN)
+	$(CHLOGGEN) new --config .chloggen/config.yaml --filename $(shell git branch --show-current)
+
+chlog-validate: $(CHLOGGEN)
+	$(CHLOGGEN) validate --config .chloggen/config.yaml
+
+chlog-preview: $(CHLOGGEN)
+	$(CHLOGGEN) update --config .chloggen/config.yaml --dry
+
+chlog-update: $(CHLOGGEN)
+	$(CHLOGGEN) update --config .chloggen/config.yaml --version $(VERSION)

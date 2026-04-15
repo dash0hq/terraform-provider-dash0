@@ -17,11 +17,14 @@ jobs:
   prepare:
     name: Prepare and Tag Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          token: ${{ secrets.REPOSITORY_FULL_ACCESS_GITHUB_TOKEN }}
 
       - name: Calculate next version
         id: version
@@ -61,8 +64,40 @@ jobs:
           fi
           echo "Tag v${{ steps.version.outputs.version }} is available"
 
-      - name: Create and push tag
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c #v6
+        with:
+          go-version-file: './go.mod'
+
+      - name: Validate changelog entries exist
         run: |
+          ENTRY_COUNT=$(find .chloggen -name "*.yaml" ! -name "config.yaml" ! -name "TEMPLATE.yaml" | wc -l)
+          if [ "$ENTRY_COUNT" -eq 0 ]; then
+            echo "Error: No changelog entries found in .chloggen/"
+            exit 1
+          fi
+          echo "Found $ENTRY_COUNT changelog entries"
+
+      - name: Update changelog
+        run: make chlog-update VERSION=${{ steps.version.outputs.version }}
+
+      - name: Commit and push changelog
+        env:
+          GH_TOKEN: ${{ secrets.REPOSITORY_FULL_ACCESS_GITHUB_TOKEN }}
+        run: |
+          gh auth setup-git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          find .chloggen -name "*.yaml" ! -name "config.yaml" ! -name "TEMPLATE.yaml" -exec git rm -f {} + 2>/dev/null || true
+          git add CHANGELOG.md .chloggen
+          git commit -m "chore: update changelog for v${{ steps.version.outputs.version }}"
+          git push origin HEAD
+
+      - name: Create and push tag
+        env:
+          GH_TOKEN: ${{ secrets.REPOSITORY_FULL_ACCESS_GITHUB_TOKEN }}
+        run: |
+          gh auth setup-git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "v${{ steps.version.outputs.version }}" -m "v${{ steps.version.outputs.version }}"
