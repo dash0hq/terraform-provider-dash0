@@ -3,12 +3,12 @@
 page_title: "dash0_view Resource - Dash0"
 subcategory: ""
 description: |-
-  Manages a Dash0 View.
+  Manages a Dash0 View. Views are saved configurations of filters, queries, and display settings that let you quickly navigate to a specific perspective on your telemetry data.
 ---
 
 # dash0_view (Resource)
 
-Manages a Dash0 View.
+Manages a Dash0 View. Views are saved configurations of filters, queries, and display settings that let you quickly navigate to a specific perspective on your telemetry data.
 
 ## Example Usage
 
@@ -24,12 +24,12 @@ resource "dash0_view" "my_check" {
 
 ### Required
 
-- `dataset` (String) The dataset for which the view is created.
-- `view_yaml` (String) The view definition in YAML format.
+- `dataset` (String) The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the view belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
+- `view_yaml` (String) The view definition in YAML format, specifying the filters, queries, and display settings for the view.
 
 ### Read-Only
 
-- `origin` (String) Identifier of the view.
+- `origin` (String) A unique identifier for the view, automatically generated on creation. Used to reference the view for updates, reads, deletes, and imports.
 
 ## Import
 

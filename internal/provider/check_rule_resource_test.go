@@ -12,12 +12,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
 func TestCheckRuleResourceModel(t *testing.T) {
-	// Test data
 	origin := "test-origin"
 	dataset := "test-dataset"
 	checkRuleYaml := `apiVersion: monitoring.coreos.com/v1
@@ -32,17 +29,15 @@ spec:
           expr: up == 0
           for: 5m`
 
-	// Create checkRuleModel
-	checkRuleModel := model.CheckRule{
+	m := checkRuleModel{
 		Origin:        types.StringValue(origin),
 		Dataset:       types.StringValue(dataset),
 		CheckRuleYaml: types.StringValue(checkRuleYaml),
 	}
 
-	// Test values
-	assert.Equal(t, origin, checkRuleModel.Origin.ValueString())
-	assert.Equal(t, dataset, checkRuleModel.Dataset.ValueString())
-	assert.Equal(t, checkRuleYaml, checkRuleModel.CheckRuleYaml.ValueString())
+	assert.Equal(t, origin, m.Origin.ValueString())
+	assert.Equal(t, dataset, m.Dataset.ValueString())
+	assert.Equal(t, checkRuleYaml, m.CheckRuleYaml.ValueString())
 }
 
 func TestNewCheckRuleResource(t *testing.T) {
@@ -191,9 +186,9 @@ func TestCheckRuleResource_ReadError(t *testing.T) {
 	mockClient := &MockClient{}
 	r := &CheckRuleResource{client: mockClient}
 
-	// Mock client to return error
-	mockClient.On("GetCheckRule", mock.Anything, "test-dataset", "test-origin").Return(
-		(*model.CheckRule)(nil), errors.New("not found"))
+	// Mock client to return error - GetCheckRule(ctx, origin, dataset)
+	mockClient.On("GetCheckRule", mock.Anything, "test-origin", "test-dataset").Return(
+		"", errors.New("not found"))
 
 	req := resource.ReadRequest{}
 	resp := &resource.ReadResponse{}

@@ -1,1 +1,2 @@
+#!/bin/bash
 terraform import dash0_dashboard.name "{{ dataset }},{{ id_or_origin }}"

@@ -24,9 +24,33 @@ jobs:
 
       - name: Build & Test
         run: |
-          go mod download
           make build
           make testacc
         env:
           DASH0_URL: ${{ secrets.DASH0_URL }}
           DASH0_AUTH_TOKEN: ${{ secrets.DASH0_AUTH_TOKEN }}
+
+  lint-go:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: './go.mod'
+
+      - name: Install golangci-lint
+        run: make lint-go-install
+
+      - name: Run golangci-lint
+        run: make lint-go
+
+  lint-sh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run ShellCheck
+        run: make lint-sh

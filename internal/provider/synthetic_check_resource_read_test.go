@@ -6,22 +6,20 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
-	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
 // Custom mock client implementation for this test
 type testSyntheticCheckClient struct {
 	client.Client
-	getResponse *model.SyntheticCheck
+	getResponse string
 	getError    error
 }
 
-func (c *testSyntheticCheckClient) GetSyntheticCheck(_ context.Context, _, _ string) (*model.SyntheticCheck, error) {
+func (c *testSyntheticCheckClient) GetSyntheticCheck(_ context.Context, _, _ string) (string, error) {
 	return c.getResponse, c.getError
 }
 
@@ -114,13 +112,9 @@ spec:
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			// Create mock client
+			// Create mock client that returns string directly
 			mockClient := &testSyntheticCheckClient{
-				getResponse: &model.SyntheticCheck{
-					Origin:             types.StringValue("test-origin"),
-					Dataset:            types.StringValue("test-dataset"),
-					SyntheticCheckYaml: types.StringValue(tt.apiResponse),
-				},
+				getResponse: tt.apiResponse,
 			}
 
 			// Create resource with mock client
@@ -166,7 +160,7 @@ spec:
 
 			// Verify state update behavior
 			if !resp.Diagnostics.HasError() {
-				var state model.SyntheticCheck
+				var state syntheticCheckModel
 				resp.State.Get(ctx, &state)
 
 				if tt.expectStateUpdate {

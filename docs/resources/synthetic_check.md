@@ -3,12 +3,12 @@
 page_title: "dash0_synthetic_check Resource - Dash0"
 subcategory: ""
 description: |-
-  Manages a Dash0 Synthetic Check.
+  Manages a Dash0 Synthetic Check. Synthetic checks periodically probe endpoints or URLs from multiple locations to monitor availability, latency, and correctness of your services. See Synthetic Monitoring https://dash0.com/docs/dash0/monitoring/synthetics/synthetic-monitoring and Define Checks as Code https://dash0.com/docs/dash0/monitoring/synthetics/define-checks-as-code for more details.
 ---
 
 # dash0_synthetic_check (Resource)
 
-Manages a Dash0 Synthetic Check.
+Manages a Dash0 Synthetic Check. Synthetic checks periodically probe endpoints or URLs from multiple locations to monitor availability, latency, and correctness of your services. See [Synthetic Monitoring](https://dash0.com/docs/dash0/monitoring/synthetics/synthetic-monitoring) and [Define Checks as Code](https://dash0.com/docs/dash0/monitoring/synthetics/define-checks-as-code) for more details.
 
 ## Example Usage
 
@@ -24,12 +24,12 @@ resource "dash0_synthetic_check" "my_check" {
 
 ### Required
 
-- `dataset` (String) The dataset for which the synthetic check is created.
-- `synthetic_check_yaml` (String) The synthetic check definition in YAML format.
+- `dataset` (String) The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the synthetic check belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
+- `synthetic_check_yaml` (String) The synthetic check definition in YAML format, specifying the check type, target URL, schedule, and assertion criteria. See [Create Synthetic Checks](https://dash0.com/docs/dash0/monitoring/synthetics/create-synthetic-checks) for the available options.
 
 ### Read-Only
 
-- `origin` (String) Identifier of the synthetic check.
+- `origin` (String) A unique identifier for the synthetic check, automatically generated on creation. Used to reference the synthetic check for updates, reads, deletes, and imports.
 
 ## Import
 

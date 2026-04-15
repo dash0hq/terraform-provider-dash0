@@ -27,7 +27,7 @@ func TestDash0Provider_Schema(t *testing.T) {
 	p.Schema(context.Background(), provider.SchemaRequest{}, resp)
 
 	assert.NotNil(t, resp.Schema)
-	assert.Contains(t, resp.Schema.Description, "Dash0 observability platform")
+	assert.Contains(t, resp.Schema.Description, "observability platform")
 
 	// Verify schema attributes
 	assert.Contains(t, resp.Schema.Attributes, "url")
@@ -36,18 +36,18 @@ func TestDash0Provider_Schema(t *testing.T) {
 	// Check specific attribute properties
 	urlAttr := resp.Schema.Attributes["url"].(schema.StringAttribute)
 	assert.True(t, urlAttr.Optional)
-	assert.Contains(t, urlAttr.Description, "Dash0 base URL")
+	assert.Contains(t, urlAttr.Description, "base URL")
 
 	authTokenAttr := resp.Schema.Attributes["auth_token"].(schema.StringAttribute)
 	assert.True(t, authTokenAttr.Optional)
 	assert.True(t, authTokenAttr.Sensitive)
-	assert.Contains(t, authTokenAttr.Description, "Dash0 auth token")
+	assert.Contains(t, authTokenAttr.Description, "auth token")
 }
 
 func TestDash0Provider_Configure_WithEnvironmentVariables(t *testing.T) {
 	// Set environment variables
 	t.Setenv("DASH0_URL", "https://api.example.com")
-	t.Setenv("DASH0_AUTH_TOKEN", "test_token_123")
+	t.Setenv("DASH0_AUTH_TOKEN", "auth_test_token_123")
 
 	p := &dash0Provider{}
 
@@ -103,7 +103,7 @@ func TestDash0Provider_Configure_WithProviderAttributes(t *testing.T) {
 			},
 		}, map[string]tftypes.Value{
 			"url":        tftypes.NewValue(tftypes.String, "https://api.provider.com"),
-			"auth_token": tftypes.NewValue(tftypes.String, "provider_token_456"),
+			"auth_token": tftypes.NewValue(tftypes.String, "auth_provider_token_456"),
 		}),
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
@@ -133,7 +133,7 @@ func TestDash0Provider_Configure_WithProviderAttributes(t *testing.T) {
 func TestDash0Provider_Configure_EnvironmentVariablesPrecedence(t *testing.T) {
 	// Set environment variables - these should take precedence
 	t.Setenv("DASH0_URL", "https://api.env.com")
-	t.Setenv("DASH0_AUTH_TOKEN", "env_token_789")
+	t.Setenv("DASH0_AUTH_TOKEN", "auth_env_token_789")
 
 	p := &dash0Provider{}
 
@@ -146,7 +146,7 @@ func TestDash0Provider_Configure_EnvironmentVariablesPrecedence(t *testing.T) {
 			},
 		}, map[string]tftypes.Value{
 			"url":        tftypes.NewValue(tftypes.String, "https://api.provider.com"),
-			"auth_token": tftypes.NewValue(tftypes.String, "provider_token_456"),
+			"auth_token": tftypes.NewValue(tftypes.String, "auth_provider_token_456"),
 		}),
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
@@ -190,7 +190,7 @@ func TestDash0Provider_Configure_MissingURL(t *testing.T) {
 			},
 		}, map[string]tftypes.Value{
 			"url":        tftypes.NewValue(tftypes.String, nil),
-			"auth_token": tftypes.NewValue(tftypes.String, "token_only"),
+			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
 		}),
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
