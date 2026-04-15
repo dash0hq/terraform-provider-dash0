@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.7.2
+
+
+### Enhancements
+
+
+- `provider`: Rebase provider on dash0-api-client-go and add roundtrip tests (#73)
+  Replace the internal check rule converter and model packages with the dash0-api-client-go/yaml
+  library, removing duplicated YAML-to-API conversion logic. Add Dockerized roundtrip tests that
+  verify each resource type end-to-end against the real Dash0 API.
+  
+
+
+### Bug Fixes
+
+
+- `views`: Fix flaky view roundtrip test caused by unstable YAML comparison and eventual consistency (#75)
+  Replace fmt.Sprint-based sort keys in ResourceYAMLEquivalent with a canonical string function
+  that recursively sorts nested structures, ensuring stable order-independent YAML comparison.
+  Add retry-based helpers (assert_idempotent, assert_yaml_equivalent_eventually) to tolerate
+  eventual consistency of server-managed fields like permissions. Extract the duplicated
+  idempotency check pattern into the shared assert_idempotent helper.
+  
+
 ## v1.7.1 (2026-02-19)
 
 - fix(SUP-678): conditionally ignore spec.permissions and null values in YAML normalization (#53)
