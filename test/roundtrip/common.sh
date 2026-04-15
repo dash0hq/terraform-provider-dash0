@@ -254,6 +254,85 @@ assert_deleted_via_tf() {
 }
 
 # ---------------------------------------------------------------------------
+# Idempotency check with retry (handles eventual consistency).
+# ---------------------------------------------------------------------------
+
+# assert_idempotent <work_dir> [max_retries] [delay]
+#
+# Runs `tofu plan -detailed-exitcode` and expects exit code 0 (no changes).
+# Retries up to max_retries times (default 5) with delay seconds (default 3)
+# between attempts to tolerate eventual consistency of server-managed fields
+# like permissions that are stored separately and enriched on retrieval.
+assert_idempotent() {
+  local dir="$1"
+  local max_retries="${2:-5}"
+  local delay="${3:-3}"
+
+  for i in $(seq 1 "$max_retries"); do
+    set +e
+    TF_VAR_dataset="$DATASET" tf_plan_detailed_exitcode "$dir"
+    local exit_code=$?
+    set -e
+
+    if [[ "$exit_code" -eq 0 ]]; then
+      info "Idempotency check PASSED: no changes detected (attempt ${i})."
+      return 0
+    elif [[ "$exit_code" -eq 2 ]]; then
+      if [[ "$i" -lt "$max_retries" ]]; then
+        warn "Idempotency check detected changes (attempt ${i}/${max_retries}), retrying in ${delay}s..."
+        sleep "$delay"
+      else
+        fail "Idempotency check FAILED: Terraform detected changes on a no-op re-apply (after ${max_retries} attempts)."
+      fi
+    else
+      fail "Idempotency check ERROR: tofu plan exited with code ${exit_code}."
+    fi
+  done
+}
+
+# ---------------------------------------------------------------------------
+# YAML equivalence check with retry (handles eventual consistency).
+# ---------------------------------------------------------------------------
+
+# assert_yaml_equivalent_eventually <uploaded_file> <cli_command> <id> <dataset> [max_retries] [delay]
+#
+# Fetches the resource via CLI and checks YAML equivalence against the uploaded
+# file. Retries on failure to tolerate eventual consistency (e.g., permissions
+# not yet enriched in the API response).
+assert_yaml_equivalent_eventually() {
+  local uploaded_file="$1"
+  local cli_cmd="$2"
+  local id="$3"
+  local dataset="$4"
+  local max_retries="${5:-5}"
+  local delay="${6:-3}"
+
+  for i in $(seq 1 "$max_retries"); do
+    local cli_output
+    cli_output="$($cli_cmd get "$id" --dataset "$dataset" -o yaml 2>&1)" \
+      || fail "CLI could not find resource ${id}"
+
+    set +e
+    assert_yaml_equivalent "$uploaded_file" "$cli_output"
+    local rc=$?
+    set -e
+
+    if [[ "$rc" -eq 0 ]]; then
+      info "YAML equivalence check PASSED (attempt ${i})."
+      return 0
+    fi
+
+    if [[ "$i" -lt "$max_retries" ]]; then
+      warn "YAML equivalence check failed (attempt ${i}/${max_retries}), retrying in ${delay}s..."
+      sleep "$delay"
+    else
+      echo "$cli_output"
+      fail "Uploaded and downloaded YAMLs are not equivalent (after ${max_retries} attempts)."
+    fi
+  done
+}
+
+# ---------------------------------------------------------------------------
 # Cleanup helper — removes a temp directory on EXIT.
 # Usage: at the top of each test:  WORK_DIR=$(mktemp -d) ; trap "rm -rf $WORK_DIR" EXIT
 # ---------------------------------------------------------------------------
