@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"testing"
 
@@ -19,13 +20,17 @@ func TestAccAwsIntegrationResource(t *testing.T) {
 		t.Skip("Acceptance tests skipped unless TF_ACC=1")
 	}
 
-	const (
+	// Randomize the AWS account ID per test run so collisions with leftover
+	// integrations from previous runs (the Dash0 API enforces one integration
+	// per AWS account ID within an org) don't cause false negatives.
+	awsAccountID := fmt.Sprintf("%012d", rand.Int63n(1_000_000_000_000))
+
+	var (
 		dataset        = "default"
 		externalID     = "dash0-acc-test-external-id"
-		awsAccountID   = "123456789012"
-		readOnlyArn    = "arn:aws:iam::123456789012:role/dash0-acc-test-read-only"
-		instrArn       = "arn:aws:iam::123456789012:role/dash0-acc-test-instrumentation"
-		newReadOnlyArn = "arn:aws:iam::123456789012:role/dash0-acc-test-read-only-v2"
+		readOnlyArn    = fmt.Sprintf("arn:aws:iam::%s:role/dash0-acc-test-read-only", awsAccountID)
+		instrArn       = fmt.Sprintf("arn:aws:iam::%s:role/dash0-acc-test-instrumentation", awsAccountID)
+		newReadOnlyArn = fmt.Sprintf("arn:aws:iam::%s:role/dash0-acc-test-read-only-v2", awsAccountID)
 	)
 
 	resource.Test(t, resource.TestCase{
