@@ -14,13 +14,18 @@ install: build
 	mkdir -p ~/terraform-provider-mirror/registry.terraform.io/dash0hq/dash0/0.0.1/$(shell go env GOOS)_$(shell go env GOARCH)/
 	cp terraform-provider-dash0 ~/terraform-provider-mirror/registry.terraform.io/dash0hq/dash0/0.0.1/$(shell go env GOOS)_$(shell go env GOARCH)/terraform-provider-dash0_v0.0.1
 
-.PHONY: test
-test:
+test: test-unit test-roundtrip
+
+test-unit:
 	go test -v ./...
 
 .PHONY: testacc
 testacc:
 	TF_ACC=1 go test ./... -v $(TESTARGS) -timeout 20m
+
+.PHONY: test-roundtrip
+test-roundtrip:
+	./test/roundtrip/run_all.sh
 
 .PHONY: docs
 docs:

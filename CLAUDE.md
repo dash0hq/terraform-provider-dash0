@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Dockerized end-to-end tests that verify each Terraform resource type against the real Dash0 API.
 Each test creates a resource via `tofu apply`, downloads it via the `dash0` CLI and checks YAML equivalence, updates it, verifies idempotency, destroys it, and confirms deletion.
 
-- Run all: `./test/roundtrip/run_all.sh`
+- Run all: `make test-roundtrip`
 - Run one: `./test/roundtrip/run_all.sh test_dashboard.sh`
 - Locally: Docker running, dash0 CLI configured with an active profile (`~/.dash0/`)
 - CI: set `DASH0_API_URL`, `DASH0_AUTH_TOKEN`, and optionally `DASH0_DATASET` env vars (no CLI profile needed)
@@ -109,6 +109,16 @@ If the API is documented in the [Dash0 API reference](https://api-docs.dash0.com
 6. Add a roundtrip test in `test/roundtrip/test_<resource>.sh` (see "Adding a new roundtrip test" above).
 7. Run `make docs` to regenerate documentation.
 8. Run `make test` to verify the build and all tests pass.
+
+## Validating changes
+
+Before considering a change complete, run:
+
+1. `make build` — verify the project compiles.
+2. `make test-unit` — run all unit tests.
+3. `make test-roundtrip` — run the Dockerized roundtrip tests against the real Dash0 API. These catch integration issues (serialization mismatches, server-side validation failures, idempotency regressions) that unit tests cannot.
+
+All three must pass. Do not skip the roundtrip tests — they are the final gate before a change is ready.
 
 ## Code style
 
