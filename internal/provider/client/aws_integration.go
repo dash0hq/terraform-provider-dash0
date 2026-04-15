@@ -10,22 +10,26 @@ import (
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
 
-func (c *dash0Client) CreateOrUpdateAwsIntegration(ctx context.Context, integration model.AwsIntegration, accountID string) error {
-	origin := model.AwsIntegrationOrigin(accountID, integration.ExternalID.ValueString())
+func (c *dash0Client) CreateOrUpdateAwsIntegration(ctx context.Context, integration model.AwsIntegration) error {
+	dataset := integration.Dataset.ValueString()
+	accountID := integration.AwsAccountID.ValueString()
+	externalID := integration.ExternalID.ValueString()
+
+	origin := model.AwsIntegrationOrigin(dataset, accountID, externalID)
 	apiPath := fmt.Sprintf("/api/integrations/%s", origin)
 
-	definition := model.BuildAwsIntegrationDefinition(integration, accountID, origin)
+	definition := model.BuildAwsIntegrationDefinition(integration, origin)
 	body, err := json.Marshal(definition)
 	if err != nil {
 		return fmt.Errorf("error marshaling AWS integration: %w", err)
 	}
 
 	tflog.Debug(ctx, fmt.Sprintf("Creating/updating AWS integration with origin %s", origin))
-	return c.create(ctx, integration.Dataset.ValueString(), apiPath, string(body), "AwsIntegration")
+	return c.create(ctx, dataset, apiPath, string(body), "AwsIntegration")
 }
 
 func (c *dash0Client) GetAwsIntegration(ctx context.Context, dataset, accountID, externalID string) (*model.AwsIntegrationSpec, error) {
-	origin := model.AwsIntegrationOrigin(accountID, externalID)
+	origin := model.AwsIntegrationOrigin(dataset, accountID, externalID)
 	apiPath := fmt.Sprintf("/api/integrations/%s", origin)
 
 	resp, err := c.get(ctx, origin, dataset, apiPath, "AwsIntegration")
@@ -42,7 +46,7 @@ func (c *dash0Client) GetAwsIntegration(ctx context.Context, dataset, accountID,
 }
 
 func (c *dash0Client) DeleteAwsIntegration(ctx context.Context, dataset, accountID, externalID string) error {
-	origin := model.AwsIntegrationOrigin(accountID, externalID)
+	origin := model.AwsIntegrationOrigin(dataset, accountID, externalID)
 	apiPath := fmt.Sprintf("/api/integrations/%s", origin)
 
 	tflog.Debug(ctx, fmt.Sprintf("Deleting AWS integration with origin %s", origin))

@@ -32,7 +32,7 @@ type Client interface {
 	UpdateRecordingRuleGroup(ctx context.Context, group model.RecordingRuleGroup) error
 	DeleteRecordingRuleGroup(ctx context.Context, origin string, dataset string) error
 
-	CreateOrUpdateAwsIntegration(ctx context.Context, integration model.AwsIntegration, accountID string) error
+	CreateOrUpdateAwsIntegration(ctx context.Context, integration model.AwsIntegration) error
 	GetAwsIntegration(ctx context.Context, dataset, accountID, externalID string) (*model.AwsIntegrationSpec, error)
 	DeleteAwsIntegration(ctx context.Context, dataset, accountID, externalID string) error
 }

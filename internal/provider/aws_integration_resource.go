@@ -8,14 +8,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
-	awsclient "github.com/dash0hq/terraform-provider-dash0/internal/provider/aws"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/model"
 )
@@ -61,9 +58,10 @@ func (r *AwsIntegrationResource) Metadata(_ context.Context, req resource.Metada
 
 func (r *AwsIntegrationResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a Dash0 AWS integration. Creates IAM roles for resource discovery and monitoring, " +
-			"and registers the integration with the Dash0 API. Optionally creates an instrumentation role for " +
-			"Lambda auto-instrumentation.",
+		Description: "Registers an AWS integration with the Dash0 API. The user is responsible for " +
+			"creating the IAM roles (either directly via the hashicorp/aws provider, via the official " +
+			"Dash0 AWS integration Terraform module, or centrally by a platform team) and passing the " +
+			"role ARNs to this resource.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Description: "Composite identifier in the format '{aws_account_id}-{external_id}'.",
@@ -72,11 +70,12 @@ func (r *AwsIntegrationResource) Schema(_ context.Context, _ resource.SchemaRequ
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-
-			// Dash0-side attributes
 			"dataset": schema.StringAttribute{
 				Description: "The Dash0 dataset slug to associate with this integration.",
 				Required:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"external_id": schema.StringAttribute{
 				Description: "The Dash0 organization technical ID, used as the STS AssumeRole external ID.",
@@ -85,88 +84,20 @@ func (r *AwsIntegrationResource) Schema(_ context.Context, _ resource.SchemaRequ
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-
-			// AWS IAM configuration
-			"iam_role_name_prefix": schema.StringAttribute{
-				Description: "Prefix for the IAM role names. Defaults to 'dash0'.",
-				Optional:    true,
-				Computed:    true,
-				Default:     stringdefault.StaticString("dash0"),
+			"aws_account_id": schema.StringAttribute{
+				Description: "The AWS account ID that hosts the IAM roles.",
+				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"enable_resources_instrumentation": schema.BoolAttribute{
-				Description: "Whether to create an additional IAM role for resources instrumentation (e.g., Lambda auto-instrumentation).",
-				Optional:    true,
-				Computed:    true,
-				Default:     booldefault.StaticBool(false),
-			},
-			"dash0_aws_account_id": schema.StringAttribute{
-				Description: "The Dash0 AWS account ID that will assume the IAM roles (used in the trust policy). Defaults to '115813213817'.",
-				Optional:    true,
-				Computed:    true,
-				Default:     stringdefault.StaticString("115813213817"),
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-			"tags": schema.MapAttribute{
-				Description: "Tags to apply to all IAM resources created by this resource.",
-				Optional:    true,
-				ElementType: types.StringType,
-			},
-
-			// AWS credentials (optional)
-			"aws_region": schema.StringAttribute{
-				Description: "AWS region. Defaults to the AWS SDK default credential chain.",
-				Optional:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-			"aws_profile": schema.StringAttribute{
-				Description: "AWS shared config profile name.",
-				Optional:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-			"aws_access_key": schema.StringAttribute{
-				Description: "AWS access key ID. If omitted, the default AWS SDK credential chain is used.",
-				Optional:    true,
-				Sensitive:   true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-			"aws_secret_key": schema.StringAttribute{
-				Description: "AWS secret access key. If omitted, the default AWS SDK credential chain is used.",
-				Optional:    true,
-				Sensitive:   true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-
-			// Computed outputs
 			"read_only_role_arn": schema.StringAttribute{
 				Description: "The ARN of the Dash0 read-only IAM role.",
-				Computed:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
+				Required:    true,
 			},
 			"instrumentation_role_arn": schema.StringAttribute{
-				Description: "The ARN of the Dash0 resources instrumentation IAM role (empty if not enabled).",
-				Computed:    true,
-			},
-			"aws_account_id": schema.StringAttribute{
-				Description: "The AWS account ID where the integration was created.",
-				Computed:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
+				Description: "The ARN of the Dash0 resources instrumentation IAM role (e.g., for Lambda auto-instrumentation). Omit if not using resources instrumentation.",
+				Optional:    true,
 			},
 		},
 	}
@@ -180,58 +111,11 @@ func (r *AwsIntegrationResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	iamClient, err := r.newIAMClient(ctx, plan)
-	if err != nil {
-		resp.Diagnostics.AddError("AWS Configuration Error", fmt.Sprintf("Unable to create AWS client: %s", err))
-		return
-	}
+	plan.ID = types.StringValue(fmt.Sprintf("%s-%s", plan.AwsAccountID.ValueString(), plan.ExternalID.ValueString()))
 
-	accountID, err := iamClient.GetCallerAccountID(ctx)
-	if err != nil {
-		resp.Diagnostics.AddError("AWS Error", fmt.Sprintf("Unable to get AWS account ID: %s", err))
-		return
-	}
-
-	params := r.extractRoleParams(ctx, plan)
-
-	// Create read-only role
-	readOnlyRole, err := iamClient.CreateReadOnlyRole(ctx, params)
-	if err != nil {
-		resp.Diagnostics.AddError("AWS IAM Error", fmt.Sprintf("Unable to create read-only IAM role: %s", err))
-		return
-	}
-
-	plan.ReadOnlyRoleArn = types.StringValue(readOnlyRole.RoleArn)
-
-	// Create instrumentation role (optional)
-	if plan.EnableResourcesInstrumentation.ValueBool() {
-		instrRole, err := iamClient.CreateInstrumentationRole(ctx, params)
-		if err != nil {
-			_ = iamClient.DeleteReadOnlyRole(ctx, params.RoleNamePrefix)
-			resp.Diagnostics.AddError("AWS IAM Error",
-				fmt.Sprintf("Unable to create instrumentation IAM role (read-only role %q was cleaned up): %s",
-					readOnlyRole.RoleArn, err))
-			return
-		}
-		plan.InstrumentationRoleArn = types.StringValue(instrRole.RoleArn)
-	} else {
-		plan.InstrumentationRoleArn = types.StringNull()
-	}
-
-	// Wait for IAM propagation before registering with Dash0
-	awsclient.WaitForRolePropagation(ctx)
-
-	// Register with Dash0 API
-	plan.AwsAccountID = types.StringValue(accountID)
-	plan.ID = types.StringValue(fmt.Sprintf("%s-%s", accountID, plan.ExternalID.ValueString()))
-
-	err = r.client.CreateOrUpdateAwsIntegration(ctx, plan, accountID)
-	if err != nil {
-		// Store partial state so destroy can clean up IAM roles
-		resp.State.Set(ctx, plan)
+	if err := r.client.CreateOrUpdateAwsIntegration(ctx, plan); err != nil {
 		resp.Diagnostics.AddError("Dash0 API Error",
-			fmt.Sprintf("IAM roles were created successfully, but failed to register integration with Dash0 API: %s. "+
-				"Run 'terraform destroy' to clean up the IAM roles, or 'terraform apply' to retry the registration.", err))
+			fmt.Sprintf("Unable to register AWS integration with Dash0 API: %s", err))
 		return
 	}
 
@@ -249,83 +133,43 @@ func (r *AwsIntegrationResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	// Resolve AWS account ID if missing (e.g. after terraform import)
-	accountID := state.AwsAccountID.ValueString()
-	if accountID == "" {
-		iamClient, err := r.newIAMClient(ctx, state)
-		if err != nil {
-			resp.Diagnostics.AddError("AWS Configuration Error", fmt.Sprintf("Unable to create AWS client: %s", err))
-			return
-		}
-		accountID, err = iamClient.GetCallerAccountID(ctx)
-		if err != nil {
-			resp.Diagnostics.AddError("AWS Error", fmt.Sprintf("Unable to get AWS account ID: %s", err))
-			return
-		}
-		state.AwsAccountID = types.StringValue(accountID)
-		state.ID = types.StringValue(fmt.Sprintf("%s-%s", accountID, state.ExternalID.ValueString()))
-	}
-
-	// Verify IAM roles still exist in AWS
-	iamClient, err := r.newIAMClient(ctx, state)
-	if err != nil {
-		resp.Diagnostics.AddError("AWS Configuration Error", fmt.Sprintf("Unable to create AWS client: %s", err))
-		return
-	}
-
-	prefix := state.IamRoleNamePrefix.ValueString()
-
-	readOnlyRoleName := awsclient.ReadOnlyRoleName(prefix)
-	readOnlyRole, err := iamClient.ReadRole(ctx, readOnlyRoleName)
-	if err != nil {
-		tflog.Warn(ctx, fmt.Sprintf("Read-only IAM role %q not found, removing resource from state: %s", readOnlyRoleName, err))
-		resp.State.RemoveResource(ctx)
-		return
-	}
-	state.ReadOnlyRoleArn = types.StringValue(readOnlyRole.RoleArn)
-
-	// Read from Dash0 API to detect drift
 	apiResp, err := r.client.GetAwsIntegration(ctx,
 		state.Dataset.ValueString(),
-		accountID,
+		state.AwsAccountID.ValueString(),
 		state.ExternalID.ValueString(),
 	)
 	if err != nil {
 		if client.IsNotFound(err) {
-			// API says integration doesn't exist, but IAM roles do exist (checked above).
-			// Keep the resource in state so terraform destroy can clean up the IAM roles.
-			tflog.Warn(ctx, fmt.Sprintf("AWS integration not found in Dash0 API, but IAM roles exist — keeping in state: %s", err))
-		} else {
-			resp.Diagnostics.AddError("Dash0 API Error", fmt.Sprintf("Unable to read AWS integration from Dash0 API: %s", err))
+			tflog.Warn(ctx, fmt.Sprintf("AWS integration not found in Dash0 API, removing from state: %s", err))
+			resp.State.RemoveResource(ctx)
 			return
 		}
+		resp.Diagnostics.AddError("Dash0 API Error",
+			fmt.Sprintf("Unable to read AWS integration from Dash0 API: %s", err))
+		return
 	}
 
-	// Update state from API response if available (drift detection)
-	if apiResp != nil {
-		state.Dataset = types.StringValue(apiResp.Dataset)
+	// Reconcile state with API response (drift detection).
+	state.Dataset = types.StringValue(apiResp.Dataset)
+	state.AwsAccountID = types.StringValue(apiResp.AccountID)
 
-		hasInstrRole := false
-		for _, role := range apiResp.Roles {
-			if role.PermissionType == model.PermissionTypeResourcesInstrumentation {
-				hasInstrRole = true
-				break
-			}
-		}
-
-		if hasInstrRole {
-			instrRoleName := awsclient.InstrumentationRoleName(prefix)
-			instrRole, err := iamClient.ReadRole(ctx, instrRoleName)
-			if err != nil {
-				tflog.Warn(ctx, fmt.Sprintf("Instrumentation IAM role %q not found, removing resource from state: %s", instrRoleName, err))
-				resp.State.RemoveResource(ctx)
-				return
-			}
-			state.InstrumentationRoleArn = types.StringValue(instrRole.RoleArn)
-		} else {
-			state.InstrumentationRoleArn = types.StringNull()
+	var readOnlyArn, instrArn string
+	for _, role := range apiResp.Roles {
+		switch role.PermissionType {
+		case model.PermissionTypeReadOnly:
+			readOnlyArn = role.Arn
+		case model.PermissionTypeResourcesInstrumentation:
+			instrArn = role.Arn
 		}
 	}
+	state.ReadOnlyRoleArn = types.StringValue(readOnlyArn)
+	if instrArn != "" {
+		state.InstrumentationRoleArn = types.StringValue(instrArn)
+	} else {
+		state.InstrumentationRoleArn = types.StringNull()
+	}
+
+	state.ID = types.StringValue(fmt.Sprintf("%s-%s", state.AwsAccountID.ValueString(), state.ExternalID.ValueString()))
 
 	tflog.Trace(ctx, "read AWS integration resource")
 
@@ -334,74 +178,18 @@ func (r *AwsIntegrationResource) Read(ctx context.Context, req resource.ReadRequ
 }
 
 func (r *AwsIntegrationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var state model.AwsIntegration
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	var plan model.AwsIntegration
-	diags = req.Plan.Get(ctx, &plan)
+	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Preserve computed values from state
-	plan.ID = state.ID
-	plan.AwsAccountID = state.AwsAccountID
-	plan.ReadOnlyRoleArn = state.ReadOnlyRoleArn
+	plan.ID = types.StringValue(fmt.Sprintf("%s-%s", plan.AwsAccountID.ValueString(), plan.ExternalID.ValueString()))
 
-	iamClient, err := r.newIAMClient(ctx, plan)
-	if err != nil {
-		resp.Diagnostics.AddError("AWS Configuration Error", fmt.Sprintf("Unable to create AWS client: %s", err))
-		return
-	}
-
-	params := r.extractRoleParams(ctx, plan)
-	prefix := plan.IamRoleNamePrefix.ValueString()
-
-	// Handle tags update on existing roles
-	err = iamClient.UpdateRoleTags(ctx, awsclient.ReadOnlyRoleName(prefix), params.Tags)
-	if err != nil {
-		resp.Diagnostics.AddError("AWS IAM Error", fmt.Sprintf("Unable to update tags on read-only role: %s", err))
-		return
-	}
-
-	// Handle instrumentation toggle
-	wasEnabled := state.EnableResourcesInstrumentation.ValueBool()
-	isEnabled := plan.EnableResourcesInstrumentation.ValueBool()
-
-	if !wasEnabled && isEnabled {
-		instrRole, err := iamClient.CreateInstrumentationRole(ctx, params)
-		if err != nil {
-			resp.Diagnostics.AddError("AWS IAM Error", fmt.Sprintf("Unable to create instrumentation IAM role: %s", err))
-			return
-		}
-		plan.InstrumentationRoleArn = types.StringValue(instrRole.RoleArn)
-	} else if wasEnabled && !isEnabled {
-		err := iamClient.DeleteInstrumentationRole(ctx, prefix, plan.AwsAccountID.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError("AWS IAM Error", fmt.Sprintf("Unable to delete instrumentation IAM role: %s", err))
-			return
-		}
-		plan.InstrumentationRoleArn = types.StringNull()
-	} else if isEnabled {
-		err = iamClient.UpdateRoleTags(ctx, awsclient.InstrumentationRoleName(prefix), params.Tags)
-		if err != nil {
-			resp.Diagnostics.AddError("AWS IAM Error", fmt.Sprintf("Unable to update tags on instrumentation role: %s", err))
-			return
-		}
-		plan.InstrumentationRoleArn = state.InstrumentationRoleArn
-	} else {
-		plan.InstrumentationRoleArn = types.StringNull()
-	}
-
-	// Re-register with Dash0 API (PUT is an upsert)
-	err = r.client.CreateOrUpdateAwsIntegration(ctx, plan, plan.AwsAccountID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Dash0 API Error", fmt.Sprintf("Unable to update AWS integration registration: %s", err))
+	if err := r.client.CreateOrUpdateAwsIntegration(ctx, plan); err != nil {
+		resp.Diagnostics.AddError("Dash0 API Error",
+			fmt.Sprintf("Unable to update AWS integration registration: %s", err))
 		return
 	}
 
@@ -419,104 +207,38 @@ func (r *AwsIntegrationResource) Delete(ctx context.Context, req resource.Delete
 		return
 	}
 
-	iamClient, err := r.newIAMClient(ctx, state)
-	if err != nil {
-		resp.Diagnostics.AddError("AWS Configuration Error", fmt.Sprintf("Unable to create AWS client for cleanup: %s", err))
-		return
-	}
-
-	prefix := state.IamRoleNamePrefix.ValueString()
-
-	// Delete IAM roles first (avoid orphaned AWS resources if Dash0 API call fails)
-	if state.EnableResourcesInstrumentation.ValueBool() {
-		err = iamClient.DeleteInstrumentationRole(ctx, prefix, state.AwsAccountID.ValueString())
-		if err != nil {
-			tflog.Warn(ctx, fmt.Sprintf("Failed to delete instrumentation IAM role: %s", err))
-		}
-	}
-
-	err = iamClient.DeleteReadOnlyRole(ctx, prefix)
-	if err != nil {
-		resp.Diagnostics.AddError("AWS IAM Error", fmt.Sprintf("Unable to delete read-only IAM role: %s", err))
-		return
-	}
-
-	// Unregister from Dash0 API
-	err = r.client.DeleteAwsIntegration(ctx,
+	err := r.client.DeleteAwsIntegration(ctx,
 		state.Dataset.ValueString(),
 		state.AwsAccountID.ValueString(),
 		state.ExternalID.ValueString(),
 	)
-	if err != nil {
-		tflog.Warn(ctx, fmt.Sprintf("Failed to delete AWS integration from Dash0 API: %s. IAM roles were cleaned up successfully.", err))
+	if err != nil && !client.IsNotFound(err) {
+		resp.Diagnostics.AddError("Dash0 API Error",
+			fmt.Sprintf("Unable to delete AWS integration from Dash0 API: %s", err))
+		return
 	}
 
 	tflog.Trace(ctx, "deleted AWS integration resource")
 }
 
 // ImportState handles terraform import for existing AWS integrations.
-// Import ID format: "dataset,external_id,iam_role_name_prefix" (prefix is optional, defaults to "dash0")
+// Import ID format: "dataset,aws_account_id,external_id"
 func (r *AwsIntegrationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	idParts := strings.Split(req.ID, ",")
-	if len(idParts) < 2 || len(idParts) > 3 {
+	if len(idParts) != 3 {
 		resp.Diagnostics.AddError(
 			"Invalid Import ID",
-			fmt.Sprintf("Expected import ID in the format 'dataset,external_id[,iam_role_name_prefix]'. Got: %s", req.ID),
+			fmt.Sprintf("Expected import ID in the format 'dataset,aws_account_id,external_id'. Got: %s", req.ID),
 		)
 		return
 	}
 
 	dataset := idParts[0]
-	externalID := idParts[1]
-	prefix := "dash0"
-	if len(idParts) == 3 {
-		prefix = idParts[2]
-	}
+	accountID := idParts[1]
+	externalID := idParts[2]
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("aws_account_id"), accountID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("external_id"), externalID)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("iam_role_name_prefix"), prefix)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dash0_aws_account_id"), "115813213817")...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("enable_resources_instrumentation"), false)...)
-}
-
-// newIAMClient creates a new AWS IAM client from the resource state/plan.
-func (r *AwsIntegrationResource) newIAMClient(ctx context.Context, m model.AwsIntegration) (*awsclient.IAMClient, error) {
-	return awsclient.NewIAMClient(ctx,
-		optionalString(m.AwsRegion),
-		optionalString(m.AwsProfile),
-		optionalString(m.AwsAccessKey),
-		optionalString(m.AwsSecretKey),
-	)
-}
-
-// extractRoleParams builds RoleParams from the model.
-func (r *AwsIntegrationResource) extractRoleParams(ctx context.Context, m model.AwsIntegration) awsclient.RoleParams {
-	return awsclient.RoleParams{
-		RoleNamePrefix:    m.IamRoleNamePrefix.ValueString(),
-		Dash0AwsAccountID: m.Dash0AwsAccountID.ValueString(),
-		ExternalID:        m.ExternalID.ValueString(),
-		Tags:              r.extractTags(ctx, m),
-	}
-}
-
-// extractTags converts the plan's tags map to a Go map[string]string.
-func (r *AwsIntegrationResource) extractTags(ctx context.Context, m model.AwsIntegration) map[string]string {
-	tags := make(map[string]string)
-	if !m.Tags.IsNull() && !m.Tags.IsUnknown() {
-		diags := m.Tags.ElementsAs(ctx, &tags, false)
-		if diags.HasError() {
-			tflog.Warn(ctx, "Failed to extract tags from plan, using empty tags")
-			return make(map[string]string)
-		}
-	}
-	return tags
-}
-
-// optionalString extracts a string value from a types.String, returning empty string if null/unknown.
-func optionalString(v types.String) string {
-	if v.IsNull() || v.IsUnknown() {
-		return ""
-	}
-	return v.ValueString()
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), fmt.Sprintf("%s-%s", accountID, externalID))...)
 }

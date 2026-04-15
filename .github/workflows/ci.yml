@@ -5,10 +5,6 @@ on:
     branches:
       - '*'
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -42,12 +38,6 @@ jobs:
         with:
           go-version-file: './go.mod'
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
       - name: Acceptance Tests
         run: |
           go mod download
@@ -55,4 +45,3 @@ jobs:
         env:
           DASH0_URL: ${{ secrets.DASH0_URL }}
           DASH0_AUTH_TOKEN: ${{ secrets.DASH0_AUTH_TOKEN }}
-          DASH0_TEST_EXTERNAL_ID: ${{ secrets.DASH0_TEST_EXTERNAL_ID }}

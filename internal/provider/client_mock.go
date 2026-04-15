@@ -127,8 +127,8 @@ func (m *MockClient) DeleteRecordingRuleGroup(ctx context.Context, origin string
 	return args.Error(0)
 }
 
-func (m *MockClient) CreateOrUpdateAwsIntegration(ctx context.Context, integration model.AwsIntegration, accountID string) error {
-	args := m.Called(ctx, integration, accountID)
+func (m *MockClient) CreateOrUpdateAwsIntegration(ctx context.Context, integration model.AwsIntegration) error {
+	args := m.Called(ctx, integration)
 	return args.Error(0)
 }
 

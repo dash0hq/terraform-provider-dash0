@@ -8,30 +8,21 @@ import (
 )
 
 // AwsIntegration represents the Terraform state for the dash0_aws_integration resource.
+//
+// This resource registers an AWS integration with the Dash0 API. It does NOT create
+// IAM roles — users are expected to create them separately (via the hashicorp/aws
+// provider, the dash0 AWS integration Terraform module, or their platform team) and
+// pass the role ARNs here.
 type AwsIntegration struct {
 	// Computed identifier: "{aws_account_id}-{external_id}"
 	ID types.String `tfsdk:"id"`
 
-	// Dash0-side attributes
-	Dataset    types.String `tfsdk:"dataset"`
-	ExternalID types.String `tfsdk:"external_id"`
-
-	// AWS IAM configuration
-	IamRoleNamePrefix              types.String `tfsdk:"iam_role_name_prefix"`
-	EnableResourcesInstrumentation types.Bool   `tfsdk:"enable_resources_instrumentation"`
-	Dash0AwsAccountID              types.String `tfsdk:"dash0_aws_account_id"`
-	Tags                           types.Map    `tfsdk:"tags"`
-
-	// AWS credentials (optional, defaults to SDK credential chain)
-	AwsRegion    types.String `tfsdk:"aws_region"`
-	AwsProfile   types.String `tfsdk:"aws_profile"`
-	AwsAccessKey types.String `tfsdk:"aws_access_key"`
-	AwsSecretKey types.String `tfsdk:"aws_secret_key"`
-
-	// Computed outputs
+	// Required inputs
+	Dataset                types.String `tfsdk:"dataset"`
+	ExternalID             types.String `tfsdk:"external_id"`
+	AwsAccountID           types.String `tfsdk:"aws_account_id"`
 	ReadOnlyRoleArn        types.String `tfsdk:"read_only_role_arn"`
 	InstrumentationRoleArn types.String `tfsdk:"instrumentation_role_arn"`
-	AwsAccountID           types.String `tfsdk:"aws_account_id"`
 }
 
 const (
@@ -40,9 +31,9 @@ const (
 )
 
 // AwsIntegrationOrigin computes the deterministic origin for the integrations API.
-// Format: "terraform-<sha1_uuid(accountID + "-" + externalID)>"
-func AwsIntegrationOrigin(accountID, externalID string) string {
-	return "terraform-" + uuid.NewSHA1(uuid.NameSpaceOID, []byte(accountID+"-"+externalID)).String()
+// Format: "terraform-<sha1_uuid(dataset + "-" + accountID + "-" + externalID)>"
+func AwsIntegrationOrigin(dataset, accountID, externalID string) string {
+	return "terraform-" + uuid.NewSHA1(uuid.NameSpaceOID, []byte(dataset+"-"+accountID+"-"+externalID)).String()
 }
 
 // IntegrationDefinition is the top-level envelope for PUT/GET /api/integrations/{origin}.
@@ -96,7 +87,8 @@ type AwsIntegrationRole struct {
 
 // BuildAwsIntegrationDefinition constructs the IntegrationDefinition
 // expected by PUT /api/integrations/{origin}.
-func BuildAwsIntegrationDefinition(integration AwsIntegration, accountID, origin string) IntegrationDefinition {
+func BuildAwsIntegrationDefinition(integration AwsIntegration, origin string) IntegrationDefinition {
+	accountID := integration.AwsAccountID.ValueString()
 	displayName := fmt.Sprintf("AWS %s (terraform)", accountID)
 
 	roles := []AwsIntegrationRole{
@@ -107,7 +99,7 @@ func BuildAwsIntegrationDefinition(integration AwsIntegration, accountID, origin
 		},
 	}
 
-	if !integration.EnableResourcesInstrumentation.IsNull() && integration.EnableResourcesInstrumentation.ValueBool() {
+	if !integration.InstrumentationRoleArn.IsNull() && !integration.InstrumentationRoleArn.IsUnknown() && integration.InstrumentationRoleArn.ValueString() != "" {
 		roles = append(roles, AwsIntegrationRole{
 			Arn:            integration.InstrumentationRoleArn.ValueString(),
 			ExternalID:     integration.ExternalID.ValueString(),

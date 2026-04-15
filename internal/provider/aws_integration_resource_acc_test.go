@@ -1,138 +1,97 @@
 package provider
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	awsclient "github.com/dash0hq/terraform-provider-dash0/internal/provider/aws"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-// testExternalID is a fixed test value for the STS AssumeRole external ID.
-// It does not need to be a real Dash0 org ID — it's only embedded in the IAM trust policy condition.
-const testExternalID = "dash0-acc-test-external-id"
+const awsIntegrationResourceName = "dash0_aws_integration.test"
 
-// newTestIAMClient creates an IAM client using the optional test profile or default chain.
-func newTestIAMClient(t *testing.T) *awsclient.IAMClient {
-	t.Helper()
-	profile := os.Getenv("DASH0_TEST_AWS_PROFILE")
-	client, err := awsclient.NewIAMClient(context.Background(), "", profile, "", "")
-	require.NoError(t, err, "failed to create AWS IAM client")
-	return client
-}
-
-// TestAccAwsIntegrationResource_IAMRoles tests the full IAM role CRUD lifecycle:
-// create read-only role, verify it exists, create instrumentation role, verify it exists,
-// delete both, verify they're gone.
-func TestAccAwsIntegrationResource_IAMRoles(t *testing.T) {
+// TestAccAwsIntegrationResource exercises the full Create → Read → Update → Delete
+// lifecycle of the dash0_aws_integration resource against a real Dash0 API.
+// The role ARNs are synthetic strings — the Dash0 API validates them syntactically
+// but does not assume them during the test.
+func TestAccAwsIntegrationResource(t *testing.T) {
 	if os.Getenv("TF_ACC") != "1" {
 		t.Skip("Acceptance tests skipped unless TF_ACC=1")
 	}
 
-	ctx := context.Background()
-	iamClient := newTestIAMClient(t)
+	const (
+		dataset        = "default"
+		externalID     = "dash0-acc-test-external-id"
+		awsAccountID   = "123456789012"
+		readOnlyArn    = "arn:aws:iam::123456789012:role/dash0-acc-test-read-only"
+		instrArn       = "arn:aws:iam::123456789012:role/dash0-acc-test-instrumentation"
+		newReadOnlyArn = "arn:aws:iam::123456789012:role/dash0-acc-test-read-only-v2"
+	)
 
-	params := awsclient.RoleParams{
-		RoleNamePrefix:    "dash0-acc-test",
-		Dash0AwsAccountID: "115813213817",
-		ExternalID:        testExternalID,
-		Tags: map[string]string{
-			"ManagedBy": "dash0-acc-test",
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Step 1: Create — read-only only
+			{
+				Config: testAccAwsIntegrationConfig(dataset, externalID, awsAccountID, readOnlyArn, ""),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(awsIntegrationResourceName, "dataset", dataset),
+					resource.TestCheckResourceAttr(awsIntegrationResourceName, "external_id", externalID),
+					resource.TestCheckResourceAttr(awsIntegrationResourceName, "aws_account_id", awsAccountID),
+					resource.TestCheckResourceAttr(awsIntegrationResourceName, "read_only_role_arn", readOnlyArn),
+					resource.TestCheckResourceAttr(awsIntegrationResourceName, "id", fmt.Sprintf("%s-%s", awsAccountID, externalID)),
+					resource.TestCheckNoResourceAttr(awsIntegrationResourceName, "instrumentation_role_arn"),
+				),
+			},
+			// Step 2: Update — add instrumentation role
+			{
+				Config: testAccAwsIntegrationConfig(dataset, externalID, awsAccountID, readOnlyArn, instrArn),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(awsIntegrationResourceName, "read_only_role_arn", readOnlyArn),
+					resource.TestCheckResourceAttr(awsIntegrationResourceName, "instrumentation_role_arn", instrArn),
+				),
+			},
+			// Step 3: Update — change read-only ARN (in-place update, no replacement)
+			{
+				Config: testAccAwsIntegrationConfig(dataset, externalID, awsAccountID, newReadOnlyArn, instrArn),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(awsIntegrationResourceName, "read_only_role_arn", newReadOnlyArn),
+				),
+			},
+			// Step 4: Update — remove instrumentation role
+			{
+				Config: testAccAwsIntegrationConfig(dataset, externalID, awsAccountID, newReadOnlyArn, ""),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(awsIntegrationResourceName, "read_only_role_arn", newReadOnlyArn),
+					resource.TestCheckNoResourceAttr(awsIntegrationResourceName, "instrumentation_role_arn"),
+				),
+			},
+			// Step 5: Import
+			{
+				ResourceName:      awsIntegrationResourceName,
+				ImportState:       true,
+				ImportStateId:     fmt.Sprintf("%s,%s,%s", dataset, awsAccountID, externalID),
+				ImportStateVerify: true,
+			},
 		},
-	}
-
-	// Get account ID for cleanup operations
-	accountID, err := iamClient.GetCallerAccountID(ctx)
-	require.NoError(t, err, "failed to get AWS account ID")
-
-	// Clean up any leftover roles from a previous failed run.
-	_ = iamClient.DeleteReadOnlyRole(ctx, params.RoleNamePrefix)
-	_ = iamClient.DeleteInstrumentationRole(ctx, params.RoleNamePrefix, accountID)
-
-	// Step 1: Create read-only role
-	readOnlyRole, err := iamClient.CreateReadOnlyRole(ctx, params)
-	require.NoError(t, err, "failed to create read-only role")
-	assert.Contains(t, readOnlyRole.RoleArn, "dash0-acc-test-read-only")
-	t.Logf("Created read-only role: %s", readOnlyRole.RoleArn)
-
-	// Step 2: Verify read-only role exists
-	role, err := iamClient.ReadRole(ctx, "dash0-acc-test-read-only")
-	require.NoError(t, err, "read-only role should exist")
-	assert.Equal(t, readOnlyRole.RoleArn, role.RoleArn)
-
-	// Step 3: Create instrumentation role
-	instrRole, err := iamClient.CreateInstrumentationRole(ctx, params)
-	require.NoError(t, err, "failed to create instrumentation role")
-	assert.Contains(t, instrRole.RoleArn, "dash0-acc-test-instrumentation")
-	t.Logf("Created instrumentation role: %s", instrRole.RoleArn)
-
-	// Step 4: Verify instrumentation role exists
-	role, err = iamClient.ReadRole(ctx, "dash0-acc-test-instrumentation")
-	require.NoError(t, err, "instrumentation role should exist")
-	assert.Equal(t, instrRole.RoleArn, role.RoleArn)
-
-	// Step 5: Verify account ID
-	assert.NotEmpty(t, accountID)
-	t.Logf("AWS account ID: %s", accountID)
-
-	// Step 6: Delete instrumentation role
-	err = iamClient.DeleteInstrumentationRole(ctx, params.RoleNamePrefix, accountID)
-	require.NoError(t, err, "failed to delete instrumentation role")
-
-	// Step 7: Verify instrumentation role is gone
-	_, err = iamClient.ReadRole(ctx, "dash0-acc-test-instrumentation")
-	assert.Error(t, err, "instrumentation role should not exist after deletion")
-
-	// Step 8: Delete read-only role
-	err = iamClient.DeleteReadOnlyRole(ctx, params.RoleNamePrefix)
-	require.NoError(t, err, "failed to delete read-only role")
-
-	// Step 9: Verify read-only role is gone
-	_, err = iamClient.ReadRole(ctx, "dash0-acc-test-read-only")
-	assert.Error(t, err, "read-only role should not exist after deletion")
+	})
 }
 
-// TestAccAwsIntegrationResource_IAMRoleTags tests that tags are applied and can be updated on IAM roles.
-func TestAccAwsIntegrationResource_IAMRoleTags(t *testing.T) {
-	if os.Getenv("TF_ACC") != "1" {
-		t.Skip("Acceptance tests skipped unless TF_ACC=1")
+func testAccAwsIntegrationConfig(dataset, externalID, awsAccountID, readOnlyArn, instrArn string) string {
+	instrLine := ""
+	if instrArn != "" {
+		instrLine = fmt.Sprintf(`  instrumentation_role_arn = %q`, instrArn)
 	}
+	return fmt.Sprintf(`
+provider "dash0" {}
 
-	ctx := context.Background()
-	iamClient := newTestIAMClient(t)
-
-	params := awsclient.RoleParams{
-		RoleNamePrefix:    "dash0-acc-test-tags",
-		Dash0AwsAccountID: "115813213817",
-		ExternalID:        testExternalID,
-		Tags: map[string]string{
-			"Environment": "test",
-			"ManagedBy":   "dash0-acc-test",
-		},
-	}
-
-	// Clean up any leftover roles from a previous failed run.
-	_ = iamClient.DeleteReadOnlyRole(ctx, params.RoleNamePrefix)
-
-	// Create role with tags
-	_, err := iamClient.CreateReadOnlyRole(ctx, params)
-	require.NoError(t, err)
-
-	// Update tags
-	newTags := map[string]string{
-		"Environment": "staging",
-		"ManagedBy":   "dash0-acc-test",
-		"NewTag":      "value",
-	}
-	roleName := fmt.Sprintf("%s-read-only", params.RoleNamePrefix)
-	err = iamClient.UpdateRoleTags(ctx, roleName, newTags)
-	require.NoError(t, err, "failed to update role tags")
-
-	// Cleanup
-	err = iamClient.DeleteReadOnlyRole(ctx, params.RoleNamePrefix)
-	require.NoError(t, err, "failed to delete read-only role")
+resource "dash0_aws_integration" "test" {
+  dataset            = %q
+  external_id        = %q
+  aws_account_id     = %q
+  read_only_role_arn = %q
+%s
+}
+`, dataset, externalID, awsAccountID, readOnlyArn, instrLine)
 }
