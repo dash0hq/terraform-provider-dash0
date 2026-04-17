@@ -1,0 +1,8 @@
+kind: Dash0NotificationChannel
+metadata:
+  name: Microsoft Teams Alerts
+spec:
+  type: teams_webhook
+  config:
+    url: https://example.webhook.office.com/webhookb2/<YOUR_TEAMS_WEBHOOK_URL>
+  frequency: 10m

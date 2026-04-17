@@ -1,0 +1,11 @@
+kind: Dash0NotificationChannel
+metadata:
+  name: Email Alerts
+spec:
+  type: email_v2
+  config:
+    recipients:
+      - oncall@example.com
+      - sre-team@example.com
+    plaintext: false
+  frequency: 10m

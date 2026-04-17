@@ -1,0 +1,9 @@
+kind: Dash0NotificationChannel
+metadata:
+  name: Slack Alerts
+spec:
+  type: slack
+  config:
+    channel: "#alerts"
+    webhookURL: *slack_webhook_url # TODO CHANGE THIS
+  frequency: 10m

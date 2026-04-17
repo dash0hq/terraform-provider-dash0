@@ -53,6 +53,7 @@ fi
 echo ""
 echo "Building Docker image (provider + test harness)..."
 docker build \
+  --load \
   -t "$IMAGE_NAME" \
   -f "${SCRIPT_DIR}/Dockerfile" \
   "$REPO_DIR"
@@ -67,9 +68,9 @@ else
   TESTS=(
     test_check_rule.sh
     test_dashboard.sh
-    # test_recording_rule_group.sh  # Skipped: recording rules API not yet available
     test_synthetic_check.sh
     test_view.sh
+    test_notification_channel.sh
   )
 fi
 

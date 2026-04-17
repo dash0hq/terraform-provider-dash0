@@ -29,6 +29,11 @@ type Client interface {
 	GetCheckRule(ctx context.Context, origin string, dataset string) (string, error)
 	UpdateCheckRule(ctx context.Context, origin string, ruleYAML string, dataset string) error
 	DeleteCheckRule(ctx context.Context, origin string, dataset string) error
+
+	CreateNotificationChannel(ctx context.Context, origin string, channelJSON string) error
+	GetNotificationChannel(ctx context.Context, origin string) (string, error)
+	UpdateNotificationChannel(ctx context.Context, origin string, channelJSON string) error
+	DeleteNotificationChannel(ctx context.Context, origin string) error
 }
 
 // Ensure dash0Client implements Client

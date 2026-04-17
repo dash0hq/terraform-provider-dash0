@@ -1,0 +1,19 @@
+kind: Dash0NotificationChannel
+metadata:
+  name: Production Alerts (Webhook with Routing)
+spec:
+  type: webhook
+  config:
+    url: https://example.com/webhook/production-alerts
+  frequency: 5m
+  routing:
+    filters:
+      - - key: team.name
+          operator: is
+          value: sre
+        - key: deployment.environment.name
+          operator: is
+          value: production
+      - - key: service.severity
+          operator: is
+          value: critical
