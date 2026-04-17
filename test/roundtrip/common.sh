@@ -127,6 +127,15 @@ def is_empty(val):
     """Return True if val is an empty container ({}, [], None)."""
     return val is None or val == {} or val == []
 
+def _sort_key(d):
+    """Produce a stable sort key for a dict by serializing it to JSON."""
+    return json.dumps(d, sort_keys=True, default=str)
+
+def _sort_dict_lists(expected, actual):
+    """Sort two lists of dicts by a stable key so positional comparison works
+    regardless of the order the server returns them in."""
+    return sorted(expected, key=_sort_key), sorted(actual, key=_sort_key)
+
 def is_subset(expected, actual, path=""):
     """Check that every field in `expected` is present and equal in `actual`.
 
@@ -157,7 +166,16 @@ def is_subset(expected, actual, path=""):
         if len(expected) != len(actual):
             diffs.append((path + "[]", f"len={len(expected)}", f"len={len(actual)}"))
         else:
-            for i, (e, a) in enumerate(zip(expected, actual)):
+            # Sort lists of dicts by a stable key to handle non-deterministic
+            # server ordering (e.g. permissions returned in arbitrary order).
+            e_list, a_list = expected, actual
+            if (
+                e_list
+                and all(isinstance(x, dict) for x in e_list)
+                and all(isinstance(x, dict) for x in a_list)
+            ):
+                e_list, a_list = _sort_dict_lists(e_list, a_list)
+            for i, (e, a) in enumerate(zip(e_list, a_list)):
                 diffs.extend(is_subset(e, a, f"{path}[{i}]"))
     else:
         # Scalar comparison — compare as strings to handle int/str mismatches
