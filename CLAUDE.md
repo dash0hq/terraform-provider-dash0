@@ -133,12 +133,12 @@ Do not edit `CHANGELOG.md` directly — it is generated automatically during the
 
 ## Validating changes
 
-Before considering a change complete, run:
+Before considering a change complete, run `make all` which executes all validation steps in order:
 
 1. `make build` — verify the project compiles.
-2. `make test-unit` — run all unit tests.
-3. `make test-roundtrip` — run the Dockerized roundtrip tests against the real Dash0 API. These catch integration issues (serialization mismatches, server-side validation failures, idempotency regressions) that unit tests cannot.
-4. `make lint` — run Go and shell linters. Fix all issues before proceeding.
+2. `make lint` — run Go and shell linters. Fix all issues before proceeding.
+3. `make test-unit` — run all unit tests.
+4. `make test-roundtrip` — run the Dockerized roundtrip tests against the real Dash0 API. These catch integration issues (serialization mismatches, server-side validation failures, idempotency regressions) that unit tests cannot.
 
 All four must pass. Do not skip any step.
 

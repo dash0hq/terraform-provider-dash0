@@ -1,0 +1,8 @@
+kind: Dash0NotificationChannel
+metadata:
+  name: Discord Alerts
+spec:
+  type: discord_webhook
+  config:
+    url: https://discord.com/api/webhooks/<YOUR_DISCORD_WEBHOOK_URL>
+  frequency: 10m

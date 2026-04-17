@@ -5,6 +5,9 @@ GOLANGCI_LINT=$(TOOLS_BIN_DIR)/golangci-lint
 CHLOGGEN_VERSION=v0.23.1
 CHLOGGEN=$(TOOLS_BIN_DIR)/chloggen
 
+.PHONY: all
+all: build lint test-unit test-roundtrip
+
 default: build
 
 .PHONY: build

@@ -1,0 +1,8 @@
+kind: Dash0NotificationChannel
+metadata:
+  name: Webhook Alerts
+spec:
+  type: webhook
+  config:
+    url: https://example.com/webhook/alerts
+  frequency: 10m
