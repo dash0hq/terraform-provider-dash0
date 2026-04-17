@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.8.0
+
+
+### New Components
+
+
+- `notification_channels`: Add notification channel resource for managing alert delivery integrations (#77)
+  New `dash0_notification_channel` resource supporting all channel types (webhook, Slack, email,
+  PagerDuty, Opsgenie, Microsoft Teams, Discord, Google Chat, and more). Includes routing rules
+  for filtering notifications by labels. Notification channels are organization-level resources
+  and are not scoped to a dataset.
+  
+
 ## 1.7.2
 
 
