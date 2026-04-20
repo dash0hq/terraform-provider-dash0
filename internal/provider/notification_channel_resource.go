@@ -76,7 +76,7 @@ func (r *NotificationChannelResource) Metadata(_ context.Context, req resource.M
 
 func (r *NotificationChannelResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: `Manages a Dash0 Notification Channel. Notification channels define how alerts are delivered to external systems such as Slack, PagerDuty, email, and webhooks. Notification channels are organization-level resources and are not scoped to a dataset. See [Notification Channels](https://dash0.com/docs/dash0/monitoring/alerting/notification-channels) for more details.`,
+		Description: `Manages a Dash0 Notification Channel. Notification channels define how alerts are delivered to external systems such as Slack, PagerDuty, email, and webhooks. Notification channels are organization-level resources and are not scoped to a dataset. See [Send Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/send-alert-check-notifications) and [Route Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/route-alert-check-notifications) for more details. YAML examples are available in the provider repository.`,
 
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
