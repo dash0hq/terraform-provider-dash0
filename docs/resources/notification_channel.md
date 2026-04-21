@@ -4,35 +4,22 @@ page_title: "dash0_notification_channel Resource - Dash0"
 subcategory: ""
 description: |-
   Manages a Dash0 Notification Channel. Notification channels define how alerts are delivered to external systems such as Slack, PagerDuty, email, and webhooks. Notification channels are organization-level resources and are not scoped to a dataset.
+  See Send Alert Check Notifications https://www.dash0.com/docs/dash0/monitoring/alerting/send-alert-check-notifications and Route Alert Check Notifications https://www.dash0.com/docs/dash0/monitoring/alerting/route-alert-check-notifications for more details.
+  Supported channel types: slack (webhook), slack_bot, email_v2, pagerduty, opsgenie, webhook, teams_webhook, discord_webhook, google_chat_webhook.
 ---
 
 # dash0_notification_channel (Resource)
 
-Manages a Dash0 Notification Channel. Notification channels define how alerts are delivered to external systems such as Slack, PagerDuty, email, and webhooks. Notification channels are organization-level resources and are not scoped to a dataset. See [Send Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/send-alert-check-notifications) and [Route Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/route-alert-check-notifications) for more details. YAML examples are available in the provider repository.
+Manages a Dash0 Notification Channel. Notification channels define how alerts are delivered to external systems such as Slack, PagerDuty, email, and webhooks. Notification channels are organization-level resources and are not scoped to a dataset.
+
+See [Send Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/send-alert-check-notifications) and [Route Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/route-alert-check-notifications) for more details.
+
+Supported channel types: `slack` (webhook), `slack_bot`, `email_v2`, `pagerduty`, `opsgenie`, `webhook`, `teams_webhook`, `discord_webhook`, `google_chat_webhook`.
 
 ## Example Usage
 
 ```terraform
-# Webhook notification channel
-resource "dash0_notification_channel" "webhook" {
-  notification_channel_yaml = file("${path.module}/notification_channel_webhook.yaml")
-}
-
-# Basic Webhook notification channel with inline YAML
-resource "dash0_notification_channel" "webhook_inline" {
-  notification_channel_yaml = <<-YAML
-kind: Dash0NotificationChannel
-metadata:
-  name: Webhook Alerts
-spec:
-  type: webhook
-  config:
-    url: https://example.com/webhook/alerts
-  frequency: 10m
-YAML
-}
-
-# Slack Webhook notification channel
+# Slack webhook notification channel
 resource "dash0_notification_channel" "slack_webhook" {
   notification_channel_yaml = <<-YAML
 kind: Dash0NotificationChannel
@@ -41,27 +28,22 @@ metadata:
 spec:
   type: slack
   config:
+    webhookURL: "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
     channel: "#alerts"
-    webhookURL: *slack_webhook_url # TODO CHANGE THIS
   frequency: 10m
 YAML
 }
 
 # Slack Bot notification channel
 #
-# Before creating a Slack Bot notification channel, you need to complete the
-# onboarding flow in the Dash0 UI: navigate to **Settings > Notification Channels**,
-# click **Add Notification Channel** and select **Slack Bot**. Click **Authorize** to
-# start the OAuth flow. You will be redirected to Slack to authorize the Dash0 bot
-# for your workspace. After authorization, Slack grants Dash0 a bot token scoped to your
-# workspace. This is a one-time operation per Slack workspace -- once authorized, you can
-# create multiple notification channels against different Slack channels in that workspace
-# without repeating the OAuth flow. Note the **Team ID** displayed after authorization
-# (e.g. `T012345`). You will need it for the `teamId` field.
-#
-# The Dash0 bot must be explicitly added to each Slack channel it will post to.
-# In Slack, open the target channel and run `/invite @Dash0`. Repeat this for every channel
-# you want to receive notifications in.
+# Prerequisites:
+#   1. Install the Dash0 Slack App via the Dash0 UI (Settings > Notification
+#      Channels > Add Notification Channel > Slack Bot > Authorize). This is a
+#      one-time operation per Slack workspace.
+#   2. Invite the bot to the target channel: /invite @Dash0
+#   3. The Dash0 bot must be explicitly added to each Slack channel it will post to.
+#      In Slack, open the target channel and run `/invite @Dash0`. Repeat this for every channel
+#      you want to receive notifications in.
 resource "dash0_notification_channel" "slack_bot" {
   notification_channel_yaml = <<-YAML
 kind: Dash0NotificationChannel
@@ -70,13 +52,122 @@ metadata:
 spec:
   type: slack_bot
   config:
+    teamId: "T012345"
     channel: "#alerts"
-    teamId: *slack_teamId # TODO CHANGE THIS
-  frequency: 6h
+  frequency: 10m
 YAML
 }
 
-# Advanced Webhook notification channel with routing
+# Email notification channel
+resource "dash0_notification_channel" "email" {
+  notification_channel_yaml = <<-YAML
+kind: Dash0NotificationChannel
+metadata:
+  name: Email Alerts
+spec:
+  type: email_v2
+  config:
+    recipients:
+      - oncall@example.com
+      - sre-team@example.com
+    plaintext: false
+  frequency: 10m
+YAML
+}
+
+# PagerDuty notification channel
+resource "dash0_notification_channel" "pagerduty" {
+  notification_channel_yaml = <<-YAML
+kind: Dash0NotificationChannel
+metadata:
+  name: PagerDuty Incidents
+spec:
+  type: pagerduty
+  config:
+    key: "my-pagerduty-integration-key"
+    url: "https://events.pagerduty.com/v2/enqueue"
+  frequency: 10m
+YAML
+}
+
+# OpsGenie notification channel
+resource "dash0_notification_channel" "opsgenie" {
+  notification_channel_yaml = <<-YAML
+kind: Dash0NotificationChannel
+metadata:
+  name: Opsgenie Alerts
+spec:
+  type: opsgenie
+  config:
+    apiKey: "my-opsgenie-api-key"
+    instance: us
+  frequency: 10m
+YAML
+}
+
+# Generic webhook notification channel
+resource "dash0_notification_channel" "webhook" {
+  notification_channel_yaml = <<-YAML
+kind: Dash0NotificationChannel
+metadata:
+  name: Webhook Alerts
+spec:
+  type: webhook
+  config:
+    url: "https://example.com/webhook/alerts"
+  frequency: 10m
+YAML
+}
+
+# Microsoft Teams notification channel
+resource "dash0_notification_channel" "teams" {
+  notification_channel_yaml = <<-YAML
+kind: Dash0NotificationChannel
+metadata:
+  name: Microsoft Teams Alerts
+spec:
+  type: teams_webhook
+  config:
+    url: "https://example.webhook.office.com/webhookb2/..."
+  frequency: 10m
+YAML
+}
+
+# Discord notification channel
+resource "dash0_notification_channel" "discord" {
+  notification_channel_yaml = <<-YAML
+kind: Dash0NotificationChannel
+metadata:
+  name: Discord Alerts
+spec:
+  type: discord_webhook
+  config:
+    url: "https://discord.com/api/webhooks/..."
+  frequency: 10m
+YAML
+}
+
+# Google Chat notification channel
+resource "dash0_notification_channel" "google_chat" {
+  notification_channel_yaml = <<-YAML
+kind: Dash0NotificationChannel
+metadata:
+  name: Google Chat Alerts
+spec:
+  type: google_chat_webhook
+  config:
+    url: "https://chat.googleapis.com/v1/spaces/.../messages?key=..."
+  frequency: 10m
+YAML
+}
+
+# Webhook notification channel with routing rules
+#
+# Routing rules control which alerts are delivered to this channel.
+# Each top-level list item is an OR group; conditions within a group are ANDed.
+# In this example, notifications are sent when:
+#   (team.name = "sre" AND deployment.environment.name = "production")
+#   OR (service.severity = "critical")
 resource "dash0_notification_channel" "webhook_with_routing" {
   notification_channel_yaml = <<-YAML
 kind: Dash0NotificationChannel
@@ -85,7 +176,7 @@ metadata:
 spec:
   type: webhook
   config:
-    url: https://example.com/webhook/production-alerts
+    url: "https://example.com/webhook/production-alerts"
   frequency: 5m
   routing:
     filters:
@@ -100,6 +191,12 @@ spec:
           value: critical
 YAML
 }
+
+# You can also load the YAML definition from a file:
+#
+# resource "dash0_notification_channel" "from_file" {
+#   notification_channel_yaml = file("${path.module}/notification_channel.yaml")
+# }
 ```
 
 <!-- schema generated by tfplugindocs -->
@@ -107,7 +204,7 @@ YAML
 
 ### Required
 
-- `notification_channel_yaml` (String) The notification channel definition in YAML format, using the Dash0 CRD envelope structure with kind, metadata, and spec fields. See [Notification Channels](https://dash0.com/docs/dash0/monitoring/alerting/notification-channels) for the available options.
+- `notification_channel_yaml` (String) The notification channel definition in YAML format. The YAML must include `kind: Dash0NotificationChannel`, a `metadata.name` field, and a `spec` with `type` and type-specific `config`. Optional fields include `frequency` (default `10m`) and `routing` for filtering which alerts are delivered. See [Send Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/send-alert-check-notifications) for the available options.
 
 ### Read-Only
 
