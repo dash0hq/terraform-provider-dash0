@@ -135,3 +135,7 @@ spec:
 EOF
 }
 ```
+
+## AWS Integration with Dash0
+
+To deploy the Dash0 AWS integration via CloudFormation, see the [AWS Integration via CloudFormation](guides/aws_cloudformation_integration) guide.
