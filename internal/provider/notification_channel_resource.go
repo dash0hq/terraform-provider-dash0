@@ -76,7 +76,14 @@ func (r *NotificationChannelResource) Metadata(_ context.Context, req resource.M
 
 func (r *NotificationChannelResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: `Manages a Dash0 Notification Channel. Notification channels define how alerts are delivered to external systems such as Slack, PagerDuty, email, and webhooks. Notification channels are organization-level resources and are not scoped to a dataset. See [Send Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/send-alert-check-notifications) and [Route Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/route-alert-check-notifications) for more details. YAML examples are available in the provider repository.`,
+		Description: "Manages a Dash0 Notification Channel. Notification channels define how alerts are delivered to " +
+			"external systems such as Slack, PagerDuty, email, and webhooks. Notification channels are " +
+			"organization-level resources and are not scoped to a dataset.\n\n" +
+			"See [Send Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/send-alert-check-notifications) " +
+			"and [Route Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/route-alert-check-notifications) " +
+			"for more details.\n\n" +
+			"Supported channel types: `slack` (webhook), `slack_bot`, `email_v2`, `pagerduty`, `opsgenie`, " +
+			"`webhook`, `teams_webhook`, `discord_webhook`, `google_chat_webhook`.",
 
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
@@ -87,8 +94,12 @@ func (r *NotificationChannelResource) Schema(_ context.Context, _ resource.Schem
 				},
 			},
 			"notification_channel_yaml": schema.StringAttribute{
-				Description: "The notification channel definition in YAML format, using the Dash0 CRD envelope structure with kind, metadata, and spec fields. See [Notification Channels](https://dash0.com/docs/dash0/monitoring/alerting/notification-channels) for the available options.",
-				Required:    true,
+				Description: "The notification channel definition in YAML format. " +
+					"The YAML must include `kind: Dash0NotificationChannel`, a `metadata.name` field, " +
+					"and a `spec` with `type` and type-specific `config`. " +
+					"Optional fields include `frequency` (default `10m`) and `routing` for filtering which alerts are delivered. " +
+					"See [Send Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/send-alert-check-notifications) for the available options.",
+				Required: true,
 				PlanModifiers: []planmodifier.String{
 					customplanmodifier.YAMLSemanticEqual(),
 				},
