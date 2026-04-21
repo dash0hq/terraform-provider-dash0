@@ -1,0 +1,9 @@
+kind: Dash0NotificationChannel
+metadata:
+  name: PagerDuty Incidents
+spec:
+  type: pagerduty
+  config:
+    key: *pagerduty_integration_key # TODO CHANGE THIS
+    url: https://events.pagerduty.com/v2/enqueue
+  frequency: 10m

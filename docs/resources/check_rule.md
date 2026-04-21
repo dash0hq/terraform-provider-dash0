@@ -64,5 +64,6 @@ Import is supported using the following syntax:
 The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
 
 ```shell
+#!/bin/bash
 terraform import dash0_check_rule.adservice_error_rate production,tf_existing-check-rule-origin
 ```

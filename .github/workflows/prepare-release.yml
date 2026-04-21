@@ -17,8 +17,6 @@ jobs:
   prepare:
     name: Prepare and Tag Release
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -91,7 +89,7 @@ jobs:
           find .chloggen -name "*.yaml" ! -name "config.yaml" ! -name "TEMPLATE.yaml" -exec git rm -f {} + 2>/dev/null || true
           git add CHANGELOG.md .chloggen
           git commit -m "chore: update changelog for v${{ steps.version.outputs.version }}"
-          git push origin HEAD
+          git push origin main
 
       - name: Create and push tag
         env:
@@ -100,8 +98,8 @@ jobs:
           gh auth setup-git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ steps.version.outputs.version }}" -m "v${{ steps.version.outputs.version }}"
-          git push origin "v${{ steps.version.outputs.version }}"
+          git tag v${{ steps.version.outputs.version }}
+          git push origin v${{ steps.version.outputs.version }}
 
       - name: Summary
         run: |

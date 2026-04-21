@@ -68,19 +68,21 @@ func (m *mockDash0API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(body)
 
 	case http.MethodPost:
-		// For recording rule groups, POST creates and the API assigns an ID.
-		// We store by the origin from the body's metadata.labels.
-		if strings.HasPrefix(key, "/api/recording-rule-groups") && key == "/api/recording-rule-groups" {
-			// Extract origin from body labels to build storage key
+		// For resources that use POST for creation (recording rule groups and
+		// notification channels), extract the origin from the body's
+		// metadata.labels and store by origin so GET can find them.
+		if (strings.HasPrefix(key, "/api/recording-rule-groups") && key == "/api/recording-rule-groups") ||
+			(strings.HasPrefix(key, "/api/notification-channels") && key == "/api/notification-channels") {
 			var obj map[string]interface{}
 			if err := json.Unmarshal(body, &obj); err == nil {
 				if meta, ok := obj["metadata"].(map[string]interface{}); ok {
 					if labels, ok := meta["labels"].(map[string]interface{}); ok {
 						if origin, ok := labels["dash0.com/origin"].(string); ok {
-							// Inject a version label (simulating the API behavior)
-							labels["dash0.com/version"] = "1"
+							if strings.HasPrefix(key, "/api/recording-rule-groups") {
+								labels["dash0.com/version"] = "1"
+							}
 							updated, _ := json.Marshal(obj)
-							storageKey := "/api/recording-rule-groups/" + origin
+							storageKey := key + "/" + origin
 							m.resources[storageKey] = updated
 							w.Header().Set("Content-Type", "application/json")
 							w.WriteHeader(http.StatusCreated)
@@ -409,6 +411,79 @@ resource "dash0_check_rule" "test" {
 			},
 		},
 	})
+}
+
+// --- Notification Channel Integration Tests ---
+
+func TestIntegration_NotificationChannel_CRUD(t *testing.T) {
+	mock, factories := setupIntegrationTest(t)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: factories,
+		Steps: []resource.TestStep{
+			// Create
+			{
+				Config: `
+provider "dash0" {}
+resource "dash0_notification_channel" "test" {
+  notification_channel_yaml = <<-EOT
+    kind: Dash0NotificationChannel
+    metadata:
+      name: test-channel
+    spec:
+      type: webhook
+      config:
+        url: https://example.com/webhook/test
+  EOT
+}`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("dash0_notification_channel.test", "origin"),
+					func(s *terraform.State) error {
+						posts := mock.getRequests(http.MethodPost, "/api/notification-channels")
+						if len(posts) == 0 {
+							return fmt.Errorf("expected at least one POST to /api/notification-channels, got none")
+						}
+						// Verify the body is valid JSON (converted from YAML)
+						lastPost := posts[len(posts)-1]
+						var body map[string]interface{}
+						if err := json.Unmarshal([]byte(lastPost.Body), &body); err != nil {
+							return fmt.Errorf("POST body is not valid JSON: %s", err)
+						}
+						if body["kind"] != "Dash0NotificationChannel" {
+							return fmt.Errorf("expected kind=Dash0NotificationChannel, got %v", body["kind"])
+						}
+						// Verify no dataset query parameter (notification channels are org-level)
+						if strings.Contains(lastPost.Query, "dataset=") {
+							return fmt.Errorf("notification channels should not have a dataset query parameter, got %s", lastPost.Query)
+						}
+						return nil
+					},
+				),
+			},
+			// Update
+			{
+				Config: `
+provider "dash0" {}
+resource "dash0_notification_channel" "test" {
+  notification_channel_yaml = <<-EOT
+    kind: Dash0NotificationChannel
+    metadata:
+      name: test-channel-updated
+    spec:
+      type: webhook
+      config:
+        url: https://example.com/webhook/updated
+  EOT
+}`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("dash0_notification_channel.test", "origin"),
+				),
+			},
+		},
+	})
+
+	deletes := mock.getRequests(http.MethodDelete, "/api/notification-channels/")
+	assert.NotEmpty(t, deletes, "expected at least one DELETE to /api/notification-channels/")
 }
 
 // --- Dataset Change Forces Recreation ---

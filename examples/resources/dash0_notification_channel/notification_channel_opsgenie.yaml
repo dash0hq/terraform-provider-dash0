@@ -1,0 +1,9 @@
+kind: Dash0NotificationChannel
+metadata:
+  name: Opsgenie Alerts
+spec:
+  type: opsgenie
+  config:
+    apiKey: *opsgenie_api_key # TODO CHANGE THIS
+    instance: us
+  frequency: 10m
