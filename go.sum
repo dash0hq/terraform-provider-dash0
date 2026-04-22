@@ -37,10 +37,8 @@ github.com/cloudflare/circl v1.6.1 h1:zqIqSPIndyBh1bjLVVDHMPpVKqp8Su/V+6MeDzzQBQ
 github.com/cloudflare/circl v1.6.1/go.mod h1:uddAzsPgqdMAYatqJ0lsjX1oECcQLIlRpzZh3pJrofs=
 github.com/cyphar/filepath-securejoin v0.4.1 h1:JyxxyPEaktOD+GAnqIqTf9A8tHyAG22rowi7HkoSU1s=
 github.com/cyphar/filepath-securejoin v0.4.1/go.mod h1:Sdj7gXlvMcPZsbhwhQ33GguGLDGQL7h7bg04C/+u9jI=
-github.com/dash0hq/dash0-api-client-go v1.9.0 h1:Jr9fUWE/qM1sVgsFfNKE0CxN2ISY673ygqcsYXCEykU=
-github.com/dash0hq/dash0-api-client-go v1.9.0/go.mod h1:OB1lQ5AKhszeNlNDt+jKgmrzt7iIo/Hqx4ScxiRfoHY=
-github.com/dash0hq/dash0-api-client-go v1.9.1 h1:MgRv4askV3uBNLsZq0W+9MQtyJlChYrOgJUASrVlblE=
-github.com/dash0hq/dash0-api-client-go v1.9.1/go.mod h1:OB1lQ5AKhszeNlNDt+jKgmrzt7iIo/Hqx4ScxiRfoHY=
+github.com/dash0hq/dash0-api-client-go v1.9.2-0.20260422220915-d4cc63269132 h1:WwlPfP7qW852bCFA5KYsqbvSfrT4vuPDMobcrH31hdU=
+github.com/dash0hq/dash0-api-client-go v1.9.2-0.20260422220915-d4cc63269132/go.mod h1:OB1lQ5AKhszeNlNDt+jKgmrzt7iIo/Hqx4ScxiRfoHY=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=

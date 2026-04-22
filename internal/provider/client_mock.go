@@ -91,6 +91,26 @@ func (m *MockClient) DeleteCheckRule(ctx context.Context, origin string, dataset
 	return args.Error(0)
 }
 
+func (m *MockClient) CreateRecordingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error {
+	args := m.Called(ctx, origin, ruleJSON, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) GetRecordingRule(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockClient) UpdateRecordingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error {
+	args := m.Called(ctx, origin, ruleJSON, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteRecordingRule(ctx context.Context, origin string, dataset string) error {
+	args := m.Called(ctx, origin, dataset)
+	return args.Error(0)
+}
+
 func (m *MockClient) CreateNotificationChannel(ctx context.Context, origin string, channelJSON string) error {
 	args := m.Called(ctx, origin, channelJSON)
 	return args.Error(0)
