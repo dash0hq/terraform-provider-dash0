@@ -107,7 +107,7 @@ If the API is documented in the [Dash0 API reference](https://api-docs.dash0.com
 4. Implement Terraform import support.
 5. Add example configurations in `examples/` for the new resource and data source.
 6. Add a roundtrip test in `test/roundtrip/test_<resource>.sh` (see "Adding a new roundtrip test" above).
-7. Run `make docs` to regenerate documentation.
+7. Run `make docs` to regenerate documentation. Verify that a new file `docs/resources/<resource>.md` was created and contains the schema, example usage, and import instructions. If the file is missing, check that the resource has example configurations in `examples/resources/dash0_<resource>/` (at minimum `resource.tf` and `import.sh`) and a doc template in `templates/resources/` if needed.
 8. Run `make test` to verify the build and all tests pass.
 
 ## Changelog

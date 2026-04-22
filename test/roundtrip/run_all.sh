@@ -68,6 +68,7 @@ else
   TESTS=(
     test_check_rule.sh
     test_dashboard.sh
+    test_recording_rule.sh
     test_synthetic_check.sh
     test_view.sh
     test_notification_channel.sh

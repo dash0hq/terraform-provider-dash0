@@ -11,7 +11,7 @@ import (
 )
 
 //go:generate terraform fmt -recursive ./examples/
-//go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate --rendered-provider-name Dash0
+//go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate --rendered-provider-name Dash0 --provider-name dash0
 
 var (
 	// these will be set by the goreleaser configuration
