@@ -21,7 +21,6 @@ var ignoredFields = []string{
 	"metadata.updatedAt",
 	"metadata.version",
 	"metadata.dash0Extensions",
-	"metadata.name",
 }
 
 // ConditionallyIgnoredFields are fields ignored during comparison only when
