@@ -68,37 +68,6 @@ func (m *mockDash0API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(body)
 
 	case http.MethodPost:
-		// For resources that use POST for creation (recording rule groups and
-		// notification channels), extract the origin from the body's
-		// metadata.labels and store by origin so GET can find them.
-		if (strings.HasPrefix(key, "/api/recording-rule-groups") && key == "/api/recording-rule-groups") ||
-			(strings.HasPrefix(key, "/api/notification-channels") && key == "/api/notification-channels") {
-			var obj map[string]interface{}
-			if err := json.Unmarshal(body, &obj); err == nil {
-				if meta, ok := obj["metadata"].(map[string]interface{}); ok {
-					if labels, ok := meta["labels"].(map[string]interface{}); ok {
-						if origin, ok := labels["dash0.com/origin"].(string); ok {
-							if strings.HasPrefix(key, "/api/recording-rule-groups") {
-								labels["dash0.com/version"] = "1"
-							}
-							updated, _ := json.Marshal(obj)
-							storageKey := key + "/" + origin
-							m.resources[storageKey] = updated
-							w.Header().Set("Content-Type", "application/json")
-							w.WriteHeader(http.StatusCreated)
-							_, _ = w.Write(updated)
-							return
-						}
-					}
-				}
-			}
-			// Fallback: store at the POST path
-			m.resources[key] = body
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write(body)
-			return
-		}
 		m.resources[key] = body
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -413,6 +382,91 @@ resource "dash0_check_rule" "test" {
 	})
 }
 
+// --- Recording Rule Integration Tests ---
+
+func TestIntegration_RecordingRule_CRUD(t *testing.T) {
+	mock, factories := setupIntegrationTest(t)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: factories,
+		Steps: []resource.TestStep{
+			// Create
+			{
+				Config: `
+provider "dash0" {}
+resource "dash0_recording_rule" "test" {
+  dataset = "terraform-test"
+  recording_rule_yaml = <<-EOT
+    apiVersion: monitoring.coreos.com/v1
+    kind: PrometheusRule
+    metadata:
+      name: test-recording-rules
+    spec:
+      groups:
+        - name: TestRecordingGroup
+          interval: 1m0s
+          rules:
+            - record: job:http_requests_total:rate5m
+              expr: sum by (job) (rate(http_requests_total[5m]))
+              labels:
+                env: test
+  EOT
+}`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("dash0_recording_rule.test", "dataset", "terraform-test"),
+					resource.TestCheckResourceAttrSet("dash0_recording_rule.test", "origin"),
+					func(s *terraform.State) error {
+						// Verify PUT was called (upsert semantics)
+						puts := mock.getRequests(http.MethodPut, "/api/recording-rules/")
+						if len(puts) == 0 {
+							return fmt.Errorf("expected at least one PUT to /api/recording-rules/, got none")
+						}
+						// Verify the body is valid JSON (converted from YAML)
+						lastPut := puts[len(puts)-1]
+						var body map[string]interface{}
+						if err := json.Unmarshal([]byte(lastPut.Body), &body); err != nil {
+							return fmt.Errorf("PUT body is not valid JSON: %s", err)
+						}
+						if body["kind"] != "PrometheusRule" {
+							return fmt.Errorf("expected kind=PrometheusRule, got %v", body["kind"])
+						}
+						return nil
+					},
+				),
+			},
+			// Update
+			{
+				Config: `
+provider "dash0" {}
+resource "dash0_recording_rule" "test" {
+  dataset = "terraform-test"
+  recording_rule_yaml = <<-EOT
+    apiVersion: monitoring.coreos.com/v1
+    kind: PrometheusRule
+    metadata:
+      name: test-recording-rules
+    spec:
+      groups:
+        - name: TestRecordingGroup
+          interval: 1m0s
+          rules:
+            - record: job:http_requests_total:rate10m
+              expr: sum by (job) (rate(http_requests_total[10m]))
+              labels:
+                env: staging
+  EOT
+}`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("dash0_recording_rule.test", "dataset", "terraform-test"),
+				),
+			},
+		},
+	})
+
+	deletes := mock.getRequests(http.MethodDelete, "/api/recording-rules/")
+	assert.NotEmpty(t, deletes, "expected at least one DELETE to /api/recording-rules/")
+}
+
 // --- Notification Channel Integration Tests ---
 
 func TestIntegration_NotificationChannel_CRUD(t *testing.T) {
@@ -439,22 +493,22 @@ resource "dash0_notification_channel" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("dash0_notification_channel.test", "origin"),
 					func(s *terraform.State) error {
-						posts := mock.getRequests(http.MethodPost, "/api/notification-channels")
-						if len(posts) == 0 {
-							return fmt.Errorf("expected at least one POST to /api/notification-channels, got none")
+						puts := mock.getRequests(http.MethodPut, "/api/notification-channels/")
+						if len(puts) == 0 {
+							return fmt.Errorf("expected at least one PUT to /api/notification-channels/, got none")
 						}
 						// Verify the body is valid JSON (converted from YAML)
-						lastPost := posts[len(posts)-1]
+						lastPut := puts[len(puts)-1]
 						var body map[string]interface{}
-						if err := json.Unmarshal([]byte(lastPost.Body), &body); err != nil {
-							return fmt.Errorf("POST body is not valid JSON: %s", err)
+						if err := json.Unmarshal([]byte(lastPut.Body), &body); err != nil {
+							return fmt.Errorf("PUT body is not valid JSON: %s", err)
 						}
 						if body["kind"] != "Dash0NotificationChannel" {
 							return fmt.Errorf("expected kind=Dash0NotificationChannel, got %v", body["kind"])
 						}
 						// Verify no dataset query parameter (notification channels are org-level)
-						if strings.Contains(lastPost.Query, "dataset=") {
-							return fmt.Errorf("notification channels should not have a dataset query parameter, got %s", lastPost.Query)
+						if strings.Contains(lastPut.Query, "dataset=") {
+							return fmt.Errorf("notification channels should not have a dataset query parameter, got %s", lastPut.Query)
 						}
 						return nil
 					},
