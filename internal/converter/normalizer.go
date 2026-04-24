@@ -28,6 +28,8 @@ var ignoredFields = []string{
 // fields the API enriches on retrieval but that users may optionally manage.
 // When present in the user's config, drift detection is preserved.
 var ConditionallyIgnoredFields = []string{
+	// TODO Clean this up when we switch to the CRD-native API for check rules
+	"metadata.name",    // server-generated when absent, but user-declared intent when present
 	"spec.permissions", // API-managed: stored separately, enriched on retrieval
 }
 
