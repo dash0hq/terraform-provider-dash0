@@ -152,6 +152,13 @@ func (r *CheckRuleResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 	tflog.Trace(ctx, "read a check rule resource")
 
+	// TODO Clean this up when we switch to the CRD-native API for check rules
+	//
+	// The Dash0 API does not preserve metadata.name for check rules (the
+	// PrometheusAlertRule format lacks that field). Inject the name from
+	// state into the API response so drift detection can compare properly.
+	apiResponseYAML = injectMetadataName(state.CheckRuleYaml.ValueString(), apiResponseYAML)
+
 	// Compare the current state with the retrieved check rule
 	if state.CheckRuleYaml.ValueString() != "" {
 		stateYAML := state.CheckRuleYaml.ValueString()
@@ -265,4 +272,41 @@ func (r *CheckRuleResource) ImportState(ctx context.Context, req resource.Import
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("check_rule_yaml"), apiResponseYAML)...)
+}
+
+// injectMetadataName copies metadata.name from sourceYAML into targetYAML when
+// it is present in the source but absent from the target. This compensates for
+// the Dash0 API not preserving the CRD metadata name in check rules.
+func injectMetadataName(sourceYAML, targetYAML string) string {
+	var source, target map[string]interface{}
+	if yaml.Unmarshal([]byte(sourceYAML), &source) != nil {
+		return targetYAML
+	}
+
+	sourceMeta, _ := source["metadata"].(map[string]interface{})
+	if sourceMeta == nil {
+		return targetYAML
+	}
+	name, ok := sourceMeta["name"]
+	if !ok || name == nil {
+		return targetYAML
+	}
+
+	if yaml.Unmarshal([]byte(targetYAML), &target) != nil {
+		return targetYAML
+	}
+	targetMeta, _ := target["metadata"].(map[string]interface{})
+	if targetMeta == nil {
+		targetMeta = make(map[string]interface{})
+		target["metadata"] = targetMeta
+	}
+	if _, exists := targetMeta["name"]; !exists {
+		targetMeta["name"] = name
+		out, err := yaml.Marshal(target)
+		if err != nil {
+			return targetYAML
+		}
+		return string(out)
+	}
+	return targetYAML
 }
