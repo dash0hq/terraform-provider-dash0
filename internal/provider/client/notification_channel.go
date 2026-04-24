@@ -20,7 +20,7 @@ func (c *dash0Client) CreateNotificationChannel(ctx context.Context, origin stri
 
 	tflog.Debug(ctx, fmt.Sprintf("Creating notification channel with origin: %s", origin))
 
-	_, err = c.inner.CreateNotificationChannel(ctx, def)
+	_, err = c.inner.UpdateNotificationChannel(ctx, origin, def)
 	if err != nil {
 		return err
 	}

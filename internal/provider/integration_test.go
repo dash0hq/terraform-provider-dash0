@@ -493,22 +493,22 @@ resource "dash0_notification_channel" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("dash0_notification_channel.test", "origin"),
 					func(s *terraform.State) error {
-						posts := mock.getRequests(http.MethodPost, "/api/notification-channels")
-						if len(posts) == 0 {
-							return fmt.Errorf("expected at least one POST to /api/notification-channels, got none")
+						puts := mock.getRequests(http.MethodPut, "/api/notification-channels/")
+						if len(puts) == 0 {
+							return fmt.Errorf("expected at least one PUT to /api/notification-channels/, got none")
 						}
 						// Verify the body is valid JSON (converted from YAML)
-						lastPost := posts[len(posts)-1]
+						lastPut := puts[len(puts)-1]
 						var body map[string]interface{}
-						if err := json.Unmarshal([]byte(lastPost.Body), &body); err != nil {
-							return fmt.Errorf("POST body is not valid JSON: %s", err)
+						if err := json.Unmarshal([]byte(lastPut.Body), &body); err != nil {
+							return fmt.Errorf("PUT body is not valid JSON: %s", err)
 						}
 						if body["kind"] != "Dash0NotificationChannel" {
 							return fmt.Errorf("expected kind=Dash0NotificationChannel, got %v", body["kind"])
 						}
 						// Verify no dataset query parameter (notification channels are org-level)
-						if strings.Contains(lastPost.Query, "dataset=") {
-							return fmt.Errorf("notification channels should not have a dataset query parameter, got %s", lastPost.Query)
+						if strings.Contains(lastPut.Query, "dataset=") {
+							return fmt.Errorf("notification channels should not have a dataset query parameter, got %s", lastPut.Query)
 						}
 						return nil
 					},
