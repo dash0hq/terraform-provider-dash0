@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.9.0
+
+
+### New Components
+
+
+- `recording_rules`: Add `dash0_recording_rule` resource for managing recording rules using the PrometheusRule CRD format (#82)
+
+
+### Bug Fixes
+
+
+- `provider`: Detect `metadata.name` changes as drift (#84)
+  Previously `YAMLSemanticEqual` treated `metadata.name` as ignorable along with
+  server-managed fields (labels, annotations, timestamps). Because resources are
+  identified by the `origin` UUID (not the name), a rename in the user's config
+  was silently suppressed at plan time — the resource stayed in state under its
+  old name while the config asked for a new one. Rename operations via config
+  now surface as a plan diff and apply correctly, for every resource type
+  (`dash0_check_rule`, `dash0_dashboard`, `dash0_notification_channel`,
+  `dash0_synthetic_check`, `dash0_view`).
+  
+
 ## 1.8.0
 
 
