@@ -35,7 +35,9 @@ spec:
       request:
         url: https://www.example.com
 `,
-			expected: `spec:
+			expected: `metadata:
+  name: examplecom
+spec:
   enabled: true
   plugin:
     kind: http
@@ -53,7 +55,9 @@ metadata:
 spec:
   enabled: false
 `,
-			expected: `spec:
+			expected: `metadata:
+  name: test
+spec:
   enabled: false`,
 			wantErr: false,
 		},
@@ -100,7 +104,9 @@ spec:
     locations:
       - gcp-europe-west3
 `,
-			expected: `spec:
+			expected: `metadata:
+  name: complex
+spec:
   enabled: true
   notifications:
     channels:
@@ -147,7 +153,9 @@ spec:
     folder: []
   type: spans
 `,
-			expected: `spec:
+			expected: `metadata:
+  name: test
+spec:
   display:
     name: Test View
   type: spans`,
@@ -156,7 +164,9 @@ spec:
 		{
 			name:  "removes null values from JSON API responses",
 			input: `{"kind":"Dash0SyntheticCheck","metadata":{"name":"test"},"spec":{"enabled":true,"notifications":{"channels":null},"plugin":{"kind":"http","spec":{"request":{"url":"https://example.com"}}}}}`,
-			expected: `spec:
+			expected: `metadata:
+  name: test
+spec:
   enabled: true
   plugin:
     kind: http
@@ -188,7 +198,9 @@ spec:
         url: https://www.example.com
 `,
 			additionalIgnored: []string{"spec.permissions"},
-			expected: `spec:
+			expected: `metadata:
+  name: test
+spec:
   enabled: true
   plugin:
     kind: http
@@ -215,7 +227,9 @@ spec:
       request:
         url: https://www.example.com
 `,
-			expected: `spec:
+			expected: `metadata:
+  name: test
+spec:
   enabled: true
   permissions:
     - actions:
@@ -357,6 +371,33 @@ spec:
     spec:
       request:
         url: https://www.different.com
+`,
+			equivalent: false,
+			wantErr:    false,
+		},
+		{
+			name: "different only in metadata.name",
+			yaml1: `
+metadata:
+  name: old-name
+spec:
+  enabled: true
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://www.example.com
+`,
+			yaml2: `
+metadata:
+  name: new-name
+spec:
+  enabled: true
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://www.example.com
 `,
 			equivalent: false,
 			wantErr:    false,

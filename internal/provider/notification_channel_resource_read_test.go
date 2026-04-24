@@ -27,9 +27,11 @@ func (c *testNotificationChannelClient) GetNotificationChannel(_ context.Context
 func TestNotificationChannelResource_ReadWithDiffs(t *testing.T) {
 	testOrigin := "test-notification-channel"
 
-	// Original notification channel YAML in state (user's config, no metadata)
+	// Original notification channel YAML in state (user's config)
 	originalYaml := `
 kind: Dash0NotificationChannel
+metadata:
+  name: Webhook Alerts
 spec:
   type: webhook
   config:
@@ -82,6 +84,20 @@ spec:
 			apiResponseYaml:   `not valid yaml {`,
 			expectYamlUpdated: true,
 			expectWarning:     true,
+		},
+		{
+			name: "metadata.name change - should update state",
+			apiResponseYaml: `
+kind: Dash0NotificationChannel
+metadata:
+  name: Renamed Webhook Alerts
+spec:
+  type: webhook
+  config:
+    url: https://example.com/webhook/test
+`,
+			expectYamlUpdated: true,
+			expectWarning:     false,
 		},
 	}
 

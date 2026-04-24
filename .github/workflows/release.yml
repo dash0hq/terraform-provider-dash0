@@ -39,5 +39,5 @@ jobs:
           version: latest
           args: release --clean --release-notes release-notes.md
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.REPOSITORY_FULL_ACCESS_GITHUB_TOKEN }}
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
