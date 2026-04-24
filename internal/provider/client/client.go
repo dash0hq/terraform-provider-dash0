@@ -30,6 +30,11 @@ type Client interface {
 	UpdateCheckRule(ctx context.Context, origin string, ruleYAML string, dataset string) error
 	DeleteCheckRule(ctx context.Context, origin string, dataset string) error
 
+	CreateRecordingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error
+	GetRecordingRule(ctx context.Context, origin string, dataset string) (string, error)
+	UpdateRecordingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error
+	DeleteRecordingRule(ctx context.Context, origin string, dataset string) error
+
 	CreateNotificationChannel(ctx context.Context, origin string, channelJSON string) error
 	GetNotificationChannel(ctx context.Context, origin string) (string, error)
 	UpdateNotificationChannel(ctx context.Context, origin string, channelJSON string) error
