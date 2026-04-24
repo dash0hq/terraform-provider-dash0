@@ -42,6 +42,12 @@ print(json.dumps(p['configuration']))
   DASH0_DATASET="$(echo  "$PROFILE_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("dataset","default"))')"
   echo "Using credentials from dash0 CLI profile: ${ACTIVE_PROFILE}"
 else
+  # In CI, fork PRs do not have access to repository secrets. Skip gracefully
+  # instead of failing the build.
+  if [[ -n "${CI:-}" ]]; then
+    echo "WARNING: No credentials available (expected for fork PRs). Skipping roundtrip tests."
+    exit 0
+  fi
   echo "ERROR: Set DASH0_API_URL and DASH0_AUTH_TOKEN env vars, or configure a dash0 CLI profile." >&2
   echo "       In CI, ensure the repository secrets DASH0_API_URL and DASH0_AUTH_TOKEN are configured." >&2
   exit 1
