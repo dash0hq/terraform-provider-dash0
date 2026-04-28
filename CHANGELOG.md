@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.9.1
+
+
+### Bug Fixes
+
+
+- `recording_rule_groups`: Fix dataset query parameter not being sent for recording rule create/update API calls (#87)
+  Updated dash0-api-client-go to include the fix for passing the dataset query parameter on POST and PUT recording rule endpoints.
+
 ## 1.9.0
 
 
