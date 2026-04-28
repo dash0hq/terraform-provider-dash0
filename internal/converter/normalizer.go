@@ -86,6 +86,26 @@ func stringifyMapValues(m map[string]interface{}) {
 	}
 }
 
+// serverManagedLabelKeys are label keys the Dash0 API enriches on retrieval
+// regardless of where the labels map appears in the document. Stripping them
+// from any labels map (not just metadata.labels) prevents spurious drift on
+// nested labels such as the per-rule labels in PrometheusRule check rules.
+var serverManagedLabelKeys = map[string]bool{
+	"dash0.com/source": true,
+}
+
+// removeServerManagedLabels removes server-enriched Dash0 keys from a labels
+// map. Unlike metadata.labels (which is stripped wholesale), nested labels
+// such as Prometheus per-rule labels are user-meaningful, so we only strip
+// the specific keys that the server adds on its own.
+func removeServerManagedLabels(labels map[string]interface{}) {
+	for key := range labels {
+		if serverManagedLabelKeys[key] {
+			delete(labels, key)
+		}
+	}
+}
+
 // removeDefaultAnnotationValues removes annotations whose values match the defaults
 // used by the check rule round-trip conversion. This ensures that explicitly setting
 // a default value is treated as semantically equivalent to omitting the annotation.
@@ -150,6 +170,13 @@ func cleanupMap(data map[string]interface{}, fieldsToRemove []string) {
 				// Remove annotations with default values for semantic equivalence.
 				// IMPORTANT: Must be called after stringifyMapValues since it expects string values.
 				removeDefaultAnnotationValues(v)
+			}
+			if key == "labels" {
+				// Strip server-enriched Dash0 keys (e.g. dash0.com/source) that may
+				// appear in nested labels maps such as per-rule labels in
+				// PrometheusRule check rules. The top-level metadata.labels map is
+				// already stripped wholesale via the ignoredFields list.
+				removeServerManagedLabels(v)
 			}
 			if isEmpty(v) {
 				delete(data, key)

@@ -598,6 +598,54 @@ spec:
 			wantErr:    false,
 		},
 		{
+			name: "equivalent when API response adds dash0.com/source to per-rule labels",
+			yaml1: `
+spec:
+  groups:
+    - name: test-group
+      rules:
+        - alert: test-alert
+          expr: vector(1)
+          labels:
+            severity: critical
+`,
+			yaml2: `
+spec:
+  groups:
+    - name: test-group
+      rules:
+        - alert: test-alert
+          expr: vector(1)
+          labels:
+            severity: critical
+            dash0.com/source: terraform
+`,
+			equivalent: true,
+			wantErr:    false,
+		},
+		{
+			name: "NOT equivalent when per-rule labels differ on a non-server-managed key",
+			yaml1: `
+spec:
+  groups:
+    - rules:
+        - alert: test-alert
+          labels:
+            severity: warning
+            dash0.com/source: terraform
+`,
+			yaml2: `
+spec:
+  groups:
+    - rules:
+        - alert: test-alert
+          labels:
+            severity: critical
+`,
+			equivalent: false,
+			wantErr:    false,
+		},
+		{
 			name: "equivalent when both have same non-zero threshold annotations",
 			yaml1: `
 spec:
