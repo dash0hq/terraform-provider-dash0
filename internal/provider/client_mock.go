@@ -130,3 +130,23 @@ func (m *MockClient) DeleteNotificationChannel(ctx context.Context, origin strin
 	args := m.Called(ctx, origin)
 	return args.Error(0)
 }
+
+func (m *MockClient) CreateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error {
+	args := m.Called(ctx, origin, filterJSON, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) GetSpamFilter(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockClient) UpdateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error {
+	args := m.Called(ctx, origin, filterJSON, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteSpamFilter(ctx context.Context, origin string, dataset string) error {
+	args := m.Called(ctx, origin, dataset)
+	return args.Error(0)
+}

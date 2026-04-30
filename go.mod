@@ -3,7 +3,7 @@ module github.com/dash0hq/terraform-provider-dash0
 go 1.26.2
 
 require (
-	github.com/dash0hq/dash0-api-client-go v1.11.1
+	github.com/dash0hq/dash0-api-client-go v1.12.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/terraform-plugin-docs v0.25.0
