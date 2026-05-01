@@ -38,6 +38,7 @@ type dash0Provider struct {
 type providerConfigModel struct {
 	URL       types.String `tfsdk:"url"`
 	AuthToken types.String `tfsdk:"auth_token"`
+	Profile   types.String `tfsdk:"profile"`
 }
 
 // Metadata returns the provider type name.
@@ -51,6 +52,24 @@ func (p *dash0Provider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 	resp.Schema = schema.Schema{
 		Description: `The Dash0 provider allows you to manage resources on the [Dash0](https://www.dash0.com) observability platform, including dashboards, check rules, recording rules, recording rule groups, synthetic checks, and views. Authentication can be provided via provider configuration attributes or via the DASH0_URL and DASH0_AUTH_TOKEN environment variables.`,
 		Attributes: map[string]schema.Attribute{
+			"profile": schema.StringAttribute{
+				Optional:  true,
+				Sensitive: true,
+				Description: "If the values of both url & auth_token are found either on the" +
+					" env variables or in the provider configuration value of [profile] has no" +
+					" effect on working of the provider. The value of [profile] variable only" +
+					" comes into action when either url or auth_token (i.e. [user/auth_token])" +
+					" are not found. In such the case the provider client is created with the" +
+					" following logic - \n" +
+					" - When [profile] is specified and the [url/auth_token] are not" +
+					" the provider will try to read the values of [url/auth_token] from the" +
+					" specified profile in the dash0-cli config files." +
+					" - If none of the [profile/url/auth_token] are specified then provider" +
+					" considers the profile mentioned in ~/.dash0/activeProfile as the profile" +
+					" and loads values of [url/auth_token] from it." +
+					" - If a [profile] value is set and provider is unable to find definition of" +
+					" such in the dash0 cli config files, an exception will be thrown.",
+			},
 			"url": schema.StringAttribute{
 				Optional:    true,
 				Description: "The base URL of the Dash0 API (e.g. \"https://api.us-west-2.aws.dash0.com\"). If omitted, the DASH0_URL environment variable will be used.",
