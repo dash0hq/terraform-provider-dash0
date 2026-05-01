@@ -61,7 +61,7 @@ func (p *dash0Provider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 					" - if a [profile] is specified and the [url/auth_token] are not the provider will try to read the values of [url/auth_token] from the specified profile in the dash0-cli config files. \n" +
 					" - If a [profile] is specified and provider is unable to find definition of such in the dash0 cli config files, an exception will be thrown." +
 					" - If none of the [profile/url/auth_token] are specified then provider considers the profile mentioned in ~/.dash0/activeProfile as the profile and loads values of [url/auth_token] from it. \n" +
-					" - If none of the [profile/url/auth_token] are specified and provider also is unable to find the ~/.dash0 directory, then an exception will be thrown",
+					" - If none of the [profile/url/auth_token] are specified and provider also is unable to find the credentials from an activeProfile of dash0 CLI config files, an exception will be thrown",
 			},
 			"url": schema.StringAttribute{
 				Optional:    true,
