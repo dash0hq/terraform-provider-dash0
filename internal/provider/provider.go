@@ -98,6 +98,38 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 		authToken = cfg.AuthToken.ValueString()
 	}
 
+	profile := ""
+	if !cfg.Profile.IsNull() && !cfg.Profile.IsUnknown() {
+		profile = cfg.Profile.ValueString()
+	}
+
+	// Check if url or authToken are still missing a value
+	if url == "" || authToken == "" {
+		// Try to load values from dash0 CLI config files
+		homeDir, homeDirErr := os.UserHomeDir()
+		if homeDirErr != nil {
+			resp.Diagnostics.AddError(
+				"Unable to authenticate to Dash0 APIs",
+				"The provider cannot create the Dash0 API client because no Dash0 URL or Dash0 Auth Token was provided as well no Dash0 CLI Config directory was found "+
+					"You can set up the url and auth_token values in provider configuration or configure a Dash0 CLI with an authenticated profile ref: https://github.com/dash0hq/dash0-cli#configuration-storage",
+			)
+		}
+		// dash0ConfigDir := fmt.Sprintf("%s/.dash0", homeDir)
+		// dash0ActiveProfileFile := fmt.Sprintf("%s/.dash0/activeProfile", homeDir)
+		// dash0ProfilesFile := fmt.Sprintf("%s/.dash0/profiles.json", homeDir)
+
+		// dash0ConfigDir, dash0ConfigDirExistsErr := os.Stat(dash0ConfigDir)
+		// dash0ActiveProfileFile, dash0ActiveProfileFileExistsErr := os.Stat(dash0ActiveProfileFile)
+		// dash0ProfilesFile, dash0ProfilesFileExistsErr := os.Stat(dash0ProfilesFile)
+
+		if profile == "" {
+			// no profile is set on the provider configuration
+		} else {
+			// an activeProfile value was set on the provider definition
+		}
+
+	}
+
 	// Validate
 	if url == "" {
 		resp.Diagnostics.AddError(
