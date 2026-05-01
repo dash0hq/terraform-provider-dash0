@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.10.0
+
+
+### New Components
+
+
+- `spam_filters`: Add new `dash0_spam_filter` resource for managing spam filters as code (#93)
+
 ## 1.9.1
 
 
