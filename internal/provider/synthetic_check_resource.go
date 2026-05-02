@@ -86,10 +86,10 @@ func (r *SyntheticCheckResource) Schema(_ context.Context, _ resource.SchemaRequ
 				},
 			},
 			"synthetic_check_yaml": schema.StringAttribute{
-				Description: "The synthetic check definition in YAML format, specifying the check type, target URL, schedule, and assertion criteria. See [Create Synthetic Checks](https://dash0.com/docs/dash0/monitoring/synthetics/create-synthetic-checks) for the available options.",
+				Description: "The synthetic check definition in YAML format, specifying the check type, target URL, schedule, and assertion criteria. See [Create Synthetic Checks](https://dash0.com/docs/dash0/monitoring/synthetics/create-synthetic-checks) for the available options. The `dash0.com/sharing` metadata annotation is supported to control sharing settings; changes to it trigger a resource update. All other metadata annotations are managed by the server and ignored during drift detection.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
-					customplanmodifier.YAMLSemanticEqual(),
+					customplanmodifier.YAMLSemanticEqual(converter.AnnotationSharing),
 				},
 			},
 		},
@@ -158,7 +158,7 @@ func (r *SyntheticCheckResource) Read(ctx context.Context, req resource.ReadRequ
 	if state.SyntheticCheckYaml.ValueString() != "" {
 		stateYAML := state.SyntheticCheckYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored...)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored, []string{converter.AnnotationSharing})
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Synthetic Check Comparison Error",

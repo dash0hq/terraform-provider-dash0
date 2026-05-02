@@ -7,11 +7,16 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
+	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
 )
 
 func TestViewResource_Metadata(t *testing.T) {
@@ -195,6 +200,190 @@ func TestViewResource_Read(t *testing.T) {
 	r.Read(context.Background(), req, &resp)
 	assert.True(t, resp.Diagnostics.HasError())
 	mockClient.AssertExpectations(t)
+}
+
+func TestViewResource_SharingAnnotationTriggersReplan(t *testing.T) {
+	tests := []struct {
+		name         string
+		configValue  types.String
+		stateValue   types.String
+		expectedPlan types.String
+		description  string
+	}{
+		{
+			name: "dash0.com/sharing changed - should trigger replan",
+			configValue: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/sharing: all-users
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			stateValue: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/sharing: private
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			expectedPlan: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/sharing: all-users
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			description: "Should use config value when dash0.com/sharing annotation changed on view",
+		},
+		{
+			name: "dash0.com/sharing same - should suppress replan",
+			configValue: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/sharing: all-users
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			stateValue: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/sharing: all-users
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			expectedPlan: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/sharing: all-users
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			description: "Should use state value when dash0.com/sharing annotation is the same on view",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			modifier := customplanmodifier.YAMLSemanticEqual(converter.AnnotationSharing, converter.AnnotationFolderPath)
+
+			req := planmodifier.StringRequest{
+				ConfigValue: tt.configValue,
+				StateValue:  tt.stateValue,
+				PlanValue:   tt.configValue,
+			}
+			resp := &planmodifier.StringResponse{
+				PlanValue: tt.configValue,
+			}
+
+			modifier.PlanModifyString(context.Background(), req, resp)
+
+			assert.Equal(t, tt.expectedPlan, resp.PlanValue, tt.description)
+		})
+	}
+}
+
+func TestViewResource_FolderPathAnnotationTriggersReplan(t *testing.T) {
+	tests := []struct {
+		name         string
+		configValue  types.String
+		stateValue   types.String
+		expectedPlan types.String
+		description  string
+	}{
+		{
+			name: "dash0.com/folder-path changed - should trigger replan",
+			configValue: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/folder-path: /team-a/views
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			stateValue: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/folder-path: /team-b/views
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			expectedPlan: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/folder-path: /team-a/views
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			description: "Should use config value when dash0.com/folder-path annotation changed on view",
+		},
+		{
+			name: "dash0.com/folder-path same - should suppress replan",
+			configValue: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/folder-path: /team-a/views
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			stateValue: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/folder-path: /team-a/views
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			expectedPlan: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/folder-path: /team-a/views
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			description: "Should use state value when dash0.com/folder-path annotation is the same on view",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			modifier := customplanmodifier.YAMLSemanticEqual(converter.AnnotationSharing, converter.AnnotationFolderPath)
+
+			req := planmodifier.StringRequest{
+				ConfigValue: tt.configValue,
+				StateValue:  tt.stateValue,
+				PlanValue:   tt.configValue,
+			}
+			resp := &planmodifier.StringResponse{
+				PlanValue: tt.configValue,
+			}
+
+			modifier.PlanModifyString(context.Background(), req, resp)
+
+			assert.Equal(t, tt.expectedPlan, resp.PlanValue, tt.description)
+		})
+	}
 }
 
 func TestViewResource_Update(t *testing.T) {

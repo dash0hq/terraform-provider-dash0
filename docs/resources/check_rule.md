@@ -50,7 +50,7 @@ EOF
 
 ### Required
 
-- `check_rule_yaml` (String) The check rule definition in YAML format, following the [Prometheus alerting rule specification](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/).
+- `check_rule_yaml` (String) The check rule definition in YAML format, following the [Prometheus alerting rule specification](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/). The `dash0.com/sharing` metadata annotation is supported to control sharing settings; changes to it trigger a resource update. All other metadata annotations are managed by the server and ignored during drift detection.
 - `dataset` (String) The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the check rule belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
 
 ### Read-Only

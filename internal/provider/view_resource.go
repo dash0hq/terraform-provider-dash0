@@ -86,10 +86,10 @@ func (r *ViewResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				},
 			},
 			"view_yaml": schema.StringAttribute{
-				Description: "The view definition in YAML format, specifying the filters, queries, and display settings for the view.",
+				Description: "The view definition in YAML format, specifying the filters, queries, and display settings for the view. The following `metadata.annotations` are supported: `dash0.com/sharing` (sharing settings) and `dash0.com/folder-path` (folder location). Changes to these annotations trigger a resource update; all other metadata annotations are managed by the server and ignored during drift detection.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
-					customplanmodifier.YAMLSemanticEqual(),
+					customplanmodifier.YAMLSemanticEqual(converter.AnnotationSharing, converter.AnnotationFolderPath),
 				},
 			},
 		},
@@ -158,7 +158,7 @@ func (r *ViewResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	if state.ViewYaml.ValueString() != "" {
 		stateYAML := state.ViewYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored...)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored, []string{converter.AnnotationSharing, converter.AnnotationFolderPath})
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"View Comparison Error",
