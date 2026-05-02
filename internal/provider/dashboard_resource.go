@@ -86,10 +86,10 @@ func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				},
 			},
 			"dashboard_yaml": schema.StringAttribute{
-				Description: "The dashboard definition in YAML format, following the [Perses Dashboard specification](https://dash0.com/docs/dash0/dashboards/reference-dashboard-source-format).",
+				Description: "The dashboard definition in YAML format, following the [Perses Dashboard specification](https://dash0.com/docs/dash0/dashboards/reference-dashboard-source-format). The following `metadata.annotations` are supported: `dash0.com/sharing` (sharing settings) and `dash0.com/folder-path` (folder location). Changes to these annotations trigger a resource update; all other metadata annotations are managed by the server and ignored during drift detection.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
-					customplanmodifier.YAMLSemanticEqual(),
+					customplanmodifier.YAMLSemanticEqual(converter.AnnotationSharing, converter.AnnotationFolderPath),
 				},
 			},
 		},
@@ -158,7 +158,7 @@ func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 	if state.DashboardYaml.ValueString() != "" {
 		stateYAML := state.DashboardYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored...)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored, []string{converter.AnnotationSharing, converter.AnnotationFolderPath})
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Dashboard Comparison Error",

@@ -170,7 +170,7 @@ func (r *NotificationChannelResource) Read(ctx context.Context, req resource.Rea
 	if state.NotificationChannelYaml.ValueString() != "" {
 		stateYAML := state.NotificationChannelYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, notificationChannelConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored...)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored, nil)
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Notification Channel Comparison Error",

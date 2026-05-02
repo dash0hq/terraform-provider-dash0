@@ -165,7 +165,7 @@ func (r *SpamFilterResource) Read(ctx context.Context, req resource.ReadRequest,
 	if state.SpamFilterYaml.ValueString() != "" {
 		stateYAML := state.SpamFilterYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored...)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored, nil)
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Spam Filter Comparison Error",
