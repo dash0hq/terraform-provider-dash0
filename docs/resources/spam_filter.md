@@ -28,10 +28,8 @@ spec:
     - log
   filter:
     - key: "k8s.namespace.name"
-      value:
-        stringValue:
-          operator: "equals"
-          comparisonValue: "kube-system"
+      operator: "is"
+      value: "kube-system"
 EOF
 }
 ```
