@@ -25,10 +25,8 @@ spec:
     - log
   filter:
     - key: "k8s.namespace.name"
-      value:
-        stringValue:
-          operator: "equals"
-          comparisonValue: "kube-system"`
+      operator: "is"
+      value: "kube-system"`
 
 const updatedSpamFilterYaml = `apiVersion: operator.dash0.com/v1alpha1
 kind: Dash0SpamFilter
@@ -41,15 +39,11 @@ spec:
     - log
   filter:
     - key: "k8s.namespace.name"
-      value:
-        stringValue:
-          operator: "equals"
-          comparisonValue: "kube-system"
+      operator: "is"
+      value: "kube-system"
     - key: "k8s.pod.name"
-      value:
-        stringValue:
-          operator: "starts_with"
-          comparisonValue: "health-check-"`
+      operator: "starts_with"
+      value: "health-check-"`
 
 func TestAccSpamFilterResource(t *testing.T) {
 	// Skip if TF_ACC is not set to "1"
