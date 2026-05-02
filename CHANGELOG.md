@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.10.2
+
+
+### Enhancements
+
+
+- `dashboards, check_rules, synthetic_checks, views`: `dash0.com/sharing` and `dash0.com/folder-path` metadata annotations are now preserved during drift detection (#98)
+  The `dash0.com/sharing` annotation is supported on dashboards, check rules, synthetic checks, and views.
+  The `dash0.com/folder-path` annotation is supported on dashboards and views.
+  Changes to these annotations now trigger a Terraform plan update. All other metadata annotations remain server-managed and are ignored during drift detection.
+  
+
 ## 1.10.1
 
 
