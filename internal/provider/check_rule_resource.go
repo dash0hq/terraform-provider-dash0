@@ -89,10 +89,10 @@ More information on how Prometheus rules are mapped to Dash0 check rules can be 
 				},
 			},
 			"check_rule_yaml": schema.StringAttribute{
-				Description: "The check rule definition in YAML format, following the [Prometheus alerting rule specification](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/).",
+				Description: "The check rule definition in YAML format, following the [Prometheus alerting rule specification](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/). The `dash0.com/sharing` metadata annotation is supported to control sharing settings; changes to it trigger a resource update. All other metadata annotations are managed by the server and ignored during drift detection.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
-					customplanmodifier.YAMLSemanticEqual(),
+					customplanmodifier.YAMLSemanticEqual(converter.AnnotationSharing),
 				},
 			},
 		},
@@ -163,7 +163,7 @@ func (r *CheckRuleResource) Read(ctx context.Context, req resource.ReadRequest, 
 	if state.CheckRuleYaml.ValueString() != "" {
 		stateYAML := state.CheckRuleYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseYAML, additionalIgnored...)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseYAML, additionalIgnored, []string{converter.AnnotationSharing})
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Check Rule Comparison Error",

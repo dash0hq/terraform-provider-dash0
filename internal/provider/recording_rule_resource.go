@@ -161,7 +161,7 @@ func (r *RecordingRuleResource) Read(ctx context.Context, req resource.ReadReque
 	if state.RecordingRuleYaml.ValueString() != "" {
 		stateYAML := state.RecordingRuleYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored...)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored, nil)
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Recording Rule Comparison Error",

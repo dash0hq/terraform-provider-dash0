@@ -63,6 +63,4 @@ signs:
       - "${artifact}"
 
 changelog:
-  # Release notes are extracted from CHANGELOG.md and provided via --release-notes.
-  # See .github/scripts/extract-release-notes.sh and .chloggen/ for configuration.
-  disable: true
+  disable: false

@@ -11,11 +11,19 @@ import (
 // YAMLSemanticEqual returns a plan modifier that preserves state when
 // YAML values are semantically equivalent (ignoring formatting differences
 // like key ordering and string quoting).
-func YAMLSemanticEqual() planmodifier.String {
-	return yamlSemanticEqualModifier{}
+// preservedAnnotationKeys lists metadata annotation keys that should
+// participate in drift detection (e.g., "dash0.com/sharing"). All other
+// metadata annotations are stripped before comparison. If no keys are
+// provided, all metadata annotations are stripped.
+func YAMLSemanticEqual(preservedAnnotationKeys ...string) planmodifier.String {
+	return yamlSemanticEqualModifier{
+		preservedAnnotationKeys: preservedAnnotationKeys,
+	}
 }
 
-type yamlSemanticEqualModifier struct{}
+type yamlSemanticEqualModifier struct {
+	preservedAnnotationKeys []string
+}
 
 func (m yamlSemanticEqualModifier) Description(_ context.Context) string {
 	return "Preserves state when YAML values are semantically equivalent"
@@ -43,7 +51,7 @@ func (m yamlSemanticEqualModifier) PlanModifyString(_ context.Context, req planm
 	// Conditionally ignore API-managed fields that the user didn't include in their config.
 	// e.g., spec.permissions is enriched by the API on retrieval but users may optionally manage it.
 	additionalIgnored := converter.FieldsAbsentFromYAML(configYAML, converter.ConditionallyIgnoredFields)
-	equivalent, err := converter.ResourceYAMLEquivalent(configYAML, stateYAML, additionalIgnored...)
+	equivalent, err := converter.ResourceYAMLEquivalent(configYAML, stateYAML, additionalIgnored, m.preservedAnnotationKeys)
 	if err != nil {
 		// On error, let Terraform use normal comparison
 		return

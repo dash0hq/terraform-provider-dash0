@@ -252,7 +252,7 @@ spec:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := NormalizeYAML(tt.input, tt.additionalIgnored...)
+			result, err := NormalizeYAML(tt.input, tt.additionalIgnored, nil)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -1080,7 +1080,7 @@ spec:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := ResourceYAMLEquivalent(tt.yaml1, tt.yaml2, tt.additionalIgnored...)
+			result, err := ResourceYAMLEquivalent(tt.yaml1, tt.yaml2, tt.additionalIgnored, nil)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -1250,7 +1250,7 @@ spec:
         - "views:read"
       role: admin
 `
-	result, err := ResourceYAMLEquivalent(yaml1, yaml2)
+	result, err := ResourceYAMLEquivalent(yaml1, yaml2, nil, nil)
 	require.NoError(t, err)
 	assert.True(t, result, "permissions with reordered actions and reordered entries should be equivalent")
 }
@@ -1482,7 +1482,7 @@ spec:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := ResourceYAMLEquivalent(tt.userYAML, tt.apiJSON)
+			result, err := ResourceYAMLEquivalent(tt.userYAML, tt.apiJSON, nil, nil)
 			require.NoError(t, err)
 			assert.Equal(t, tt.equivalent, result)
 		})

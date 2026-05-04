@@ -25,7 +25,7 @@ resource "dash0_synthetic_check" "my_check" {
 ### Required
 
 - `dataset` (String) The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the synthetic check belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
-- `synthetic_check_yaml` (String) The synthetic check definition in YAML format, specifying the check type, target URL, schedule, and assertion criteria. See [Create Synthetic Checks](https://dash0.com/docs/dash0/monitoring/synthetics/create-synthetic-checks) for the available options.
+- `synthetic_check_yaml` (String) The synthetic check definition in YAML format, specifying the check type, target URL, schedule, and assertion criteria. See [Create Synthetic Checks](https://dash0.com/docs/dash0/monitoring/synthetics/create-synthetic-checks) for the available options. The `dash0.com/sharing` metadata annotation is supported to control sharing settings; changes to it trigger a resource update. All other metadata annotations are managed by the server and ignored during drift detection.
 
 ### Read-Only
 

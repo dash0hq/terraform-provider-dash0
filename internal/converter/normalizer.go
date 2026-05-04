@@ -11,12 +11,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Metadata annotation keys that participate in drift detection for specific
+// resource types, instead of being stripped during normalization.
+const (
+	AnnotationSharing    = "dash0.com/sharing"
+	AnnotationFolderPath = "dash0.com/folder-path"
+)
+
 // ignoredFields are always removed when comparing resource YAMLs.
 var ignoredFields = []string{
 	"apiVersion",
 	"kind",
 	"metadata.labels",
-	"metadata.annotations",
 	"metadata.createdAt",
 	"metadata.updatedAt",
 	"metadata.version",
@@ -36,7 +42,10 @@ var ConditionallyIgnoredFields = []string{
 // NormalizeYAML normalizes a YAML by removing the fields we want to ignore
 // when comparing for drift detection. Additional fields to ignore can be
 // passed via additionalIgnoredFields (e.g., from ConditionallyIgnoredFields).
-func NormalizeYAML(yamlStr string, additionalIgnoredFields ...string) (string, error) {
+// preservedAnnotationKeys lists metadata annotation keys that should be kept
+// during normalization (e.g., "dash0.com/sharing"); all other metadata
+// annotations are stripped. If empty, all metadata annotations are stripped.
+func NormalizeYAML(yamlStr string, additionalIgnoredFields []string, preservedAnnotationKeys []string) (string, error) {
 	// Parse YAML into an interface
 	var parsedYaml map[string]interface{}
 	if err := yaml.Unmarshal([]byte(yamlStr), &parsedYaml); err != nil {
@@ -53,6 +62,11 @@ func NormalizeYAML(yamlStr string, additionalIgnoredFields ...string) (string, e
 
 	// Remove ignored fields and empty values
 	cleanupMap(parsedYaml, allIgnored)
+
+	// Strip non-preserved metadata annotations. When preservedAnnotationKeys
+	// is empty all metadata annotations are removed (backwards-compatible
+	// default). When it contains keys, only those keys survive.
+	stripMetadataAnnotations(parsedYaml, preservedAnnotationKeys)
 
 	// Create a new encoder with consistent settings
 	var buf strings.Builder
@@ -72,6 +86,45 @@ func NormalizeYAML(yamlStr string, additionalIgnoredFields ...string) (string, e
 	result := strings.TrimSuffix(buf.String(), "\n")
 
 	return string(result), nil
+}
+
+// stripMetadataAnnotations removes annotation keys from metadata.annotations
+// that are not in the preservedKeys list. If preservedKeys is empty, all
+// metadata annotations are removed. The annotations map is deleted from
+// metadata when it becomes empty.
+func stripMetadataAnnotations(data map[string]interface{}, preservedKeys []string) {
+	metadata, ok := data["metadata"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	annotations, ok := metadata["annotations"].(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	if len(preservedKeys) == 0 {
+		delete(metadata, "annotations")
+		if isEmpty(metadata) {
+			delete(data, "metadata")
+		}
+		return
+	}
+
+	preserved := make(map[string]bool, len(preservedKeys))
+	for _, k := range preservedKeys {
+		preserved[k] = true
+	}
+	for key := range annotations {
+		if !preserved[key] {
+			delete(annotations, key)
+		}
+	}
+	if len(annotations) == 0 {
+		delete(metadata, "annotations")
+		if isEmpty(metadata) {
+			delete(data, "metadata")
+		}
+	}
 }
 
 // stringifyMapValues converts all non-string values in a map to their string
@@ -270,16 +323,18 @@ func normalizeNumericTypes(v interface{}) interface{} {
 // ignoring fields we don't care about for drift detection.
 // yamlA is the reference (typically the user's config) and yamlB is the
 // value to compare against (typically the API response).
-// Additional fields to ignore can be passed via additionalIgnoredFields
-// (e.g., conditionally ignored fields that are absent from the user's config).
-func ResourceYAMLEquivalent(yamlA, yamlB string, additionalIgnoredFields ...string) (bool, error) {
+// additionalIgnoredFields are extra field paths to strip (e.g.,
+// conditionally ignored fields absent from the user's config).
+// preservedAnnotationKeys lists metadata annotation keys that participate
+// in drift detection; all other metadata annotations are stripped.
+func ResourceYAMLEquivalent(yamlA, yamlB string, additionalIgnoredFields []string, preservedAnnotationKeys []string) (bool, error) {
 	// Normalize both YAMLs
-	normalizedA, err := NormalizeYAML(yamlA, additionalIgnoredFields...)
+	normalizedA, err := NormalizeYAML(yamlA, additionalIgnoredFields, preservedAnnotationKeys)
 	if err != nil {
 		return false, fmt.Errorf("error normalizing first resource yaml: %w", err)
 	}
 
-	normalizedB, err := NormalizeYAML(yamlB, additionalIgnoredFields...)
+	normalizedB, err := NormalizeYAML(yamlB, additionalIgnoredFields, preservedAnnotationKeys)
 	if err != nil {
 		return false, fmt.Errorf("error normalizing second resource yaml: %w", err)
 	}
