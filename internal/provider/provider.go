@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
+	dash0Profiles "github.com/dash0hq/dash0-api-client-go/profiles"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
 
@@ -173,18 +175,45 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 					"Unable to authenticate to Dash0 APIs",
 					unableToCreateDash0ApiClientErrorMessage(dash0ProfilesFileExistsErr),
 				)
+			} else {
+				dash0ProfilesFileContent,
+					dash0ProfilesFileContentReadErr := os.ReadFile(dash0ProfilesFilePath)
+				if dash0ProfilesFileContentReadErr != nil {
+					resp.Diagnostics.AddError(
+						"Unable to authenticate to Dash0 APIs",
+						unableToCreateDash0ApiClientErrorMessage(dash0ProfilesFileExistsErr),
+					)
+				}
+				var profiles []dash0Profiles.Profile
+				profileJsonUnmarshalErr := json.Unmarshal(dash0ProfilesFileContent, &profiles)
+				if profileJsonUnmarshalErr != nil {
+					resp.Diagnostics.AddError(
+						"Unable to authenticate to Dash0 APIs",
+						unableToCreateDash0ApiClientErrorMessage(profileJsonUnmarshalErr),
+					)
+				} else {
+					profileFound := false
+					for _, profileData := range profiles {
+						if profileData.Name == profile {
+							url = profileData.Configuration.ApiUrl
+							authToken = profileData.Configuration.AuthToken
+							profileFound = true
+							break
+						}
+					}
+					if !profileFound {
+						profileNotFoundError := fmt.Errorf(
+							"Unable to find %s profile in %s",
+							profile,
+							dash0ProfilesFilePath,
+						)
+						resp.Diagnostics.AddError(
+							"Unable to authenticate to Dash0 APIs",
+							unableToCreateDash0ApiClientErrorMessage(profileNotFoundError),
+						)
+					}
+				}
 			}
-
-			dash0ProfilesFileContent,
-				dash0ProfilesFileContentReadErr := os.ReadFile(dash0ProfilesFilePath)
-			if dash0ProfilesFileContentReadErr != nil {
-				resp.Diagnostics.AddError(
-					"Unable to authenticate to Dash0 APIs",
-					unableToCreateDash0ApiClientErrorMessage(dash0ProfilesFileExistsErr),
-				)
-			}
-			fmt.Println(string(dash0ProfilesFileContent))
-			// json.Unmarshal(dash0ProfilesFileContent)
 		}
 	}
 
