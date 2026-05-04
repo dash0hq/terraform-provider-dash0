@@ -47,9 +47,8 @@ func (p *dash0Provider) Metadata(_ context.Context, _ provider.MetadataRequest, 
 	resp.Version = p.version
 }
 
-// Schema defines the provider-level schema for configuration data.
-func (p *dash0Provider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
-	resp.Schema = schema.Schema{
+func _providerSchema() schema.Schema {
+	return schema.Schema{
 		Description: `The Dash0 provider allows you to manage resources on the [Dash0](https://www.dash0.com) observability platform, including dashboards, check rules, recording rules, recording rule groups, synthetic checks, and views. Authentication can be provided via provider configuration attributes or via the DASH0_URL and DASH0_AUTH_TOKEN environment variables.`,
 		Attributes: map[string]schema.Attribute{
 			"profile": schema.StringAttribute{
@@ -74,6 +73,11 @@ func (p *dash0Provider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 			},
 		},
 	}
+}
+
+// Schema defines the provider-level schema for configuration data.
+func (p *dash0Provider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
+	resp.Schema = _providerSchema()
 }
 
 // Configure prepares a Dash0 API client for data sources and resources.
@@ -106,14 +110,14 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 	// Check if url or authToken are still missing a value
 	if url == "" || authToken == "" {
 		// Try to load values from dash0 CLI config files
-		homeDir, homeDirErr := os.UserHomeDir()
-		if homeDirErr != nil {
-			resp.Diagnostics.AddError(
-				"Unable to authenticate to Dash0 APIs",
-				"The provider cannot create the Dash0 API client because no Dash0 URL or Dash0 Auth Token was provided as well no Dash0 CLI Config directory was found "+
-					"You can set up the url and auth_token values in provider configuration or configure a Dash0 CLI with an authenticated profile ref: https://github.com/dash0hq/dash0-cli#configuration-storage",
-			)
-		}
+		// homeDir, homeDirErr := os.UserHomeDir()
+		// if homeDirErr != nil {
+		// 	resp.Diagnostics.AddError(
+		// 		"Unable to authenticate to Dash0 APIs",
+		// 		"The provider cannot create the Dash0 API client because no Dash0 URL or Dash0 Auth Token was provided as well no Dash0 CLI Config directory was found "+
+		// 			"You can set up the url and auth_token values in provider configuration or configure a Dash0 CLI with an authenticated profile ref: https://github.com/dash0hq/dash0-cli#configuration-storage",
+		// 	)
+		// }
 		// dash0ConfigDir := fmt.Sprintf("%s/.dash0", homeDir)
 		// dash0ActiveProfileFile := fmt.Sprintf("%s/.dash0/activeProfile", homeDir)
 		// dash0ProfilesFile := fmt.Sprintf("%s/.dash0/profiles.json", homeDir)

@@ -42,6 +42,10 @@ func TestDash0Provider_Schema(t *testing.T) {
 	assert.True(t, authTokenAttr.Optional)
 	assert.True(t, authTokenAttr.Sensitive)
 	assert.Contains(t, authTokenAttr.Description, "auth token")
+
+	profileAttr := resp.Schema.Attributes["profile"].(schema.StringAttribute)
+	assert.True(t, profileAttr.Optional)
+	assert.Contains(t, profileAttr.Description, "profile")
 }
 
 func TestDash0Provider_Configure_WithEnvironmentVariables(t *testing.T) {
@@ -57,22 +61,14 @@ func TestDash0Provider_Configure_WithEnvironmentVariables(t *testing.T) {
 			AttributeTypes: map[string]tftypes.Type{
 				"url":        tftypes.String,
 				"auth_token": tftypes.String,
+				"profile":    tftypes.String,
 			},
 		}, map[string]tftypes.Value{
 			"url":        tftypes.NewValue(tftypes.String, nil),
 			"auth_token": tftypes.NewValue(tftypes.String, nil),
+			"profile":    tftypes.NewValue(tftypes.String, nil),
 		}),
-		Schema: schema.Schema{
-			Attributes: map[string]schema.Attribute{
-				"url": schema.StringAttribute{
-					Optional: true,
-				},
-				"auth_token": schema.StringAttribute{
-					Optional:  true,
-					Sensitive: true,
-				},
-			},
-		},
+		Schema: _providerSchema(),
 	}
 
 	req := provider.ConfigureRequest{
@@ -100,22 +96,14 @@ func TestDash0Provider_Configure_WithProviderAttributes(t *testing.T) {
 			AttributeTypes: map[string]tftypes.Type{
 				"url":        tftypes.String,
 				"auth_token": tftypes.String,
+				"profile":    tftypes.String,
 			},
 		}, map[string]tftypes.Value{
 			"url":        tftypes.NewValue(tftypes.String, "https://api.provider.com"),
 			"auth_token": tftypes.NewValue(tftypes.String, "auth_provider_token_456"),
+			"profile":    tftypes.NewValue(tftypes.String, nil),
 		}),
-		Schema: schema.Schema{
-			Attributes: map[string]schema.Attribute{
-				"url": schema.StringAttribute{
-					Optional: true,
-				},
-				"auth_token": schema.StringAttribute{
-					Optional:  true,
-					Sensitive: true,
-				},
-			},
-		},
+		Schema: _providerSchema(),
 	}
 
 	req := provider.ConfigureRequest{
@@ -143,22 +131,14 @@ func TestDash0Provider_Configure_EnvironmentVariablesPrecedence(t *testing.T) {
 			AttributeTypes: map[string]tftypes.Type{
 				"url":        tftypes.String,
 				"auth_token": tftypes.String,
+				"profile":    tftypes.String,
 			},
 		}, map[string]tftypes.Value{
 			"url":        tftypes.NewValue(tftypes.String, "https://api.provider.com"),
 			"auth_token": tftypes.NewValue(tftypes.String, "auth_provider_token_456"),
+			"profile":    tftypes.NewValue(tftypes.String, nil),
 		}),
-		Schema: schema.Schema{
-			Attributes: map[string]schema.Attribute{
-				"url": schema.StringAttribute{
-					Optional: true,
-				},
-				"auth_token": schema.StringAttribute{
-					Optional:  true,
-					Sensitive: true,
-				},
-			},
-		},
+		Schema: _providerSchema(),
 	}
 
 	req := provider.ConfigureRequest{
@@ -187,22 +167,14 @@ func TestDash0Provider_Configure_MissingURL(t *testing.T) {
 			AttributeTypes: map[string]tftypes.Type{
 				"url":        tftypes.String,
 				"auth_token": tftypes.String,
+				"profile":    tftypes.String,
 			},
 		}, map[string]tftypes.Value{
 			"url":        tftypes.NewValue(tftypes.String, nil),
 			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
+			"profile":    tftypes.NewValue(tftypes.String, nil),
 		}),
-		Schema: schema.Schema{
-			Attributes: map[string]schema.Attribute{
-				"url": schema.StringAttribute{
-					Optional: true,
-				},
-				"auth_token": schema.StringAttribute{
-					Optional:  true,
-					Sensitive: true,
-				},
-			},
-		},
+		Schema: _providerSchema(),
 	}
 
 	req := provider.ConfigureRequest{
@@ -231,22 +203,14 @@ func TestDash0Provider_Configure_MissingAuthToken(t *testing.T) {
 			AttributeTypes: map[string]tftypes.Type{
 				"url":        tftypes.String,
 				"auth_token": tftypes.String,
+				"profile":    tftypes.String,
 			},
 		}, map[string]tftypes.Value{
 			"url":        tftypes.NewValue(tftypes.String, "https://api.example.com"),
 			"auth_token": tftypes.NewValue(tftypes.String, nil),
+			"profile":    tftypes.NewValue(tftypes.String, nil),
 		}),
-		Schema: schema.Schema{
-			Attributes: map[string]schema.Attribute{
-				"url": schema.StringAttribute{
-					Optional: true,
-				},
-				"auth_token": schema.StringAttribute{
-					Optional:  true,
-					Sensitive: true,
-				},
-			},
-		},
+		Schema: _providerSchema(),
 	}
 
 	req := provider.ConfigureRequest{
@@ -275,22 +239,14 @@ func TestDash0Provider_Configure_MissingBoth(t *testing.T) {
 			AttributeTypes: map[string]tftypes.Type{
 				"url":        tftypes.String,
 				"auth_token": tftypes.String,
+				"profile":    tftypes.String,
 			},
 		}, map[string]tftypes.Value{
 			"url":        tftypes.NewValue(tftypes.String, nil),
 			"auth_token": tftypes.NewValue(tftypes.String, nil),
+			"profile":    tftypes.NewValue(tftypes.String, nil),
 		}),
-		Schema: schema.Schema{
-			Attributes: map[string]schema.Attribute{
-				"url": schema.StringAttribute{
-					Optional: true,
-				},
-				"auth_token": schema.StringAttribute{
-					Optional:  true,
-					Sensitive: true,
-				},
-			},
-		},
+		Schema: _providerSchema(),
 	}
 
 	req := provider.ConfigureRequest{
