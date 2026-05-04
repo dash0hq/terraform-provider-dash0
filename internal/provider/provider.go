@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 
@@ -80,6 +81,17 @@ func (p *dash0Provider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 	resp.Schema = providerSchema()
 }
 
+func unableToCreateDash0ApiClientErrorMessage(err error) string {
+	return fmt.Sprintf("The provider cannot create the Dash0 API client because no Dash0 URL or"+
+		" Dash0 Auth Token was provided and Dash0 CLI Config was also not found."+
+		" You can set up the url and auth_token values in provider configuration"+
+		" or configure a Dash0 CLI with an authenticated profile ref:"+
+		" https://github.com/dash0hq/dash0-cli#configuration-storage"+
+		// This error will include the filepath which our provider was unable
+		// to load, enabling faster debugging for developers
+		" Error: %s", err.Error())
+}
+
 // Configure prepares a Dash0 API client for data sources and resources.
 func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	// Read provider config that may be set in the provider block
@@ -103,35 +115,77 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 	}
 
 	profile := ""
+	// try to load profile name from provider configuration
 	if !cfg.Profile.IsNull() && !cfg.Profile.IsUnknown() {
 		profile = cfg.Profile.ValueString()
 	}
 
 	// Check if url or authToken are still missing a value
 	if url == "" || authToken == "" {
-		// Try to load values from dash0 CLI config files
-		// homeDir, homeDirErr := os.UserHomeDir()
-		// if homeDirErr != nil {
-		// 	resp.Diagnostics.AddError(
-		// 		"Unable to authenticate to Dash0 APIs",
-		// 		"The provider cannot create the Dash0 API client because no Dash0 URL or Dash0 Auth Token was provided as well no Dash0 CLI Config directory was found "+
-		// 			"You can set up the url and auth_token values in provider configuration or configure a Dash0 CLI with an authenticated profile ref: https://github.com/dash0hq/dash0-cli#configuration-storage",
-		// 	)
-		// }
-		// dash0ConfigDir := fmt.Sprintf("%s/.dash0", homeDir)
-		// dash0ActiveProfileFile := fmt.Sprintf("%s/.dash0/activeProfile", homeDir)
-		// dash0ProfilesFile := fmt.Sprintf("%s/.dash0/profiles.json", homeDir)
-
-		// dash0ConfigDir, dash0ConfigDirExistsErr := os.Stat(dash0ConfigDir)
-		// dash0ActiveProfileFile, dash0ActiveProfileFileExistsErr := os.Stat(dash0ActiveProfileFile)
-		// dash0ProfilesFile, dash0ProfilesFileExistsErr := os.Stat(dash0ProfilesFile)
-
-		if profile == "" {
-			// no profile is set on the provider configuration
+		// Inorder to load dash0Config dir we need user home dir
+		// load that using go std libs
+		homeDir, homeDirErr := os.UserHomeDir()
+		if homeDirErr != nil {
+			// Unable to locate home direct, we will not be able to build an api client
+			resp.Diagnostics.AddError(
+				"Unable to authenticate to Dash0 APIs",
+				unableToCreateDash0ApiClientErrorMessage(homeDirErr),
+			)
 		} else {
-			// an activeProfile value was set on the provider definition
-		}
+			// Try to load values from dash0 CLI config files
+			if profile == "" {
+				dash0ConfigDirPath := fmt.Sprintf("%s/.dash0", homeDir)
+				dash0ActiveProfileFilePath := fmt.Sprintf(
+					"%s/.dash0/activeProfile",
+					dash0ConfigDirPath,
+				)
+				_, dash0ActiveProfileFilePathExistsErr := os.Stat(dash0ActiveProfileFilePath)
+				if dash0ActiveProfileFilePathExistsErr != nil {
+					// error stating activeProfileFilePath
+					resp.Diagnostics.AddError(
+						"Unable to authenticate to Dash0 APIs",
+						unableToCreateDash0ApiClientErrorMessage(
+							dash0ActiveProfileFilePathExistsErr,
+						),
+					)
+				} else {
+					activeProfileFileContent,
+						activeProfileFileContentErr := os.ReadFile(dash0ActiveProfileFilePath)
+					if activeProfileFileContentErr != nil {
+						// error reading activeProfileFilePath
+						resp.Diagnostics.AddError(
+							"Unable to authenticate to Dash0 APIs",
+							unableToCreateDash0ApiClientErrorMessage(dash0ActiveProfileFilePathExistsErr),
+						)
+					}
+					profile = string(activeProfileFileContent)
+				}
+			}
 
+			// We consider that the profile variable now consists of the profile name
+			// it can be that the activeProfileFile is still empty, but not considering
+			// that situation
+
+			dash0ProfilesFilePath := fmt.Sprintf("%s/.dash0/profiles.json", homeDir)
+			_, dash0ProfilesFileExistsErr := os.Stat(dash0ProfilesFilePath)
+			if dash0ProfilesFileExistsErr != nil {
+				resp.Diagnostics.AddError(
+					"Unable to authenticate to Dash0 APIs",
+					unableToCreateDash0ApiClientErrorMessage(dash0ProfilesFileExistsErr),
+				)
+			}
+
+			dash0ProfilesFileContent,
+				dash0ProfilesFileContentReadErr := os.ReadFile(dash0ProfilesFilePath)
+			if dash0ProfilesFileContentReadErr != nil {
+				resp.Diagnostics.AddError(
+					"Unable to authenticate to Dash0 APIs",
+					unableToCreateDash0ApiClientErrorMessage(dash0ProfilesFileExistsErr),
+				)
+			}
+			fmt.Println(string(dash0ProfilesFileContent))
+			// json.Unmarshal(dash0ProfilesFileContent)
+		}
 	}
 
 	// Validate
