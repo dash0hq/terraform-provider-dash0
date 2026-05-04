@@ -8,6 +8,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 : "${DASH0_API_URL:?Environment variable DASH0_API_URL must be set}"
 : "${DASH0_AUTH_TOKEN:?Environment variable DASH0_AUTH_TOKEN must be set}"
+: "${DASH0_PROVIDER_PROFILE:=default}"
 : "${DASH0_DATASET:=default}"
 export DASH0_API_URL DASH0_AUTH_TOKEN DASH0_DATASET
 
@@ -48,6 +49,7 @@ terraform {
 }
 
 provider "dash0" {
+  profile    = "${DASH0_PROVIDER_PROFILE}"
   url        = "${DASH0_API_URL}"
   auth_token = "${DASH0_AUTH_TOKEN}"
 }

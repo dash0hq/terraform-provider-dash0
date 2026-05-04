@@ -1,0 +1,28 @@
+{
+  "profiles": [
+    {
+      "name": "test1",
+      "configuration": {
+        "apiUrl": "https://api.us-west-2.aws.dash0.com",
+        "authToken": "auth_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "otlpUrl": "https://ingress.us-west-2.aws.dash0.com"
+      }
+    },
+    {
+      "name": "test2",
+      "configuration": {
+        "apiUrl": "https://api.us-west-2.aws.dash0.com",
+        "authToken": "auth_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "otlpUrl": "https://ingress.us-west-2.gcp.dash0.com"
+      }
+    },
+    {
+      "name": "test3",
+      "configuration": {
+        "apiUrl": "",
+        "authToken": "",
+        "otlpUrl": ""
+      }
+    }
+  ]
+}
