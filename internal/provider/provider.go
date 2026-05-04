@@ -14,7 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
-	dash0Profiles "github.com/dash0hq/dash0-api-client-go/profiles"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
 
@@ -42,6 +41,21 @@ type providerConfigModel struct {
 	URL       types.String `tfsdk:"url"`
 	AuthToken types.String `tfsdk:"auth_token"`
 	Profile   types.String `tfsdk:"profile"`
+}
+
+type configModel struct {
+	ApiUrl    string `json:"apiUrl"`
+	AuthToken string `json:"authToken"`
+	OtlpUrl   string `json:"otlpUrl"`
+}
+
+type profileModel struct {
+	Name          string      `json:"name"`
+	Configuration configModel `json:"configuration"`
+}
+
+type profilesConfigFile struct {
+	Profiles []profileModel `json:"profiles"`
 }
 
 // Metadata returns the provider type name.
@@ -136,10 +150,9 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 		} else {
 			// Try to load values from dash0 CLI config files
 			if profile == "" {
-				dash0ConfigDirPath := fmt.Sprintf("%s/.dash0", homeDir)
 				dash0ActiveProfileFilePath := fmt.Sprintf(
 					"%s/.dash0/activeProfile",
-					dash0ConfigDirPath,
+					homeDir,
 				)
 				_, dash0ActiveProfileFilePathExistsErr := os.Stat(dash0ActiveProfileFilePath)
 				if dash0ActiveProfileFilePathExistsErr != nil {
@@ -164,53 +177,61 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 				}
 			}
 
-			// We consider that the profile variable now consists of the profile name
-			// it can be that the activeProfileFile is still empty, but not considering
-			// that situation
-
-			dash0ProfilesFilePath := fmt.Sprintf("%s/.dash0/profiles.json", homeDir)
-			_, dash0ProfilesFileExistsErr := os.Stat(dash0ProfilesFilePath)
-			if dash0ProfilesFileExistsErr != nil {
-				resp.Diagnostics.AddError(
-					"Unable to authenticate to Dash0 APIs",
-					unableToCreateDash0ApiClientErrorMessage(dash0ProfilesFileExistsErr),
-				)
-			} else {
-				dash0ProfilesFileContent,
-					dash0ProfilesFileContentReadErr := os.ReadFile(dash0ProfilesFilePath)
-				if dash0ProfilesFileContentReadErr != nil {
+			if profile != "" {
+				dash0ProfilesFilePath := fmt.Sprintf("%s/.dash0/profiles.json", homeDir)
+				_, dash0ProfilesFileExistsErr := os.Stat(dash0ProfilesFilePath)
+				if dash0ProfilesFileExistsErr != nil {
 					resp.Diagnostics.AddError(
 						"Unable to authenticate to Dash0 APIs",
 						unableToCreateDash0ApiClientErrorMessage(dash0ProfilesFileExistsErr),
 					)
-				}
-				var profiles []dash0Profiles.Profile
-				profileJsonUnmarshalErr := json.Unmarshal(dash0ProfilesFileContent, &profiles)
-				if profileJsonUnmarshalErr != nil {
-					resp.Diagnostics.AddError(
-						"Unable to authenticate to Dash0 APIs",
-						unableToCreateDash0ApiClientErrorMessage(profileJsonUnmarshalErr),
-					)
 				} else {
-					profileFound := false
-					for _, profileData := range profiles {
-						if profileData.Name == profile {
-							url = profileData.Configuration.ApiUrl
-							authToken = profileData.Configuration.AuthToken
-							profileFound = true
-							break
-						}
-					}
-					if !profileFound {
-						profileNotFoundError := fmt.Errorf(
-							"Unable to find %s profile in %s",
-							profile,
-							dash0ProfilesFilePath,
-						)
+					dash0ProfilesFileContent,
+						dash0ProfilesFileContentReadErr := os.ReadFile(dash0ProfilesFilePath)
+					if dash0ProfilesFileContentReadErr != nil {
 						resp.Diagnostics.AddError(
 							"Unable to authenticate to Dash0 APIs",
-							unableToCreateDash0ApiClientErrorMessage(profileNotFoundError),
+							unableToCreateDash0ApiClientErrorMessage(dash0ProfilesFileExistsErr),
 						)
+					}
+					var profilesConfigFile profilesConfigFile
+					profileJsonUnmarshalErr := json.Unmarshal(dash0ProfilesFileContent, &profilesConfigFile)
+					if profileJsonUnmarshalErr != nil {
+						resp.Diagnostics.AddError(
+							"Unable to authenticate to Dash0 APIs",
+							unableToCreateDash0ApiClientErrorMessage(profileJsonUnmarshalErr),
+						)
+					} else {
+						profileFound := false
+						var listProfiles []string
+						for _, profileData := range profilesConfigFile.Profiles {
+							listProfiles = append(listProfiles, profileData.Name)
+							if profileData.Name == profile {
+								// We have found the profile data
+								// load the values in the appropriate variables if the values of them
+								// are still empty
+								if url == "" {
+									url = profileData.Configuration.ApiUrl
+								}
+								if authToken == "" {
+									authToken = profileData.Configuration.AuthToken
+								}
+								profileFound = true
+								break
+							}
+						}
+						if !profileFound {
+							profileNotFoundError := fmt.Errorf(
+								"Unable to find %s profile in %s, found profiles %+v",
+								profile,
+								dash0ProfilesFilePath,
+								listProfiles,
+							)
+							resp.Diagnostics.AddError(
+								"Unable to authenticate to Dash0 APIs",
+								unableToCreateDash0ApiClientErrorMessage(profileNotFoundError),
+							)
+						}
 					}
 				}
 			}
