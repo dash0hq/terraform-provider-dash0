@@ -47,7 +47,7 @@ func (p *dash0Provider) Metadata(_ context.Context, _ provider.MetadataRequest, 
 	resp.Version = p.version
 }
 
-func _providerSchema() schema.Schema {
+func providerSchema() schema.Schema {
 	return schema.Schema{
 		Description: `The Dash0 provider allows you to manage resources on the [Dash0](https://www.dash0.com) observability platform, including dashboards, check rules, recording rules, recording rule groups, synthetic checks, and views. Authentication can be provided via provider configuration attributes or via the DASH0_URL and DASH0_AUTH_TOKEN environment variables.`,
 		Attributes: map[string]schema.Attribute{
@@ -77,7 +77,7 @@ func _providerSchema() schema.Schema {
 
 // Schema defines the provider-level schema for configuration data.
 func (p *dash0Provider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
-	resp.Schema = _providerSchema()
+	resp.Schema = providerSchema()
 }
 
 // Configure prepares a Dash0 API client for data sources and resources.

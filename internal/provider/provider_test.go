@@ -68,7 +68,7 @@ func TestDash0Provider_Configure_WithEnvironmentVariables(t *testing.T) {
 			"auth_token": tftypes.NewValue(tftypes.String, nil),
 			"profile":    tftypes.NewValue(tftypes.String, nil),
 		}),
-		Schema: _providerSchema(),
+		Schema: providerSchema(),
 	}
 
 	req := provider.ConfigureRequest{
@@ -103,7 +103,7 @@ func TestDash0Provider_Configure_WithProviderAttributes(t *testing.T) {
 			"auth_token": tftypes.NewValue(tftypes.String, "auth_provider_token_456"),
 			"profile":    tftypes.NewValue(tftypes.String, nil),
 		}),
-		Schema: _providerSchema(),
+		Schema: providerSchema(),
 	}
 
 	req := provider.ConfigureRequest{
@@ -138,7 +138,7 @@ func TestDash0Provider_Configure_EnvironmentVariablesPrecedence(t *testing.T) {
 			"auth_token": tftypes.NewValue(tftypes.String, "auth_provider_token_456"),
 			"profile":    tftypes.NewValue(tftypes.String, nil),
 		}),
-		Schema: _providerSchema(),
+		Schema: providerSchema(),
 	}
 
 	req := provider.ConfigureRequest{
@@ -174,7 +174,7 @@ func TestDash0Provider_Configure_MissingURL(t *testing.T) {
 			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
 			"profile":    tftypes.NewValue(tftypes.String, nil),
 		}),
-		Schema: _providerSchema(),
+		Schema: providerSchema(),
 	}
 
 	req := provider.ConfigureRequest{
@@ -210,7 +210,7 @@ func TestDash0Provider_Configure_MissingAuthToken(t *testing.T) {
 			"auth_token": tftypes.NewValue(tftypes.String, nil),
 			"profile":    tftypes.NewValue(tftypes.String, nil),
 		}),
-		Schema: _providerSchema(),
+		Schema: providerSchema(),
 	}
 
 	req := provider.ConfigureRequest{
@@ -246,7 +246,7 @@ func TestDash0Provider_Configure_MissingBoth(t *testing.T) {
 			"auth_token": tftypes.NewValue(tftypes.String, nil),
 			"profile":    tftypes.NewValue(tftypes.String, nil),
 		}),
-		Schema: _providerSchema(),
+		Schema: providerSchema(),
 	}
 
 	req := provider.ConfigureRequest{
