@@ -2,6 +2,8 @@ package provider
 
 import (
 	"context"
+	"os"
+	"path"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/provider"
@@ -11,6 +13,55 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// Only creates a temporary dash0 Config Directory for tests
+// You can safely run it on your local machine if the directory exists, it will
+// not overwrite
+func createTemporaryDash0CliConfig(t *testing.T) bool {
+	homeDir, homeDirErr := os.UserHomeDir()
+	if homeDirErr != nil {
+		t.Error("Unable to find user home directory")
+	}
+	dash0ConfigDirPath := path.Join(homeDir, ".dash0")
+	t.Logf("config dir: %s", dash0ConfigDirPath)
+	_, dash0ConfigPathErr := os.Stat(dash0ConfigDirPath)
+	if dash0ConfigPathErr != nil && os.IsNotExist(dash0ConfigPathErr) {
+		// dash0Config file does not exists
+		configDirCreationErr := os.MkdirAll(dash0ConfigDirPath, 0777)
+		if configDirCreationErr != nil {
+			t.Error("Unable to create temporary config dir")
+			return false
+		} else {
+			dash0ActiveProfileFilePath := path.Join(dash0ConfigDirPath, "activeProfile")
+			dummyActiveProfileName := "test"
+			activeProfileCreateErr := os.WriteFile(dash0ActiveProfileFilePath, []byte(dummyActiveProfileName), 0777)
+
+			if activeProfileCreateErr != nil {
+				t.Errorf("Error creating activeProfile file %s", activeProfileCreateErr.Error())
+			}
+
+			dash0ProfilesJsonFilePath := path.Join(dash0ConfigDirPath, "profiles.json")
+			dummyProfilesJson := `{"profiles":[{"name":"dev","configuration":{"apiUrl":"https://api.us-west-2.aws.dash0.com","authToken":"auth_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","otlpUrl":"https://ingress.us-west-2.aws.dash0.com"}},{"name":"test","configuration":{"apiUrl":"https://api.us-west-2.aws.dash0.com","authToken":"auth_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","otlpUrl":"https://ingress.us-west-2.gcp.dash0.com"}}]}`
+			profilesJsonCreateErr := os.WriteFile(dash0ProfilesJsonFilePath, []byte(dummyProfilesJson), 0777)
+			if profilesJsonCreateErr != nil {
+				t.Errorf("Error creating profiles.json %s", profilesJsonCreateErr.Error())
+			}
+			return true
+		}
+	} else {
+		t.Log("Config Directory already exists, skipping creation")
+		return false
+	}
+}
+
+func removeTemporaryConfigDir(t *testing.T) {
+	homeDir, homeDirErr := os.UserHomeDir()
+	if homeDirErr != nil {
+		t.Error("Unable to find user home directory")
+	}
+	dash0ConfigDirPath := path.Join(homeDir, ".dash0")
+	os.RemoveAll(dash0ConfigDirPath)
+}
 
 func TestDash0Provider_Metadata(t *testing.T) {
 	p := &dash0Provider{version: "1.0.0"}
@@ -258,6 +309,129 @@ func TestDash0Provider_Configure_MissingBoth(t *testing.T) {
 
 	assert.True(t, resp.Diagnostics.HasError())
 	assert.Len(t, resp.Diagnostics.Errors(), 2)
+}
+
+func TestDash0Provider_Configure_MissingURL_With_Profiles(t *testing.T) {
+	// Ensure no environment variables are set
+	t.Setenv("DASH0_URL", "")
+	t.Setenv("DASH0_AUTH_TOKEN", "")
+
+	tempDirCreated := createTemporaryDash0CliConfig(t)
+
+	p := &dash0Provider{}
+	// Create config with only auth_token
+	config := tfsdk.Config{
+		Raw: tftypes.NewValue(tftypes.Object{
+			AttributeTypes: map[string]tftypes.Type{
+				"url":        tftypes.String,
+				"auth_token": tftypes.String,
+				"profile":    tftypes.String,
+			},
+		}, map[string]tftypes.Value{
+			"url":        tftypes.NewValue(tftypes.String, nil),
+			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
+			"profile":    tftypes.NewValue(tftypes.String, nil),
+		}),
+		Schema: providerSchema(),
+	}
+
+	req := provider.ConfigureRequest{
+		Config: config,
+	}
+	resp := &provider.ConfigureResponse{}
+
+	p.Configure(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError())
+	t.Log(resp.Diagnostics.Errors())
+	assert.NotNil(t, resp.ResourceData)
+	assert.NotNil(t, resp.DataSourceData)
+
+	if tempDirCreated {
+		removeTemporaryConfigDir(t)
+	}
+}
+
+func TestDash0Provider_Configure_MissingAuthToken_With_Profiles(t *testing.T) {
+	// Ensure no environment variables are set
+	t.Setenv("DASH0_URL", "")
+	t.Setenv("DASH0_AUTH_TOKEN", "")
+
+	tempDirCreated := createTemporaryDash0CliConfig(t)
+
+	p := &dash0Provider{}
+
+	// Create config with only url
+	config := tfsdk.Config{
+		Raw: tftypes.NewValue(tftypes.Object{
+			AttributeTypes: map[string]tftypes.Type{
+				"url":        tftypes.String,
+				"auth_token": tftypes.String,
+				"profile":    tftypes.String,
+			},
+		}, map[string]tftypes.Value{
+			"url":        tftypes.NewValue(tftypes.String, "https://api.example.com"),
+			"auth_token": tftypes.NewValue(tftypes.String, nil),
+			"profile":    tftypes.NewValue(tftypes.String, nil),
+		}),
+		Schema: providerSchema(),
+	}
+
+	req := provider.ConfigureRequest{
+		Config: config,
+	}
+	resp := &provider.ConfigureResponse{}
+
+	p.Configure(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError())
+	assert.NotNil(t, resp.ResourceData)
+	assert.NotNil(t, resp.DataSourceData)
+
+	if tempDirCreated {
+		removeTemporaryConfigDir(t)
+	}
+}
+
+func TestDash0Provider_Configure_MissingBoth_With_Profiles(t *testing.T) {
+	// Ensure no environment variables are set
+	t.Setenv("DASH0_URL", "")
+	t.Setenv("DASH0_AUTH_TOKEN", "")
+
+	tempDirCreated := createTemporaryDash0CliConfig(t)
+
+	p := &dash0Provider{}
+
+	// Create empty config
+	config := tfsdk.Config{
+		Raw: tftypes.NewValue(tftypes.Object{
+			AttributeTypes: map[string]tftypes.Type{
+				"url":        tftypes.String,
+				"auth_token": tftypes.String,
+				"profile":    tftypes.String,
+			},
+		}, map[string]tftypes.Value{
+			"url":        tftypes.NewValue(tftypes.String, nil),
+			"auth_token": tftypes.NewValue(tftypes.String, nil),
+			"profile":    tftypes.NewValue(tftypes.String, nil),
+		}),
+		Schema: providerSchema(),
+	}
+
+	req := provider.ConfigureRequest{
+		Config: config,
+	}
+	resp := &provider.ConfigureResponse{}
+
+	p.Configure(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError())
+	assert.NotNil(t, resp.ResourceData)
+	assert.NotNil(t, resp.DataSourceData)
+
+	if tempDirCreated {
+		removeTemporaryConfigDir(t)
+	}
 }
 
 func TestDash0Provider_DataSources(t *testing.T) {
