@@ -434,6 +434,92 @@ func TestDash0Provider_Configure_MissingBoth_With_Profiles(t *testing.T) {
 	}
 }
 
+// Using an profile name which is not the activeProfileName in the provider config
+// our provider should still load the url parameter from the dummy config files
+func TestDash0Provider_Configure_MissingURL_With_Profiles_ExistingProfileName(t *testing.T) {
+	// Ensure no environment variables are set
+	t.Setenv("DASH0_URL", "")
+	t.Setenv("DASH0_AUTH_TOKEN", "")
+
+	tempDirCreated := createTemporaryDash0CliConfig(t)
+
+	p := &dash0Provider{}
+	// Create config with only auth_token
+	config := tfsdk.Config{
+		Raw: tftypes.NewValue(tftypes.Object{
+			AttributeTypes: map[string]tftypes.Type{
+				"url":        tftypes.String,
+				"auth_token": tftypes.String,
+				"profile":    tftypes.String,
+			},
+		}, map[string]tftypes.Value{
+			"url":        tftypes.NewValue(tftypes.String, nil),
+			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
+			// This profile is not the active profile
+			"profile": tftypes.NewValue(tftypes.String, "dev"),
+		}),
+		Schema: providerSchema(),
+	}
+
+	req := provider.ConfigureRequest{
+		Config: config,
+	}
+	resp := &provider.ConfigureResponse{}
+
+	p.Configure(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError())
+	assert.NotNil(t, resp.ResourceData)
+	assert.NotNil(t, resp.DataSourceData)
+
+	if tempDirCreated {
+		removeTemporaryConfigDir(t)
+	}
+}
+
+// Using an incorrect profile name in the provider config our provider should
+// throw an exception with `Missing Dash0 URL`
+func TestDash0Provider_Configure_MissingURL_With_Profiles_NonExistantProfileName(t *testing.T) {
+	// Ensure no environment variables are set
+	t.Setenv("DASH0_URL", "")
+	t.Setenv("DASH0_AUTH_TOKEN", "")
+
+	tempDirCreated := createTemporaryDash0CliConfig(t)
+
+	p := &dash0Provider{}
+	// Create config with only auth_token
+	config := tfsdk.Config{
+		Raw: tftypes.NewValue(tftypes.Object{
+			AttributeTypes: map[string]tftypes.Type{
+				"url":        tftypes.String,
+				"auth_token": tftypes.String,
+				"profile":    tftypes.String,
+			},
+		}, map[string]tftypes.Value{
+			"url":        tftypes.NewValue(tftypes.String, nil),
+			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
+			// This profile does not exists in dummy files
+			"profile": tftypes.NewValue(tftypes.String, "amazing"),
+		}),
+		Schema: providerSchema(),
+	}
+
+	req := provider.ConfigureRequest{
+		Config: config,
+	}
+	resp := &provider.ConfigureResponse{}
+
+	p.Configure(context.Background(), req, resp)
+
+	assert.True(t, resp.Diagnostics.HasError())
+	assert.Len(t, resp.Diagnostics.Errors(), 1)
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Dash0 URL")
+
+	if tempDirCreated {
+		removeTemporaryConfigDir(t)
+	}
+}
+
 func TestDash0Provider_DataSources(t *testing.T) {
 	p := &dash0Provider{}
 	dataSources := p.DataSources(context.Background())
