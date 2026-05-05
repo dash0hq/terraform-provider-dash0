@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -108,6 +109,74 @@ func unableToCreateDash0ApiClientErrorMessage(err error) string {
 		" Error: %s", err.Error())
 }
 
+func loadActiveProfileFile(homeDir string) (string, error) {
+	dash0ActiveProfileFilePath := fmt.Sprintf(
+		"%s/.dash0/activeProfile",
+		homeDir,
+	)
+	_, dash0ActiveProfileFilePathExistsErr := os.Stat(dash0ActiveProfileFilePath)
+	if dash0ActiveProfileFilePathExistsErr != nil {
+		// error stating activeProfileFilePath
+		return "", errors.New(unableToCreateDash0ApiClientErrorMessage(
+			dash0ActiveProfileFilePathExistsErr,
+		))
+
+	} else {
+		activeProfileFileContent,
+			activeProfileFileContentErr := os.ReadFile(dash0ActiveProfileFilePath)
+		if activeProfileFileContentErr != nil {
+			// error reading activeProfileFilePath
+			return "", errors.New(unableToCreateDash0ApiClientErrorMessage(dash0ActiveProfileFilePathExistsErr))
+		}
+		profile := string(activeProfileFileContent)
+		return profile, nil
+	}
+}
+
+func loadUrlAndTokenFromProfiles(homeDir string, profile string) (configModel, error) {
+	url := ""
+	authToken := ""
+
+	dash0ProfilesFilePath := fmt.Sprintf("%s/.dash0/profiles.json", homeDir)
+	_, dash0ProfilesFileExistsErr := os.Stat(dash0ProfilesFilePath)
+	if dash0ProfilesFileExistsErr != nil {
+		return configModel{}, errors.New(unableToCreateDash0ApiClientErrorMessage(dash0ProfilesFileExistsErr))
+	} else {
+		dash0ProfilesFileContent,
+			dash0ProfilesFileContentReadErr := os.ReadFile(dash0ProfilesFilePath)
+		if dash0ProfilesFileContentReadErr != nil {
+			return configModel{}, errors.New(unableToCreateDash0ApiClientErrorMessage(dash0ProfilesFileExistsErr))
+		}
+		var profilesConfigFile profilesConfigFile
+		profileJsonUnmarshalErr := json.Unmarshal(dash0ProfilesFileContent, &profilesConfigFile)
+		if profileJsonUnmarshalErr != nil {
+			return configModel{}, errors.New(unableToCreateDash0ApiClientErrorMessage(profileJsonUnmarshalErr))
+		} else {
+			profileFound := false
+			var listProfiles []string
+			for _, profileData := range profilesConfigFile.Profiles {
+				listProfiles = append(listProfiles, profileData.Name)
+				if profileData.Name == profile {
+					url = profileData.Configuration.ApiUrl
+					authToken = profileData.Configuration.AuthToken
+					profileFound = true
+					break
+				}
+			}
+			if !profileFound {
+				profileNotFoundError := fmt.Errorf(
+					"Unable to find %s profile in %s, found profiles %+v",
+					profile,
+					dash0ProfilesFilePath,
+					listProfiles,
+				)
+				return configModel{}, errors.New(unableToCreateDash0ApiClientErrorMessage(profileNotFoundError))
+			}
+		}
+	}
+	return configModel{url, authToken, ""}, nil
+}
+
 // Configure prepares a Dash0 API client for data sources and resources.
 func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	// Read provider config that may be set in the provider block
@@ -150,89 +219,30 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 		} else {
 			// Try to load values from dash0 CLI config files
 			if profile == "" {
-				dash0ActiveProfileFilePath := fmt.Sprintf(
-					"%s/.dash0/activeProfile",
-					homeDir,
-				)
-				_, dash0ActiveProfileFilePathExistsErr := os.Stat(dash0ActiveProfileFilePath)
-				if dash0ActiveProfileFilePathExistsErr != nil {
-					// error stating activeProfileFilePath
+				var loadActiveProfileErr error
+				profile, loadActiveProfileErr = loadActiveProfileFile(homeDir)
+				if loadActiveProfileErr != nil {
 					resp.Diagnostics.AddError(
 						"Unable to authenticate to Dash0 APIs",
 						unableToCreateDash0ApiClientErrorMessage(
-							dash0ActiveProfileFilePathExistsErr,
+							loadActiveProfileErr,
 						),
 					)
-				} else {
-					activeProfileFileContent,
-						activeProfileFileContentErr := os.ReadFile(dash0ActiveProfileFilePath)
-					if activeProfileFileContentErr != nil {
-						// error reading activeProfileFilePath
-						resp.Diagnostics.AddError(
-							"Unable to authenticate to Dash0 APIs",
-							unableToCreateDash0ApiClientErrorMessage(dash0ActiveProfileFilePathExistsErr),
-						)
-					}
-					profile = string(activeProfileFileContent)
 				}
 			}
 
 			if profile != "" {
-				dash0ProfilesFilePath := fmt.Sprintf("%s/.dash0/profiles.json", homeDir)
-				_, dash0ProfilesFileExistsErr := os.Stat(dash0ProfilesFilePath)
-				if dash0ProfilesFileExistsErr != nil {
+				configModel, configModelErr := loadUrlAndTokenFromProfiles(homeDir, profile)
+				if configModelErr != nil {
 					resp.Diagnostics.AddError(
 						"Unable to authenticate to Dash0 APIs",
-						unableToCreateDash0ApiClientErrorMessage(dash0ProfilesFileExistsErr),
+						unableToCreateDash0ApiClientErrorMessage(
+							configModelErr,
+						),
 					)
 				} else {
-					dash0ProfilesFileContent,
-						dash0ProfilesFileContentReadErr := os.ReadFile(dash0ProfilesFilePath)
-					if dash0ProfilesFileContentReadErr != nil {
-						resp.Diagnostics.AddError(
-							"Unable to authenticate to Dash0 APIs",
-							unableToCreateDash0ApiClientErrorMessage(dash0ProfilesFileExistsErr),
-						)
-					}
-					var profilesConfigFile profilesConfigFile
-					profileJsonUnmarshalErr := json.Unmarshal(dash0ProfilesFileContent, &profilesConfigFile)
-					if profileJsonUnmarshalErr != nil {
-						resp.Diagnostics.AddError(
-							"Unable to authenticate to Dash0 APIs",
-							unableToCreateDash0ApiClientErrorMessage(profileJsonUnmarshalErr),
-						)
-					} else {
-						profileFound := false
-						var listProfiles []string
-						for _, profileData := range profilesConfigFile.Profiles {
-							listProfiles = append(listProfiles, profileData.Name)
-							if profileData.Name == profile {
-								// We have found the profile data
-								// load the values in the appropriate variables if the values of them
-								// are still empty
-								if url == "" {
-									url = profileData.Configuration.ApiUrl
-								}
-								if authToken == "" {
-									authToken = profileData.Configuration.AuthToken
-								}
-								profileFound = true
-								break
-							}
-						}
-						if !profileFound {
-							profileNotFoundError := fmt.Errorf(
-								"Unable to find %s profile in %s, found profiles %+v",
-								profile,
-								dash0ProfilesFilePath,
-								listProfiles,
-							)
-							resp.Diagnostics.AddError(
-								"Unable to authenticate to Dash0 APIs",
-								unableToCreateDash0ApiClientErrorMessage(profileNotFoundError),
-							)
-						}
-					}
+					url = configModel.ApiUrl
+					authToken = configModel.AuthToken
 				}
 			}
 		}
