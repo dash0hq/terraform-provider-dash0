@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
+	dash0Profiles "github.com/dash0hq/dash0-api-client-go/profiles"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
 
@@ -41,21 +42,6 @@ type providerConfigModel struct {
 	URL       types.String `tfsdk:"url"`
 	AuthToken types.String `tfsdk:"auth_token"`
 	Profile   types.String `tfsdk:"profile"`
-}
-
-type configModel struct {
-	ApiUrl    string `json:"apiUrl"`
-	AuthToken string `json:"authToken"`
-	OtlpUrl   string `json:"otlpUrl"`
-}
-
-type profileModel struct {
-	Name          string      `json:"name"`
-	Configuration configModel `json:"configuration"`
-}
-
-type profilesConfigFile struct {
-	Profiles []profileModel `json:"profiles"`
 }
 
 // Metadata returns the provider type name.
@@ -117,24 +103,24 @@ func loadActiveProfileFile(homeDir string) (string, error) {
 	return profile, nil
 }
 
-func loadUrlAndTokenFromProfiles(homeDir string, profile string) (configModel, error) {
+func loadUrlAndTokenFromProfiles(homeDir string, profile string) (dash0Profiles.Configuration, error) {
 	url := ""
 	authToken := ""
 
 	dash0ProfilesFilePath := fmt.Sprintf("%s/.dash0/profiles.json", homeDir)
 	_, dash0ProfilesFileExistsErr := os.Stat(dash0ProfilesFilePath)
 	if dash0ProfilesFileExistsErr != nil {
-		return configModel{}, dash0ProfilesFileExistsErr
+		return dash0Profiles.Configuration{}, dash0ProfilesFileExistsErr
 	} else {
 		dash0ProfilesFileContent,
 			dash0ProfilesFileContentReadErr := os.ReadFile(dash0ProfilesFilePath)
 		if dash0ProfilesFileContentReadErr != nil {
-			return configModel{}, dash0ProfilesFileExistsErr
+			return dash0Profiles.Configuration{}, dash0ProfilesFileExistsErr
 		}
-		var profilesConfigFile profilesConfigFile
+		var profilesConfigFile dash0Profiles.ProfilesFile
 		profileJsonUnmarshalErr := json.Unmarshal(dash0ProfilesFileContent, &profilesConfigFile)
 		if profileJsonUnmarshalErr != nil {
-			return configModel{}, profileJsonUnmarshalErr
+			return dash0Profiles.Configuration{}, profileJsonUnmarshalErr
 		} else {
 			profileFound := false
 			var listProfiles []string
@@ -154,11 +140,11 @@ func loadUrlAndTokenFromProfiles(homeDir string, profile string) (configModel, e
 					dash0ProfilesFilePath,
 					listProfiles,
 				)
-				return configModel{}, profileNotFoundError
+				return dash0Profiles.Configuration{}, profileNotFoundError
 			}
 		}
 	}
-	return configModel{url, authToken, ""}, nil
+	return dash0Profiles.Configuration{ApiUrl: url, AuthToken: authToken, OtlpUrl: "", Dataset: ""}, nil
 }
 
 // Configure prepares a Dash0 API client for data sources and resources.
@@ -214,39 +200,49 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 				if configModelErr != nil {
 					exceptionHandled = configModelErr
 				} else {
-					url = configModel.ApiUrl
-					authToken = configModel.AuthToken
+					if url == "" &&
+						configModel.ApiUrl != "" &&
+						len(strings.TrimSpace(configModel.ApiUrl)) > 0 {
+						url = configModel.ApiUrl
+					}
+					if authToken == "" &&
+						configModel.AuthToken != "" &&
+						len(strings.TrimSpace(configModel.AuthToken)) > 0 {
+						authToken = configModel.AuthToken
+					}
 				}
 			}
 		}
 	}
 
+	handledExceptionMessage := ""
+	if exceptionHandled != nil {
+		handledExceptionMessage = fmt.Sprint("Exception: ", exceptionHandled.Error())
+	}
 	// Validate
 	if url == "" {
 		resp.Diagnostics.AddError(
 			"Missing Dash0 URL",
-			"The provider cannot create the Dash0 API client because no Dash0 URL was provided. "+
-				"Set the `url` attribute in the provider block or set the DASH0_URL environment variable."+
-				" If not found in env variables or provider attributes, the provider will try to load value"+
-				" using `profile` defined in the provider attributes. Provider will load the missing value"+
-				" from configured dash0 CLI profile having the same name."+
-				" If `profile` is also not defined then the provider will try to load it using dash0 CLI's"+
-				" activeProfile defined at ~/.dash0/activeProfile.\n"+
-				exceptionHandled.Error(),
+			fmt.Sprint("The provider cannot create the Dash0 API client because no Dash0 URL was"+
+				" provided. Set the `url` attribute in the provider block or set the"+
+				" DASH0_URL environment variable. If still not found, the provider will"+
+				" try to load value using `profile` defined in the provider attributes."+
+				" Provider will load the missing value from configured dash0 CLI profile"+
+				" having the same name, which if not defined dash0 CLIs activeProfile will"+
+				" be used.\n", handledExceptionMessage),
 		)
 	}
 
 	if authToken == "" {
 		resp.Diagnostics.AddError(
 			"Missing Dash0 Auth Token",
-			"The provider cannot create the Dash0 API client because no Dash0 auth token was provided. "+
-				"Set the `auth_token` attribute in the provider block or set the DASH0_AUTH_TOKEN environment variable.\n"+
-				" If not found in env variables or provider attributes, the provider will try to load value"+
-				" using `profile` defined in the provider attributes. Provider will load the missing value"+
-				" from configured dash0 CLI profile having the same name."+
-				" If `profile` is also not defined then the provider will try to load it using dash0 CLI's"+
-				" activeProfile defined at ~/.dash0/activeProfile.\n"+
-				exceptionHandled.Error(),
+			fmt.Sprint("The provider cannot create the Dash0 API client because no Dash0 URL was"+
+				" provided. Set the `url` attribute in the provider block or set the"+
+				" DASH0_URL environment variable. If still not found, the provider will"+
+				" try to load value using `profile` defined in the provider attributes."+
+				" Provider will load the missing value from configured dash0 CLI profile"+
+				" having the same name, which if not defined dash0 CLIs activeProfile will"+
+				" be used.\n", handledExceptionMessage),
 		)
 	}
 
