@@ -3,8 +3,10 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -83,16 +85,16 @@ func (p *dash0Provider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 	resp.Schema = providerSchema()
 }
 
-func loadActiveProfileFile(homeDir string) (string, error) {
-	activeProfileFilePath := fmt.Sprintf(
-		"%s/.dash0/activeProfile",
-		homeDir,
-	)
-	_, activeProfileFilePathExistsErr := os.Stat(activeProfileFilePath)
-	if activeProfileFilePathExistsErr != nil {
-		// error stating activeProfileFilePath
-		return "", activeProfileFilePathExistsErr
+// load activeProfile name from `$DASH0_CONFIG_DIR` or return a non-nil error
+func loadActiveProfileFile(dash0ConfigDir string) (string, error) {
+	activeProfileFilePath := path.Join(dash0ConfigDir, "activeProfile")
+
+	_, activeProfileFileExistsErr := os.Stat(activeProfileFilePath)
+	if activeProfileFileExistsErr != nil {
+		// error possibly the file does not exists
+		return "", activeProfileFileExistsErr
 	}
+
 	activeProfileFileContent,
 		activeProfileFileContentErr := os.ReadFile(activeProfileFilePath)
 	if activeProfileFileContentErr != nil {
@@ -103,48 +105,47 @@ func loadActiveProfileFile(homeDir string) (string, error) {
 	return profile, nil
 }
 
-func loadUrlAndTokenFromProfiles(homeDir string, profile string) (dash0Profiles.Configuration, error) {
+// load configuration from `$DASH0_CONFIG_DIR/profiles.json` or return a non-nil error
+func loadUrlAndTokenFromProfiles(dash0ConfigDir string, profile string) (dash0Profiles.Configuration, error) {
 	url := ""
 	authToken := ""
 
-	dash0ProfilesFilePath := fmt.Sprintf("%s/.dash0/profiles.json", homeDir)
+	dash0ProfilesFilePath := fmt.Sprintf("%s/profiles.json", dash0ConfigDir)
 	_, dash0ProfilesFileExistsErr := os.Stat(dash0ProfilesFilePath)
 	if dash0ProfilesFileExistsErr != nil {
 		return dash0Profiles.Configuration{}, dash0ProfilesFileExistsErr
-	} else {
-		dash0ProfilesFileContent,
-			dash0ProfilesFileContentReadErr := os.ReadFile(dash0ProfilesFilePath)
-		if dash0ProfilesFileContentReadErr != nil {
-			return dash0Profiles.Configuration{}, dash0ProfilesFileExistsErr
-		}
-		var profilesConfigFile dash0Profiles.ProfilesFile
-		profileJsonUnmarshalErr := json.Unmarshal(dash0ProfilesFileContent, &profilesConfigFile)
-		if profileJsonUnmarshalErr != nil {
-			return dash0Profiles.Configuration{}, profileJsonUnmarshalErr
-		} else {
-			profileFound := false
-			var listProfiles []string
-			for _, profileData := range profilesConfigFile.Profiles {
-				listProfiles = append(listProfiles, profileData.Name)
-				if profileData.Name == profile {
-					url = profileData.Configuration.ApiUrl
-					authToken = profileData.Configuration.AuthToken
-					profileFound = true
-					break
-				}
-			}
-			if !profileFound {
-				profileNotFoundError := fmt.Errorf(
-					"Unable to find %s profile in %s, found profiles %+v",
-					profile,
-					dash0ProfilesFilePath,
-					listProfiles,
-				)
-				return dash0Profiles.Configuration{}, profileNotFoundError
-			}
+	}
+
+	dash0ProfilesFileContent,
+		dash0ProfilesFileContentReadErr := os.ReadFile(dash0ProfilesFilePath)
+	if dash0ProfilesFileContentReadErr != nil {
+		return dash0Profiles.Configuration{}, dash0ProfilesFileContentReadErr
+	}
+
+	var profilesConfigFile dash0Profiles.ProfilesFile
+	profileJsonUnmarshalErr := json.Unmarshal(dash0ProfilesFileContent, &profilesConfigFile)
+	if profileJsonUnmarshalErr != nil {
+		return dash0Profiles.Configuration{}, profileJsonUnmarshalErr
+	}
+
+	var listProfiles []string
+	for _, profileData := range profilesConfigFile.Profiles {
+		listProfiles = append(listProfiles, profileData.Name)
+		if profileData.Name == profile {
+			url = profileData.Configuration.ApiUrl
+			authToken = profileData.Configuration.AuthToken
+			return dash0Profiles.Configuration{ApiUrl: url, AuthToken: authToken, OtlpUrl: "", Dataset: ""}, nil
 		}
 	}
-	return dash0Profiles.Configuration{ApiUrl: url, AuthToken: authToken, OtlpUrl: "", Dataset: ""}, nil
+
+	profileNotFoundError := fmt.Errorf(
+		"Unable to find %s profile in %s, found profiles %+v",
+		profile,
+		dash0ProfilesFilePath,
+		listProfiles,
+	)
+	return dash0Profiles.Configuration{}, profileNotFoundError
+
 }
 
 // Configure prepares a Dash0 API client for data sources and resources.
@@ -160,6 +161,9 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 	// Start with environment variables
 	url := os.Getenv("DASH0_URL")
 	authToken := os.Getenv("DASH0_AUTH_TOKEN")
+	// If this variable is not defined then we will get an empty string
+	// as response and we consider `$HOME/.dash0` as config directory
+	dash0ConfigDir, isDash0ConfigDirDefined := os.LookupEnv("DASH0_CONFIG_DIR")
 
 	// only if environment variables are not set, use config values
 	if url == "" && !cfg.URL.IsNull() && !cfg.URL.IsUnknown() {
@@ -180,23 +184,28 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 	if url == "" || authToken == "" {
 		// Inorder to load dash0Config dir we need user home dir
 		// load that using go std libs
-		homeDir, homeDirErr := os.UserHomeDir()
-		if homeDirErr != nil {
-			// Unable to locate home direct, we will not be able to build an api client
-			exceptionHandled = homeDirErr
+		if !isDash0ConfigDirDefined {
+			homeDir, homeDirErr := os.UserHomeDir()
+			if homeDirErr != nil {
+				// Unable to locate home direct, we will not be able to build an api client
+				exceptionHandled = errors.New("DASH0_CONFIG_DIR not provided and unable to locate, Home Directory")
+			} else {
+				dash0ConfigDir = path.Join(homeDir, ".dash0")
+			}
+		}
 
-		} else {
+		if dash0ConfigDir != "" {
 			// Try to load values from dash0 CLI config files
 			if profile == "" {
 				var loadActiveProfileErr error
-				profile, loadActiveProfileErr = loadActiveProfileFile(homeDir)
+				profile, loadActiveProfileErr = loadActiveProfileFile(dash0ConfigDir)
 				if loadActiveProfileErr != nil {
 					exceptionHandled = loadActiveProfileErr
 				}
 			}
 
 			if profile != "" {
-				configModel, configModelErr := loadUrlAndTokenFromProfiles(homeDir, profile)
+				configModel, configModelErr := loadUrlAndTokenFromProfiles(dash0ConfigDir, profile)
 				if configModelErr != nil {
 					exceptionHandled = configModelErr
 				} else {
@@ -236,13 +245,13 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 	if authToken == "" {
 		resp.Diagnostics.AddError(
 			"Missing Dash0 Auth Token",
-			fmt.Sprint("The provider cannot create the Dash0 API client because no Dash0 URL was"+
-				" provided. Set the `url` attribute in the provider block or set the"+
-				" DASH0_URL environment variable. If still not found, the provider will"+
-				" try to load value using `profile` defined in the provider attributes."+
-				" Provider will load the missing value from configured dash0 CLI profile"+
-				" having the same name, which if not defined dash0 CLIs activeProfile will"+
-				" be used.\n", handledExceptionMessage),
+			fmt.Sprint("The provider cannot create the Dash0 API client because no Dash0"+
+				" Auth Token was provided. Set the `auth_token` attribute in the provider"+
+				" block or set the DASH0_AUTH_TOKEN environment variable."+
+				" If not defined, the provider will try to load value using `profile`"+
+				" defined in the provider attributes. Provider will load the missing value"+
+				" from configured dash0 CLI profile having the same name, which if not"+
+				" defined dash0 CLI's activeProfile will be used. ", handledExceptionMessage),
 		)
 	}
 
