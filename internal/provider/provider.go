@@ -220,6 +220,9 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 						authToken = configModel.AuthToken
 					}
 				}
+			} else {
+				// if `profile` value loaded from `activeProfile` is still empty
+				exceptionHandled = errors.New("Unable to resolve `profile` name from dash0 CLI Files")
 			}
 		}
 	}
