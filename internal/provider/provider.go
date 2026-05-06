@@ -56,7 +56,7 @@ func providerSchema() schema.Schema {
 		Attributes: map[string]schema.Attribute{
 			"profile": schema.StringAttribute{
 				Optional:  true,
-				Sensitive: true,
+				Sensitive: false,
 				Description: "If the values of both url & auth_token are found either on the env variables or in the provider configuration value of [profile] has no effect on working of the provider." +
 					" The value of [profile] variable only comes into action when either url or auth_token (i.e. [user/auth_token]) are not found." +
 					" In such the case the provider client is created with the following logic -\n" +
