@@ -17,33 +17,43 @@ import (
 // Only creates a temporary dash0 Config Directory for tests
 // You can safely run it on your local machine if the directory exists, it will
 // not overwrite
-func createTemporaryDash0CliConfig(t *testing.T) string {
-	createdTempDir := t.TempDir()
+func createTemporaryDash0CliConfig(t *testing.T, sourceActiveProfileFileName string, sourceProfilesJsonFileName string) string {
+	tempConfigDir := t.TempDir()
 
-	dash0ConfigDirPath := path.Join(createdTempDir, ".dash0")
-	t.Logf("config dir: %s", dash0ConfigDirPath)
+	tempDash0ConfigDirPath := path.Join(tempConfigDir, ".dash0")
+	t.Logf("config dir: %s", tempDash0ConfigDirPath)
 
 	// dash0Config file does not exists
-	configDirCreationErr := os.MkdirAll(dash0ConfigDirPath, 0777)
-	if configDirCreationErr != nil {
+	tempConfigDirCreationErr := os.MkdirAll(tempDash0ConfigDirPath, 0777)
+	if tempConfigDirCreationErr != nil {
 		t.Error("Unable to create temporary config dir")
 	}
 
-	dash0ActiveProfileFilePath := path.Join(dash0ConfigDirPath, "activeProfile")
-	dummyActiveProfileName := "dev"
-	activeProfileCreateErr := os.WriteFile(dash0ActiveProfileFilePath, []byte(dummyActiveProfileName), 0777)
+	dash0ActiveProfileFilePath := path.Join(tempDash0ConfigDirPath, "activeProfile")
+	sourceActiveProfileFilePath := path.Join("provider_test_res", sourceActiveProfileFileName)
 
-	if activeProfileCreateErr != nil {
-		t.Errorf("Error creating activeProfile file %s", activeProfileCreateErr.Error())
+	if sourceActiveProfileContent, sourceActiveProfileContentErr := os.ReadFile(sourceActiveProfileFilePath); sourceActiveProfileContentErr != nil {
+		t.Errorf("Unable to read source activeProfile file named: %s from which temporary dash0 config dir will be created", sourceActiveProfileFilePath)
+	} else {
+		activeProfileCreateErr := os.WriteFile(dash0ActiveProfileFilePath, sourceActiveProfileContent, 0777)
+		if activeProfileCreateErr != nil {
+			t.Errorf("Error creating activeProfile file %s in test temp config dir", activeProfileCreateErr.Error())
+		}
 	}
 
-	dash0ProfilesJsonFilePath := path.Join(dash0ConfigDirPath, "profiles.json")
-	dummyProfilesJson := `{"profiles":[{"name":"dev","configuration":{"apiUrl":"https://api.us-west-2.aws.dash0.com","authToken":"auth_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","otlpUrl":"https://ingress.us-west-2.aws.dash0.com"}},{"name":"test","configuration":{"apiUrl":"https://api.us-west-2.aws.dash0.com","authToken":"auth_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","otlpUrl":"https://ingress.us-west-2.gcp.dash0.com"}}]}`
-	profilesJsonCreateErr := os.WriteFile(dash0ProfilesJsonFilePath, []byte(dummyProfilesJson), 0777)
-	if profilesJsonCreateErr != nil {
-		t.Errorf("Error creating profiles.json %s", profilesJsonCreateErr.Error())
+	dash0ProfilesJsonFilePath := path.Join(tempDash0ConfigDirPath, "profiles.json")
+	sourceProfilesJsonFilePath := path.Join("provider_test_res", sourceProfilesJsonFileName)
+
+	if sourceProfilesJsonFileContent, sourceProfilesJsonFileContentErr := os.ReadFile(sourceProfilesJsonFilePath); sourceProfilesJsonFileContentErr != nil {
+		t.Errorf("Unable to read source profilesJson file named: %s from which temporary dash0 config dir will be created", sourceProfilesJsonFilePath)
+	} else {
+		dash0ProfilesJsonCreateErr := os.WriteFile(dash0ProfilesJsonFilePath, sourceProfilesJsonFileContent, 0777)
+		if dash0ProfilesJsonCreateErr != nil {
+			t.Errorf("Error creating profiles.json file %s in test temp config dir", dash0ProfilesJsonCreateErr.Error())
+		}
 	}
-	return dash0ConfigDirPath
+
+	return tempDash0ConfigDirPath
 }
 
 func TestDash0Provider_Metadata(t *testing.T) {
@@ -295,13 +305,13 @@ func TestDash0Provider_Configure_MissingBoth(t *testing.T) {
 }
 
 func TestDash0Provider_Configure_MissingURL_With_Profiles(t *testing.T) {
-	tempConfigDir := createTemporaryDash0CliConfig(t)
+	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profiles.json")
 
 	// Ensure no environment variables are set
 	t.Setenv("DASH0_URL", "")
 	t.Setenv("DASH0_AUTH_TOKEN", "")
 	// Setup a custom Dash0 Config Dir Path
-	t.Setenv("DASH0_CONFIG_DIR", tempConfigDir)
+	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
 
 	p := &dash0Provider{}
 	// Create config with only auth_token
@@ -335,13 +345,13 @@ func TestDash0Provider_Configure_MissingURL_With_Profiles(t *testing.T) {
 
 func TestDash0Provider_Configure_MissingAuthToken_With_Profiles(t *testing.T) {
 	// setup Temporary Config Dir
-	tempConfigDir := createTemporaryDash0CliConfig(t)
+	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profiles.json")
 
 	// Ensure no environment variables are set
 	t.Setenv("DASH0_URL", "")
 	t.Setenv("DASH0_AUTH_TOKEN", "")
 	// Setup a custom Dash0 Config Dir Path
-	t.Setenv("DASH0_CONFIG_DIR", tempConfigDir)
+	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
 
 	p := &dash0Provider{}
 
@@ -374,13 +384,13 @@ func TestDash0Provider_Configure_MissingAuthToken_With_Profiles(t *testing.T) {
 }
 
 func TestDash0Provider_Configure_MissingBoth_With_Profiles(t *testing.T) {
-	tempConfigDir := createTemporaryDash0CliConfig(t)
+	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profiles.json")
 
 	// Ensure no environment variables are set
 	t.Setenv("DASH0_URL", "")
 	t.Setenv("DASH0_AUTH_TOKEN", "")
 	// Setup a custom Dash0 Config Dir Path
-	t.Setenv("DASH0_CONFIG_DIR", tempConfigDir)
+	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
 
 	p := &dash0Provider{}
 
@@ -415,7 +425,7 @@ func TestDash0Provider_Configure_MissingBoth_With_Profiles(t *testing.T) {
 // Using an profile name which is not the activeProfileName in the provider config
 // our provider should still load the url parameter from the dummy config files
 func TestDash0Provider_Configure_MissingURL_With_Profiles_ExistingProfileName(t *testing.T) {
-	tempDirPath := createTemporaryDash0CliConfig(t)
+	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profiles.json")
 
 	// Ensure no environment variables are set
 	t.Setenv("DASH0_URL", "")
@@ -436,7 +446,7 @@ func TestDash0Provider_Configure_MissingURL_With_Profiles_ExistingProfileName(t 
 			"url":        tftypes.NewValue(tftypes.String, nil),
 			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
 			// This profile is not the active profile
-			"profile": tftypes.NewValue(tftypes.String, "dev"),
+			"profile": tftypes.NewValue(tftypes.String, "test1"),
 		}),
 		Schema: providerSchema(),
 	}
@@ -457,13 +467,13 @@ func TestDash0Provider_Configure_MissingURL_With_Profiles_ExistingProfileName(t 
 // throw an exception with `Missing Dash0 URL`
 func TestDash0Provider_Configure_MissingURL_With_Profiles_NonExistantProfileName(t *testing.T) {
 	// create a temporary config directory
-	tempConfigDir := createTemporaryDash0CliConfig(t)
+	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profiles.json")
 
 	// Ensure no environment variables are set
 	t.Setenv("DASH0_URL", "")
 	t.Setenv("DASH0_AUTH_TOKEN", "")
 	// use the temporary config dir as Config dir
-	t.Setenv("DASH0_CONFIG_DIR", tempConfigDir)
+	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
 
 	p := &dash0Provider{}
 	// Create config with only auth_token
@@ -478,7 +488,7 @@ func TestDash0Provider_Configure_MissingURL_With_Profiles_NonExistantProfileName
 			"url":        tftypes.NewValue(tftypes.String, nil),
 			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
 			// This profile does not exists in dummy files
-			"profile": tftypes.NewValue(tftypes.String, "amazing"),
+			"profile": tftypes.NewValue(tftypes.String, "unknown"),
 		}),
 		Schema: providerSchema(),
 	}

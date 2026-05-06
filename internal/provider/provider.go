@@ -101,7 +101,7 @@ func loadActiveProfileFile(dash0ConfigDir string) (string, error) {
 		// error reading activeProfileFilePath
 		return "", activeProfileFileContentErr
 	}
-	profile := string(activeProfileFileContent)
+	profile := strings.TrimSpace(string(activeProfileFileContent))
 	return profile, nil
 }
 
