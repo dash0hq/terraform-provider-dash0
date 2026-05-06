@@ -98,25 +98,23 @@ func (p *dash0Provider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 }
 
 func loadActiveProfileFile(homeDir string) (string, error) {
-	dash0ActiveProfileFilePath := fmt.Sprintf(
+	activeProfileFilePath := fmt.Sprintf(
 		"%s/.dash0/activeProfile",
 		homeDir,
 	)
-	_, dash0ActiveProfileFilePathExistsErr := os.Stat(dash0ActiveProfileFilePath)
-	if dash0ActiveProfileFilePathExistsErr != nil {
+	_, activeProfileFilePathExistsErr := os.Stat(activeProfileFilePath)
+	if activeProfileFilePathExistsErr != nil {
 		// error stating activeProfileFilePath
-		return "", dash0ActiveProfileFilePathExistsErr
-
-	} else {
-		activeProfileFileContent,
-			activeProfileFileContentErr := os.ReadFile(dash0ActiveProfileFilePath)
-		if activeProfileFileContentErr != nil {
-			// error reading activeProfileFilePath
-			return "", dash0ActiveProfileFilePathExistsErr
-		}
-		profile := string(activeProfileFileContent)
-		return profile, nil
+		return "", activeProfileFilePathExistsErr
 	}
+	activeProfileFileContent,
+		activeProfileFileContentErr := os.ReadFile(activeProfileFilePath)
+	if activeProfileFileContentErr != nil {
+		// error reading activeProfileFilePath
+		return "", activeProfileFileContentErr
+	}
+	profile := string(activeProfileFileContent)
+	return profile, nil
 }
 
 func loadUrlAndTokenFromProfiles(homeDir string, profile string) (configModel, error) {
