@@ -237,11 +237,10 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 			"Missing Dash0 URL",
 			fmt.Sprint("The provider cannot create the Dash0 API client because no Dash0 URL was"+
 				" provided. Set the `url` attribute in the provider block or set the"+
-				" DASH0_URL environment variable. If still not found, the provider will"+
-				" try to load value using `profile` defined in the provider attributes."+
-				" Provider will load the missing value from configured dash0 CLI profile"+
-				" having the same name, which if not defined dash0 CLIs activeProfile will"+
-				" be used.\n", handledExceptionMessage),
+				" DASH0_URL environment variable. You can even configure a dash0 CLI"+
+				" profile and provider will use the currently configured `activeProfile`"+
+				" automatically. Unless a specific `profile` name is defined in the"+
+				" provider block. ", handledExceptionMessage),
 		)
 	}
 
@@ -251,10 +250,9 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 			fmt.Sprint("The provider cannot create the Dash0 API client because no Dash0"+
 				" Auth Token was provided. Set the `auth_token` attribute in the provider"+
 				" block or set the DASH0_AUTH_TOKEN environment variable."+
-				" If not defined, the provider will try to load value using `profile`"+
-				" defined in the provider attributes. Provider will load the missing value"+
-				" from configured dash0 CLI profile having the same name, which if not"+
-				" defined dash0 CLI's activeProfile will be used. ", handledExceptionMessage),
+				" You can even configure a dash0 CLI profile and provider will use the"+
+				" currently configured `activeProfile` automatically. Unless a specific"+
+				" `profile` name is defined in the provider block. ", handledExceptionMessage),
 		)
 	}
 
