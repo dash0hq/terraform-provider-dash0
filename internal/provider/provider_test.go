@@ -29,7 +29,7 @@ func createTemporaryDash0CliConfig(t *testing.T, sourceActiveProfileFileName str
 	}
 
 	copyFiles := func(sourceFile string, targetFile string) {
-		if targetFile == "" {
+		if sourceFile == "" {
 			// if source file name is empty then do not do any operations
 			return
 		}
@@ -45,8 +45,8 @@ func createTemporaryDash0CliConfig(t *testing.T, sourceActiveProfileFileName str
 		}
 	}
 
-	copyFiles("activeProfile", sourceActiveProfileFileName)
-	copyFiles("profiles.json", sourceProfilesJsonFileName)
+	copyFiles(sourceActiveProfileFileName, "activeProfile")
+	copyFiles(sourceProfilesJsonFileName, "profiles.json")
 
 	return tempDash0ConfigDirPath
 }
@@ -342,7 +342,6 @@ func TestDash0Provider_Configure_MissingURL_With_Profiles(t *testing.T) {
 	p.Configure(context.Background(), req, resp)
 
 	assert.False(t, resp.Diagnostics.HasError())
-	t.Log(resp.Diagnostics.Errors())
 	assert.NotNil(t, resp.ResourceData)
 	assert.NotNil(t, resp.DataSourceData)
 }
@@ -553,6 +552,87 @@ func TestDash0Provider_Configure_MissingURL_With_Profiles_NonExistantProfilesJso
 	assert.True(t, resp.Diagnostics.HasError())
 	assert.Len(t, resp.Diagnostics.Errors(), 1)
 	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Dash0 URL")
+}
+
+// This tests configuration of a provider with missing URL but now dash0 CLI
+// profiles.json is present with an invalid schema, i.e. json.UnMarshal would fail
+func TestDash0Provider_Configure_MissingURL_With_Profile_IncorrectProfileSchema(t *testing.T) {
+	// Ensure no environment variables are set
+	// create a temporary config directory with no profiles.json file
+	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profilesIncorrectSchema.json")
+
+	t.Setenv("DASH0_URL", "")
+	t.Setenv("DASH0_AUTH_TOKEN", "")
+
+	// Set DASH0_CONFIG_DIR
+	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
+
+	p := &dash0Provider{}
+	// Create config with only auth_token
+	config := tfsdk.Config{
+		Raw: tftypes.NewValue(tftypes.Object{
+			AttributeTypes: map[string]tftypes.Type{
+				"url":        tftypes.String,
+				"auth_token": tftypes.String,
+				"profile":    tftypes.String,
+			},
+		}, map[string]tftypes.Value{
+			"url":        tftypes.NewValue(tftypes.String, nil),
+			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
+			"profile":    tftypes.NewValue(tftypes.String, "test1"),
+		}),
+		Schema: providerSchema(),
+	}
+
+	req := provider.ConfigureRequest{
+		Config: config,
+	}
+	resp := &provider.ConfigureResponse{}
+
+	p.Configure(context.Background(), req, resp)
+
+	assert.True(t, resp.Diagnostics.HasError())
+	assert.Len(t, resp.Diagnostics.Errors(), 1)
+	t.Log(resp.Diagnostics.Errors())
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Dash0 URL")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "url")
+}
+
+// This tests configuration of a provider with missing URL but now dash0 CLI
+// profiles are not present but the `profile` attribute was described in provider
+func TestDash0Provider_Configure_MissingURL_Without_Profile_ProfileNamePresent(t *testing.T) {
+	// Ensure no environment variables are set
+	t.Setenv("DASH0_URL", "")
+	t.Setenv("DASH0_AUTH_TOKEN", "")
+
+	p := &dash0Provider{}
+	// Create config with only auth_token
+	config := tfsdk.Config{
+		Raw: tftypes.NewValue(tftypes.Object{
+			AttributeTypes: map[string]tftypes.Type{
+				"url":        tftypes.String,
+				"auth_token": tftypes.String,
+				"profile":    tftypes.String,
+			},
+		}, map[string]tftypes.Value{
+			"url":        tftypes.NewValue(tftypes.String, nil),
+			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
+			"profile":    tftypes.NewValue(tftypes.String, "test1"),
+		}),
+		Schema: providerSchema(),
+	}
+
+	req := provider.ConfigureRequest{
+		Config: config,
+	}
+	resp := &provider.ConfigureResponse{}
+
+	p.Configure(context.Background(), req, resp)
+
+	assert.True(t, resp.Diagnostics.HasError())
+	assert.Len(t, resp.Diagnostics.Errors(), 1)
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Dash0 URL")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "url")
 }
 
 func TestDash0Provider_DataSources(t *testing.T) {

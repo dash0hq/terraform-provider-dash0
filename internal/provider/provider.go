@@ -212,12 +212,12 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 					if url == "" &&
 						configModel.ApiUrl != "" &&
 						len(strings.TrimSpace(configModel.ApiUrl)) > 0 {
-						url = configModel.ApiUrl
+						url = strings.TrimSpace(configModel.ApiUrl)
 					}
 					if authToken == "" &&
 						configModel.AuthToken != "" &&
 						len(strings.TrimSpace(configModel.AuthToken)) > 0 {
-						authToken = configModel.AuthToken
+						authToken = strings.TrimSpace(configModel.AuthToken)
 					}
 				}
 			} else {
