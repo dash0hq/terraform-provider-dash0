@@ -1,0 +1,10 @@
+{
+  "profiles": [
+    {
+      "name": "test1",
+      "configuration": {
+        "incorrect": "I do whatever I want"
+      }
+    }
+  ]
+}
