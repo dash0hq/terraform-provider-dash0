@@ -28,14 +28,31 @@ export DASH0_AUTH_TOKEN="auth_xxxx"
 
 Alternatively, you can configure authentication directly in the provider block:
 
-```terraform
+```hcl
 provider "dash0" {
   url        = "https://api.us-west-2.aws.dash0.com"
   auth_token = "auth_xxxx"
 }
 ```
-
 **Note:** Environment variables (`DASH0_URL` and `DASH0_AUTH_TOKEN`) will override provider configuration attributes if both are set.
+
+### Option 3: Using [Dash0 CLI](https://github.com/dash0hq/dash0-cli) configured profiles
+
+If Dash0 CLI is installed and configured already with the credentials for it 
+to be able to connect to Dash0 APIs, the provider will automatically pick up 
+current `activeProfile` credentials from it. You can also specify a specific
+profile from which you want the provider to pick up credentials from by 
+specifying `profile` attribute like below - 
+
+```hcl
+provider "dash0" {
+  profile = "test"
+}
+
+```
+
+**Note:** Environment variables (`DASH0_URL` and `DASH0_AUTH_TOKEN`) will 
+override provider configuration which overrides CLI configurations.
 
 ## Examples
 
