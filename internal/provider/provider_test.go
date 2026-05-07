@@ -29,29 +29,21 @@ func createTemporaryDash0CliConfig(t *testing.T, sourceActiveProfileFileName str
 		t.Error("Unable to create temporary config dir")
 	}
 
-	dash0ActiveProfileFilePath := path.Join(tempDash0ConfigDirPath, "activeProfile")
-	sourceActiveProfileFilePath := path.Join("provider_test_res", sourceActiveProfileFileName)
+	copyFiles := func(sourceFile string, targetFile string) {
+		targetFilePath := path.Join(tempDash0ConfigDirPath, targetFile)
+		sourceFilePath := path.Join("provider_test_res", sourceFile)
 
-	if sourceActiveProfileContent, sourceActiveProfileContentErr := os.ReadFile(sourceActiveProfileFilePath); sourceActiveProfileContentErr != nil {
-		t.Errorf("Unable to read source activeProfile file named: %s from which temporary dash0 config dir will be created", sourceActiveProfileFilePath)
-	} else {
-		activeProfileCreateErr := os.WriteFile(dash0ActiveProfileFilePath, sourceActiveProfileContent, 0777)
-		if activeProfileCreateErr != nil {
-			t.Errorf("Error creating activeProfile file %s in test temp config dir", activeProfileCreateErr.Error())
+		if sourceFileContent, sourceFileContentErr := os.ReadFile(sourceFilePath); sourceFileContentErr != nil {
+			t.Errorf("Unable to read: %s to create: %s in temporary dash0 config dir", sourceFilePath, targetFile)
+		} else {
+			if targetProfileWriteErr := os.WriteFile(targetFilePath, sourceFileContent, 0777); targetProfileWriteErr != nil {
+				t.Errorf("Error creating %s, Exception: %s", targetFile, targetProfileWriteErr.Error())
+			}
 		}
 	}
 
-	dash0ProfilesJsonFilePath := path.Join(tempDash0ConfigDirPath, "profiles.json")
-	sourceProfilesJsonFilePath := path.Join("provider_test_res", sourceProfilesJsonFileName)
-
-	if sourceProfilesJsonFileContent, sourceProfilesJsonFileContentErr := os.ReadFile(sourceProfilesJsonFilePath); sourceProfilesJsonFileContentErr != nil {
-		t.Errorf("Unable to read source profilesJson file named: %s from which temporary dash0 config dir will be created", sourceProfilesJsonFilePath)
-	} else {
-		dash0ProfilesJsonCreateErr := os.WriteFile(dash0ProfilesJsonFilePath, sourceProfilesJsonFileContent, 0777)
-		if dash0ProfilesJsonCreateErr != nil {
-			t.Errorf("Error creating profiles.json file %s in test temp config dir", dash0ProfilesJsonCreateErr.Error())
-		}
-	}
+	copyFiles("activeProfile", sourceActiveProfileFileName)
+	copyFiles("profiles.json", sourceProfilesJsonFileName)
 
 	return tempDash0ConfigDirPath
 }
