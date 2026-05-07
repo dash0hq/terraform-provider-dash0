@@ -17,9 +17,20 @@ issues:
 # These lines will be padded with 2 spaces and then inserted directly into the document.
 # Use pipe (|) for multiline entries.
 subtext: |
-  Adds support for using the configured/pre-existing dash0 CLI configurations
-  on a machine where the provider is being initialised in case if no credentials
-  were provided or when the provider was specifically configured to do so.
+  Adds support for authentication to dash0 using CLI configuration files.
+  Introduces a new optional provider attribute called `profile`.
+
+  To build an API Client Provider will load credentials in the following
+  precendence
+  - Try to Load DASH0_URL and DASH0_AUTH_TOKEN from environment variables.
+  - If not found will try to load values from attributes configured i.e. `url`
+    or `auth_token` attributes.
+  - If still not found, will read the `profile` attribute and try to find a
+    dash0 CLI profile with the same name and load the missing `url` or
+    `auth_token` from it.
+  - If an empty provider block was defined the provider will check if a dash0
+    CLI configuration directory exists and an `activeProfile` is defined if it is
+    it will load the missing values of `url` or `auth_token` from it.
 
 # If your change doesn't affect end users or the exported elements of any package,
 # you should instead start your pull request title with "chore" or use the "Skip Changelog" label.
@@ -27,4 +38,4 @@ subtext: |
 # e.g. '[user]' or '[user, api]'
 # Include 'user' if the change is relevant to end users.
 # Default: '[user]'
-change_logs: []
+change_logs: [user]
