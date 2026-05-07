@@ -15,21 +15,24 @@ import (
 )
 
 // Only creates a temporary dash0 Config Directory for tests
-// You can safely run it on your local machine if the directory exists, it will
-// not overwrite
+// This directory is cleaned after automatically and you can specify what file
+// from provider_test_rs directory do you want to be copied into the temporary
+// dash0 config directory to do the tests, it requires the names of
 func createTemporaryDash0CliConfig(t *testing.T, sourceActiveProfileFileName string, sourceProfilesJsonFileName string) string {
 	tempConfigDir := t.TempDir()
 
 	tempDash0ConfigDirPath := path.Join(tempConfigDir, ".dash0")
-	t.Logf("config dir: %s", tempDash0ConfigDirPath)
 
-	// dash0Config file does not exists
 	tempConfigDirCreationErr := os.MkdirAll(tempDash0ConfigDirPath, 0777)
 	if tempConfigDirCreationErr != nil {
 		t.Error("Unable to create temporary config dir")
 	}
 
 	copyFiles := func(sourceFile string, targetFile string) {
+		if targetFile == "" {
+			// if source file name is empty then do not do any operations
+			return
+		}
 		targetFilePath := path.Join(tempDash0ConfigDirPath, targetFile)
 		sourceFilePath := path.Join("provider_test_res", sourceFile)
 
@@ -84,6 +87,7 @@ func TestDash0Provider_Schema(t *testing.T) {
 	assert.Contains(t, profileAttr.Description, "profile")
 }
 
+// This tests configuration of provider using only env variables
 func TestDash0Provider_Configure_WithEnvironmentVariables(t *testing.T) {
 	// Set environment variables
 	t.Setenv("DASH0_URL", "https://api.example.com")
@@ -119,6 +123,7 @@ func TestDash0Provider_Configure_WithEnvironmentVariables(t *testing.T) {
 	assert.NotNil(t, resp.DataSourceData)
 }
 
+// This tests configuration of provider using only provider attributes
 func TestDash0Provider_Configure_WithProviderAttributes(t *testing.T) {
 	// Ensure no environment variables are set
 	t.Setenv("DASH0_URL", "")
@@ -154,6 +159,8 @@ func TestDash0Provider_Configure_WithProviderAttributes(t *testing.T) {
 	assert.NotNil(t, resp.DataSourceData)
 }
 
+// This tests configuration of provider using env variables as well as
+// profile attributes.
 func TestDash0Provider_Configure_EnvironmentVariablesPrecedence(t *testing.T) {
 	// Set environment variables - these should take precedence
 	t.Setenv("DASH0_URL", "https://api.env.com")
@@ -190,6 +197,7 @@ func TestDash0Provider_Configure_EnvironmentVariablesPrecedence(t *testing.T) {
 	assert.NotNil(t, resp.DataSourceData)
 }
 
+// This tests configuration of a provider with missing URL field
 func TestDash0Provider_Configure_MissingURL(t *testing.T) {
 	// Ensure no environment variables are set
 	t.Setenv("DASH0_URL", "")
@@ -226,6 +234,7 @@ func TestDash0Provider_Configure_MissingURL(t *testing.T) {
 	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "url")
 }
 
+// This tests configuration of a provider with missing AuthToken
 func TestDash0Provider_Configure_MissingAuthToken(t *testing.T) {
 	// Ensure no environment variables are set
 	t.Setenv("DASH0_URL", "")
@@ -262,6 +271,7 @@ func TestDash0Provider_Configure_MissingAuthToken(t *testing.T) {
 	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "auth_token")
 }
 
+// This tests configuration of a provider with missing both fields
 func TestDash0Provider_Configure_MissingBoth(t *testing.T) {
 	// Ensure no environment variables are set
 	t.Setenv("DASH0_URL", "")
@@ -296,6 +306,8 @@ func TestDash0Provider_Configure_MissingBoth(t *testing.T) {
 	assert.Len(t, resp.Diagnostics.Errors(), 2)
 }
 
+// This tests configuration of a provider with missing URL but now dash0 CLI
+// profiles are present with a custom Dash0_CONFIG_DIR specified
 func TestDash0Provider_Configure_MissingURL_With_Profiles(t *testing.T) {
 	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profiles.json")
 
@@ -335,6 +347,8 @@ func TestDash0Provider_Configure_MissingURL_With_Profiles(t *testing.T) {
 	assert.NotNil(t, resp.DataSourceData)
 }
 
+// This tests configuration of a provider with missing Auth Token but now dash0
+// CLI profiles are present with a custom Dash0_CONFIG_DIR specified
 func TestDash0Provider_Configure_MissingAuthToken_With_Profiles(t *testing.T) {
 	// setup Temporary Config Dir
 	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profiles.json")
@@ -375,6 +389,8 @@ func TestDash0Provider_Configure_MissingAuthToken_With_Profiles(t *testing.T) {
 	assert.NotNil(t, resp.DataSourceData)
 }
 
+// This tests configuration of a provider with missing Both URL and Token but
+// now dash0 CLI profiles are present with a custom Dash0_CONFIG_DIR specified
 func TestDash0Provider_Configure_MissingBoth_With_Profiles(t *testing.T) {
 	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profiles.json")
 
@@ -460,6 +476,48 @@ func TestDash0Provider_Configure_MissingURL_With_Profiles_ExistingProfileName(t 
 func TestDash0Provider_Configure_MissingURL_With_Profiles_NonExistantProfileName(t *testing.T) {
 	// create a temporary config directory
 	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profiles.json")
+
+	// Ensure no environment variables are set
+	t.Setenv("DASH0_URL", "")
+	t.Setenv("DASH0_AUTH_TOKEN", "")
+	// use the temporary config dir as Config dir
+	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
+
+	p := &dash0Provider{}
+	// Create config with only auth_token
+	config := tfsdk.Config{
+		Raw: tftypes.NewValue(tftypes.Object{
+			AttributeTypes: map[string]tftypes.Type{
+				"url":        tftypes.String,
+				"auth_token": tftypes.String,
+				"profile":    tftypes.String,
+			},
+		}, map[string]tftypes.Value{
+			"url":        tftypes.NewValue(tftypes.String, nil),
+			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
+			// This profile does not exists in dummy files
+			"profile": tftypes.NewValue(tftypes.String, "unknown"),
+		}),
+		Schema: providerSchema(),
+	}
+
+	req := provider.ConfigureRequest{
+		Config: config,
+	}
+	resp := &provider.ConfigureResponse{}
+
+	p.Configure(context.Background(), req, resp)
+
+	assert.True(t, resp.Diagnostics.HasError())
+	assert.Len(t, resp.Diagnostics.Errors(), 1)
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Dash0 URL")
+}
+
+// This tests the case wherein a profiles.json is missing from the dash0 CLI config directory
+// in the provider config our provider should throw an exception with `Missing Dash0 URL`
+func TestDash0Provider_Configure_MissingURL_With_Profiles_NonExistantProfilesJson(t *testing.T) {
+	// create a temporary config directory with no profiles.json file
+	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "")
 
 	// Ensure no environment variables are set
 	t.Setenv("DASH0_URL", "")
