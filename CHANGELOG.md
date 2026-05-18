@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.10.3
+
+
+### Enhancements
+
+
+- `provider`: Document presence on the OpenTofu registry and add Terraform/OpenTofu registry badges to the README. (#101)
+
+- `spam_filters`: Support the `v1alpha2` spam filter shape (`spec.context` scalar) in addition to the existing `v1alpha1` shape (`spec.contexts` list). (#105)
+  The provider now dispatches Create/Update against the matching API endpoint based on the
+  `apiVersion` declared in `spam_filter_yaml`, and decodes Read responses into either shape.
+  
+
 ## 1.10.2
 
 
