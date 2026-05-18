@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Roundtrip test for dash0_spam_filter.
+# Roundtrip test for dash0_spam_filter (v1alpha2 shape).
+#
+# v1alpha2 uses a single `spec.context` scalar (one signal type) instead of
+# the v1alpha1 `spec.contexts` list.
 #
 # Steps:
 #   1. Create the resource via Terraform
@@ -15,7 +18,7 @@ source "${SCRIPT_DIR}/common.sh"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-info "=== Roundtrip test: dash0_spam_filter ==="
+info "=== Roundtrip test: dash0_spam_filter (v1alpha2) ==="
 info "Working directory: ${WORK_DIR}"
 info "Dataset: ${DATASET}"
 
@@ -27,24 +30,21 @@ write_provider_tf "$WORK_DIR"
 # ---------------------------------------------------------------------------
 # Step 1: Create spam filter
 # ---------------------------------------------------------------------------
-info "Step 1: Creating spam filter via Terraform..."
+info "Step 1: Creating v1alpha2 spam filter via Terraform..."
 
 cat > "${WORK_DIR}/spam_filter.yaml" <<'YAMLEOF'
-apiVersion: operator.dash0.com/v1alpha1
+apiVersion: v1alpha2
 kind: Dash0SpamFilter
 metadata:
-  name: Drop noisy health checks
+  name: Drop debug logs
   annotations:
     dash0.com/enabled: "true"
 spec:
-  contexts:
-    - log
+  context: log
   filter:
-    - key: "k8s.namespace.name"
-      value:
-        stringValue:
-          operator: "equals"
-          comparisonValue: "kube-system"
+    - key: "severity_text"
+      operator: "is"
+      value: "DEBUG"
 YAMLEOF
 
 cat > "${WORK_DIR}/main.tf" <<'EOF'
@@ -66,7 +66,7 @@ tf_init "$WORK_DIR"
 TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
 
 ORIGIN="$(TF_VAR_dataset="$DATASET" tf_output "$WORK_DIR" origin)"
-info "Created spam filter with origin: ${ORIGIN}"
+info "Created v1alpha2 spam filter with origin: ${ORIGIN}"
 
 # ---------------------------------------------------------------------------
 # Step 2: Verify via dash0 CLI
@@ -77,7 +77,7 @@ CLI_OUTPUT="$(dash0 -X spam-filters get "$ORIGIN" --dataset "$DATASET" -o yaml 2
   || fail "dash0 CLI could not find spam filter ${ORIGIN}"
 echo "$CLI_OUTPUT"
 
-echo "$CLI_OUTPUT" | grep -q "kube-system" \
+echo "$CLI_OUTPUT" | grep -q "DEBUG" \
   || fail "CLI output does not contain expected spam filter content"
 
 info "Step 2b: Verifying YAML equivalence..."
@@ -87,37 +87,32 @@ info "YAML equivalence check PASSED."
 # ---------------------------------------------------------------------------
 # Step 3: Update and re-apply
 # ---------------------------------------------------------------------------
-info "Step 3: Updating spam filter (adding a second filter condition)..."
+info "Step 3: Updating v1alpha2 spam filter (adding a second filter condition)..."
 
 cat > "${WORK_DIR}/spam_filter.yaml" <<'YAMLEOF'
-apiVersion: operator.dash0.com/v1alpha1
+apiVersion: v1alpha2
 kind: Dash0SpamFilter
 metadata:
-  name: Drop noisy health checks (updated)
+  name: Drop debug logs (updated)
   annotations:
     dash0.com/enabled: "true"
 spec:
-  contexts:
-    - log
+  context: log
   filter:
-    - key: "k8s.namespace.name"
-      value:
-        stringValue:
-          operator: "equals"
-          comparisonValue: "kube-system"
-    - key: "k8s.pod.name"
-      value:
-        stringValue:
-          operator: "starts_with"
-          comparisonValue: "health-check-"
+    - key: "severity_text"
+      operator: "is"
+      value: "DEBUG"
+    - key: "service.name"
+      operator: "starts_with"
+      value: "noisy-"
 YAMLEOF
 
 TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
-info "Spam filter updated."
+info "v1alpha2 spam filter updated."
 
 # Verify updated values via CLI
 CLI_OUTPUT="$(dash0 -X spam-filters get "$ORIGIN" --dataset "$DATASET" -o yaml 2>&1)"
-echo "$CLI_OUTPUT" | grep -q "health-check-" \
+echo "$CLI_OUTPUT" | grep -q "noisy-" \
   || fail "CLI output does not reflect the update"
 info "Update verified via CLI."
 
@@ -130,14 +125,14 @@ assert_idempotent "$WORK_DIR"
 # ---------------------------------------------------------------------------
 # Step 5: Destroy
 # ---------------------------------------------------------------------------
-info "Step 5: Destroying spam filter via Terraform..."
+info "Step 5: Destroying v1alpha2 spam filter via Terraform..."
 TF_VAR_dataset="$DATASET" tf_destroy "$WORK_DIR"
-info "Spam filter destroyed."
+info "v1alpha2 spam filter destroyed."
 
 # ---------------------------------------------------------------------------
 # Step 6: Verify deletion via Terraform
 # ---------------------------------------------------------------------------
-info "Step 6: Verifying spam filter is gone..."
+info "Step 6: Verifying v1alpha2 spam filter is gone..."
 assert_deleted_via_tf "$WORK_DIR"
 
-info "=== dash0_spam_filter roundtrip test PASSED ==="
+info "=== dash0_spam_filter (v1alpha2) roundtrip test PASSED ==="

@@ -4,60 +4,96 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	dash0 "github.com/dash0hq/dash0-api-client-go"
 )
 
+// upsertOp identifies whether a create-or-replace call originated from a
+// Create or an Update at the resource layer. It only affects log wording —
+// the underlying HTTP call is a PUT either way.
+type upsertOp int
+
+const (
+	upsertCreate upsertOp = iota
+	upsertUpdate
+)
+
+func (o upsertOp) pastTense() string {
+	switch o {
+	case upsertCreate:
+		return "created"
+	case upsertUpdate:
+		return "updated"
+	default:
+		return "upserted"
+	}
+}
+
 func (c *dash0Client) CreateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error {
-	filter, err := unmarshalSpamFilter(filterJSON)
+	return c.upsertSpamFilter(ctx, origin, filterJSON, dataset, upsertCreate)
+}
+
+func (c *dash0Client) UpdateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error {
+	return c.upsertSpamFilter(ctx, origin, filterJSON, dataset, upsertUpdate)
+}
+
+func (c *dash0Client) upsertSpamFilter(ctx context.Context, origin, filterJSON, dataset string, op upsertOp) error {
+	isV1Alpha2, err := spamFilterIsV1Alpha2(filterJSON)
 	if err != nil {
 		return fmt.Errorf("error parsing spam filter JSON: %w", err)
 	}
 
-	setSpamFilterOrigin(filter, origin)
-	dash0.SetSpamFilterDataset(filter, dataset)
+	if isV1Alpha2 {
+		filter, err := unmarshalSpamFilterV1Alpha2(filterJSON)
+		if err != nil {
+			return fmt.Errorf("error parsing spam filter JSON: %w", err)
+		}
+		setSpamFilterMetadataOrigin(&filter.Metadata, origin)
+		setSpamFilterMetadataDataset(&filter.Metadata, dataset)
 
-	tflog.Debug(ctx, fmt.Sprintf("Creating spam filter with origin: %s", origin))
+		tflog.Debug(ctx, fmt.Sprintf("Upserting v1alpha2 spam filter with origin: %s", origin))
+		if _, err := c.inner.UpdateSpamFilterV1Alpha2(ctx, origin, filter, &dataset); err != nil {
+			return err
+		}
+	} else {
+		filter, err := unmarshalSpamFilter(filterJSON)
+		if err != nil {
+			return fmt.Errorf("error parsing spam filter JSON: %w", err)
+		}
+		setSpamFilterMetadataOrigin(&filter.Metadata, origin)
+		setSpamFilterMetadataDataset(&filter.Metadata, dataset)
 
-	_, err = c.inner.UpdateSpamFilter(ctx, origin, filter, &dataset)
-	if err != nil {
-		return err
+		tflog.Debug(ctx, fmt.Sprintf("Upserting v1alpha1 spam filter with origin: %s", origin))
+		if _, err := c.inner.UpdateSpamFilter(ctx, origin, filter, &dataset); err != nil {
+			return err
+		}
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("Spam filter created with origin: %s", origin))
+	tflog.Debug(ctx, fmt.Sprintf("Spam filter %s with origin: %s", op.pastTense(), origin))
 	return nil
 }
 
 func (c *dash0Client) GetSpamFilter(ctx context.Context, origin string, dataset string) (string, error) {
-	filter, err := c.inner.GetSpamFilter(ctx, origin, &dataset)
+	obj, err := c.inner.GetSpamFilter(ctx, origin, &dataset)
 	if err != nil {
 		return "", err
 	}
 
 	tflog.Debug(ctx, fmt.Sprintf("Spam filter retrieved with origin: %s", origin))
 
-	dash0.StripSpamFilterServerFields(filter)
-	return marshalToJSON(filter)
-}
-
-func (c *dash0Client) UpdateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error {
-	filter, err := unmarshalSpamFilter(filterJSON)
-	if err != nil {
-		return fmt.Errorf("error parsing spam filter JSON: %w", err)
+	switch f := obj.(type) {
+	case *dash0.SpamFilter:
+		stripSpamFilterMetadataServerFields(&f.Metadata)
+		return marshalToJSON(f)
+	case *dash0.SpamFilterV1Alpha2:
+		stripSpamFilterMetadataServerFields(&f.Metadata)
+		return marshalToJSON(f)
+	default:
+		return "", fmt.Errorf("unsupported spam filter type %T", obj)
 	}
-
-	setSpamFilterOrigin(filter, origin)
-	dash0.SetSpamFilterDataset(filter, dataset)
-
-	_, err = c.inner.UpdateSpamFilter(ctx, origin, filter, &dataset)
-	if err != nil {
-		return err
-	}
-
-	tflog.Debug(ctx, fmt.Sprintf("Spam filter updated with origin: %s", origin))
-	return nil
 }
 
 func (c *dash0Client) DeleteSpamFilter(ctx context.Context, origin string, dataset string) error {
@@ -70,7 +106,21 @@ func (c *dash0Client) DeleteSpamFilter(ctx context.Context, origin string, datas
 	return nil
 }
 
-// unmarshalSpamFilter parses a JSON string into a SpamFilter.
+// spamFilterIsV1Alpha2 reports whether the JSON document declares apiVersion
+// v1alpha2. The apiVersion may be either the bare form ("v1alpha2") or the
+// operator-style prefixed form ("operator.dash0.com/v1alpha2"); both are
+// accepted.
+func spamFilterIsV1Alpha2(jsonStr string) (bool, error) {
+	var head struct {
+		ApiVersion string `json:"apiVersion"`
+	}
+	if err := json.Unmarshal([]byte(jsonStr), &head); err != nil {
+		return false, err
+	}
+	return strings.HasSuffix(head.ApiVersion, "v1alpha2"), nil
+}
+
+// unmarshalSpamFilter parses a JSON string into a v1alpha1 SpamFilter.
 func unmarshalSpamFilter(jsonStr string) (*dash0.SpamFilter, error) {
 	var filter dash0.SpamFilter
 	if err := json.Unmarshal([]byte(jsonStr), &filter); err != nil {
@@ -79,10 +129,46 @@ func unmarshalSpamFilter(jsonStr string) (*dash0.SpamFilter, error) {
 	return &filter, nil
 }
 
-// setSpamFilterOrigin sets the origin label on a spam filter.
-func setSpamFilterOrigin(filter *dash0.SpamFilter, origin string) {
-	if filter.Metadata.Labels == nil {
-		filter.Metadata.Labels = &dash0.SpamFilterLabels{}
+// unmarshalSpamFilterV1Alpha2 parses a JSON string into a v1alpha2 SpamFilter.
+func unmarshalSpamFilterV1Alpha2(jsonStr string) (*dash0.SpamFilterV1Alpha2, error) {
+	var filter dash0.SpamFilterV1Alpha2
+	if err := json.Unmarshal([]byte(jsonStr), &filter); err != nil {
+		return nil, err
 	}
-	filter.Metadata.Labels.Dash0Comorigin = &origin
+	return &filter, nil
+}
+
+// setSpamFilterMetadataOrigin sets the dash0.com/origin label on a spam filter's
+// metadata. SpamFilterMetadata is shared between v1alpha1 and v1alpha2.
+func setSpamFilterMetadataOrigin(meta *dash0.SpamFilterMetadata, origin string) {
+	if meta.Labels == nil {
+		meta.Labels = &dash0.SpamFilterLabels{}
+	}
+	meta.Labels.Dash0Comorigin = &origin
+}
+
+// setSpamFilterMetadataDataset sets the dash0.com/dataset label on a spam
+// filter's metadata. SpamFilterMetadata is shared between v1alpha1 and v1alpha2.
+func setSpamFilterMetadataDataset(meta *dash0.SpamFilterMetadata, dataset string) {
+	if meta.Labels == nil {
+		meta.Labels = &dash0.SpamFilterLabels{}
+	}
+	meta.Labels.Dash0Comdataset = &dataset
+}
+
+// stripSpamFilterMetadataServerFields removes server-generated fields from a
+// spam filter's metadata. The SpamFilterMetadata struct is shared between
+// v1alpha1 and v1alpha2, so the same helper covers both shapes — unlike
+// dash0.StripSpamFilterServerFields which is bound to *SpamFilter (v1alpha1).
+func stripSpamFilterMetadataServerFields(meta *dash0.SpamFilterMetadata) {
+	if meta == nil {
+		return
+	}
+	if meta.Annotations != nil {
+		meta.Annotations.Dash0Comenabled = nil
+	}
+	if meta.Labels != nil {
+		meta.Labels.Dash0Comid = nil
+		meta.Labels.Dash0Comsource = nil
+	}
 }
