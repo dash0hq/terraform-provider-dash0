@@ -51,6 +51,10 @@ func (c *dash0Client) upsertSpamFilter(ctx context.Context, origin, filterJSON, 
 		if err != nil {
 			return fmt.Errorf("error parsing spam filter JSON: %w", err)
 		}
+		// Normalize to the bare apiVersion the SDK accepts on the response side
+		// (it rejects operator-style prefixes like "operator.dash0.com/v1alpha2"
+		// during response decoding).
+		filter.ApiVersion = dash0.V1alpha2
 		setSpamFilterMetadataOrigin(&filter.Metadata, origin)
 		setSpamFilterMetadataDataset(&filter.Metadata, dataset)
 
@@ -63,6 +67,9 @@ func (c *dash0Client) upsertSpamFilter(ctx context.Context, origin, filterJSON, 
 		if err != nil {
 			return fmt.Errorf("error parsing spam filter JSON: %w", err)
 		}
+		// See comment in the v1alpha2 branch above.
+		v1alpha1 := dash0.V1alpha1
+		filter.ApiVersion = &v1alpha1
 		setSpamFilterMetadataOrigin(&filter.Metadata, origin)
 		setSpamFilterMetadataDataset(&filter.Metadata, dataset)
 
