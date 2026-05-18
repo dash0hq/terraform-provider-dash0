@@ -78,7 +78,8 @@ else
     test_synthetic_check.sh
     test_view.sh
     test_notification_channel.sh
-    test_spam_filter.sh
+    test_spam_filter_v1alpha1.sh
+    test_spam_filter_v1alpha2.sh
   )
 fi
 
