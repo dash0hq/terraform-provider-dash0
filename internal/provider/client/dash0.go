@@ -12,11 +12,12 @@ type dash0Client struct {
 }
 
 // NewDash0Client creates a new Dash0 API client backed by the shared library.
-func NewDash0Client(url, authToken, version string) (*dash0Client, error) {
+func NewDash0Client(url, authToken, version string, maxRetries int) (*dash0Client, error) {
 	c, err := dash0.NewClient(
 		dash0.WithApiUrl(url),
 		dash0.WithAuthToken(authToken),
 		dash0.WithUserAgent(fmt.Sprintf("Dash0 Terraform Provider/%s", version)),
+		dash0.WithMaxRetries(maxRetries),
 	)
 	if err != nil {
 		return nil, err

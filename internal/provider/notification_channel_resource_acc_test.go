@@ -129,6 +129,7 @@ func testAccCheckNotificationChannelExists(resourceName string) resource.TestChe
 			os.Getenv("DASH0_URL"),
 			os.Getenv("DASH0_AUTH_TOKEN"),
 			"test",
+			3,
 		)
 		if err != nil {
 			return fmt.Errorf("Error creating client: %s", err)
