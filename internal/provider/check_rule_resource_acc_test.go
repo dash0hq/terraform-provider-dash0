@@ -289,6 +289,7 @@ func testAccCheckCheckRuleExists(resourceName string) resource.TestCheckFunc {
 			os.Getenv("DASH0_URL"),
 			os.Getenv("DASH0_AUTH_TOKEN"),
 			"test",
+			3,
 		)
 		if err != nil {
 			return fmt.Errorf("Error creating client: %s", err)
