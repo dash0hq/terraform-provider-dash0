@@ -309,24 +309,8 @@ func TestDash0Provider_Configure_MissingURL_With_Profiles(t *testing.T) {
 	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
 
 	p := &dash0Provider{}
-	// Create config with only auth_token
-	config := tfsdk.Config{
-		Raw: tftypes.NewValue(tftypes.Object{
-			AttributeTypes: map[string]tftypes.Type{
-				"url":        tftypes.String,
-				"auth_token": tftypes.String,
-				"profile":    tftypes.String,
-			},
-		}, map[string]tftypes.Value{
-			"url":        tftypes.NewValue(tftypes.String, nil),
-			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
-			"profile":    tftypes.NewValue(tftypes.String, nil),
-		}),
-		Schema: providerSchema(),
-	}
-
 	req := provider.ConfigureRequest{
-		Config: config,
+		Config: providerTestConfig(nil, strPtr("auth_token_only"), nil, nil),
 	}
 	resp := &provider.ConfigureResponse{}
 
@@ -351,24 +335,8 @@ func TestDash0Provider_Configure_MissingAuthToken_With_Profiles(t *testing.T) {
 
 	p := &dash0Provider{}
 
-	// Create config with only url
-	config := tfsdk.Config{
-		Raw: tftypes.NewValue(tftypes.Object{
-			AttributeTypes: map[string]tftypes.Type{
-				"url":        tftypes.String,
-				"auth_token": tftypes.String,
-				"profile":    tftypes.String,
-			},
-		}, map[string]tftypes.Value{
-			"url":        tftypes.NewValue(tftypes.String, "https://api.example.com"),
-			"auth_token": tftypes.NewValue(tftypes.String, nil),
-			"profile":    tftypes.NewValue(tftypes.String, nil),
-		}),
-		Schema: providerSchema(),
-	}
-
 	req := provider.ConfigureRequest{
-		Config: config,
+		Config: providerTestConfig(strPtr("https://api.example.com"), nil, nil, nil),
 	}
 	resp := &provider.ConfigureResponse{}
 
@@ -392,24 +360,8 @@ func TestDash0Provider_Configure_MissingBoth_With_Profiles(t *testing.T) {
 
 	p := &dash0Provider{}
 
-	// Create empty config
-	config := tfsdk.Config{
-		Raw: tftypes.NewValue(tftypes.Object{
-			AttributeTypes: map[string]tftypes.Type{
-				"url":        tftypes.String,
-				"auth_token": tftypes.String,
-				"profile":    tftypes.String,
-			},
-		}, map[string]tftypes.Value{
-			"url":        tftypes.NewValue(tftypes.String, nil),
-			"auth_token": tftypes.NewValue(tftypes.String, nil),
-			"profile":    tftypes.NewValue(tftypes.String, nil),
-		}),
-		Schema: providerSchema(),
-	}
-
 	req := provider.ConfigureRequest{
-		Config: config,
+		Config: providerTestConfig(nil, nil, nil, nil),
 	}
 	resp := &provider.ConfigureResponse{}
 
@@ -435,24 +387,8 @@ func TestDash0Provider_Configure_MissingBoth_With_Profiles_EmptyValuesInProfile(
 
 	p := &dash0Provider{}
 
-	// Create empty config
-	config := tfsdk.Config{
-		Raw: tftypes.NewValue(tftypes.Object{
-			AttributeTypes: map[string]tftypes.Type{
-				"url":        tftypes.String,
-				"auth_token": tftypes.String,
-				"profile":    tftypes.String,
-			},
-		}, map[string]tftypes.Value{
-			"url":        tftypes.NewValue(tftypes.String, nil),
-			"auth_token": tftypes.NewValue(tftypes.String, nil),
-			"profile":    tftypes.NewValue(tftypes.String, nil),
-		}),
-		Schema: providerSchema(),
-	}
-
 	req := provider.ConfigureRequest{
-		Config: config,
+		Config: providerTestConfig(nil, nil, nil, nil),
 	}
 	resp := &provider.ConfigureResponse{}
 
@@ -479,24 +415,8 @@ func TestDash0Provider_Configure_MissingBoth_With_Profiles_EmptyProfilesJsonFile
 
 	p := &dash0Provider{}
 
-	// Create empty config
-	config := tfsdk.Config{
-		Raw: tftypes.NewValue(tftypes.Object{
-			AttributeTypes: map[string]tftypes.Type{
-				"url":        tftypes.String,
-				"auth_token": tftypes.String,
-				"profile":    tftypes.String,
-			},
-		}, map[string]tftypes.Value{
-			"url":        tftypes.NewValue(tftypes.String, nil),
-			"auth_token": tftypes.NewValue(tftypes.String, nil),
-			"profile":    tftypes.NewValue(tftypes.String, nil),
-		}),
-		Schema: providerSchema(),
-	}
-
 	req := provider.ConfigureRequest{
-		Config: config,
+		Config: providerTestConfig(nil, nil, nil, nil),
 	}
 	resp := &provider.ConfigureResponse{}
 
@@ -504,7 +424,6 @@ func TestDash0Provider_Configure_MissingBoth_With_Profiles_EmptyProfilesJsonFile
 
 	assert.True(t, resp.Diagnostics.HasError())
 	assert.Len(t, resp.Diagnostics.Errors(), 3)
-	t.Log(resp.Diagnostics.Errors())
 	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Unable to load")
 	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), "Missing Dash0 URL")
 	assert.Contains(t, resp.Diagnostics.Errors()[2].Summary(), "Missing Dash0 Auth Token")
@@ -522,25 +441,9 @@ func TestDash0Provider_Configure_MissingURL_With_Profiles_ExistingProfileName(t 
 	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
 
 	p := &dash0Provider{}
-	// Create config with only auth_token
-	config := tfsdk.Config{
-		Raw: tftypes.NewValue(tftypes.Object{
-			AttributeTypes: map[string]tftypes.Type{
-				"url":        tftypes.String,
-				"auth_token": tftypes.String,
-				"profile":    tftypes.String,
-			},
-		}, map[string]tftypes.Value{
-			"url":        tftypes.NewValue(tftypes.String, nil),
-			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
-			// This profile is not the active profile
-			"profile": tftypes.NewValue(tftypes.String, "test1"),
-		}),
-		Schema: providerSchema(),
-	}
 
 	req := provider.ConfigureRequest{
-		Config: config,
+		Config: providerTestConfig(nil, strPtr("auth_token_only"), strPtr("test1"), nil),
 	}
 	resp := &provider.ConfigureResponse{}
 
@@ -564,25 +467,9 @@ func TestDash0Provider_Configure_MissingURL_With_Profiles_NonExistantProfileName
 	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
 
 	p := &dash0Provider{}
-	// Create config with only auth_token
-	config := tfsdk.Config{
-		Raw: tftypes.NewValue(tftypes.Object{
-			AttributeTypes: map[string]tftypes.Type{
-				"url":        tftypes.String,
-				"auth_token": tftypes.String,
-				"profile":    tftypes.String,
-			},
-		}, map[string]tftypes.Value{
-			"url":        tftypes.NewValue(tftypes.String, nil),
-			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
-			// This profile does not exists in dummy files
-			"profile": tftypes.NewValue(tftypes.String, "unknown"),
-		}),
-		Schema: providerSchema(),
-	}
 
 	req := provider.ConfigureRequest{
-		Config: config,
+		Config: providerTestConfig(nil, strPtr("auth_token_only"), strPtr("unknown"), nil),
 	}
 	resp := &provider.ConfigureResponse{}
 
@@ -608,25 +495,9 @@ func TestDash0Provider_Configure_MissingURL_With_Profiles_NonExistantProfileName
 	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
 
 	p := &dash0Provider{}
-	// Create config with only auth_token
-	config := tfsdk.Config{
-		Raw: tftypes.NewValue(tftypes.Object{
-			AttributeTypes: map[string]tftypes.Type{
-				"url":        tftypes.String,
-				"auth_token": tftypes.String,
-				"profile":    tftypes.String,
-			},
-		}, map[string]tftypes.Value{
-			"url":        tftypes.NewValue(tftypes.String, nil),
-			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
-			// This profile does not exists in dummy files
-			"profile": tftypes.NewValue(tftypes.String, "unknown"),
-		}),
-		Schema: providerSchema(),
-	}
 
 	req := provider.ConfigureRequest{
-		Config: config,
+		Config: providerTestConfig(nil, strPtr("auth_token_only"), strPtr("unknown"), nil),
 	}
 	resp := &provider.ConfigureResponse{}
 
@@ -652,24 +523,9 @@ func TestDash0Provider_Configure_MissingURL_With_Profile_EmptyActiveProfileName(
 	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
 
 	p := &dash0Provider{}
-	// Create config with only auth_token
-	config := tfsdk.Config{
-		Raw: tftypes.NewValue(tftypes.Object{
-			AttributeTypes: map[string]tftypes.Type{
-				"url":        tftypes.String,
-				"auth_token": tftypes.String,
-				"profile":    tftypes.String,
-			},
-		}, map[string]tftypes.Value{
-			"url":        tftypes.NewValue(tftypes.String, nil),
-			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
-			"profile":    tftypes.NewValue(tftypes.String, ""),
-		}),
-		Schema: providerSchema(),
-	}
 
 	req := provider.ConfigureRequest{
-		Config: config,
+		Config: providerTestConfig(nil, strPtr("auth_token_only"), strPtr(""), nil),
 	}
 	resp := &provider.ConfigureResponse{}
 
@@ -696,25 +552,9 @@ func TestDash0Provider_Configure_MissingURL_With_Profiles_NonExistantProfilesJso
 	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
 
 	p := &dash0Provider{}
-	// Create config with only auth_token
-	config := tfsdk.Config{
-		Raw: tftypes.NewValue(tftypes.Object{
-			AttributeTypes: map[string]tftypes.Type{
-				"url":        tftypes.String,
-				"auth_token": tftypes.String,
-				"profile":    tftypes.String,
-			},
-		}, map[string]tftypes.Value{
-			"url":        tftypes.NewValue(tftypes.String, nil),
-			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
-			// This profile does not exists in dummy files
-			"profile": tftypes.NewValue(tftypes.String, "unknown"),
-		}),
-		Schema: providerSchema(),
-	}
 
 	req := provider.ConfigureRequest{
-		Config: config,
+		Config: providerTestConfig(nil, strPtr("auth_token_only"), strPtr("unknown"), nil),
 	}
 	resp := &provider.ConfigureResponse{}
 
@@ -741,24 +581,9 @@ func TestDash0Provider_Configure_MissingURL_With_Profile_IncorrectProfileSchema(
 	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
 
 	p := &dash0Provider{}
-	// Create config with only auth_token
-	config := tfsdk.Config{
-		Raw: tftypes.NewValue(tftypes.Object{
-			AttributeTypes: map[string]tftypes.Type{
-				"url":        tftypes.String,
-				"auth_token": tftypes.String,
-				"profile":    tftypes.String,
-			},
-		}, map[string]tftypes.Value{
-			"url":        tftypes.NewValue(tftypes.String, nil),
-			"auth_token": tftypes.NewValue(tftypes.String, "auth_token_only"),
-			"profile":    tftypes.NewValue(tftypes.String, "test1"),
-		}),
-		Schema: providerSchema(),
-	}
 
 	req := provider.ConfigureRequest{
-		Config: config,
+		Config: providerTestConfig(nil, strPtr("auth_token_only"), strPtr("test1"), nil),
 	}
 	resp := &provider.ConfigureResponse{}
 
@@ -781,18 +606,17 @@ func TestDash0Provider_Configure_MissingURL_Without_Dash0CLIConfigs_ProfileNameP
 
 	p := &dash0Provider{}
 
-	req := provider.ConfigureRequest{Config: providerTestConfig(nil, nil, nil, nil)}
+	req := provider.ConfigureRequest{Config: providerTestConfig(nil, nil, strPtr("something"), nil)}
 
 	resp := &provider.ConfigureResponse{}
 
 	p.Configure(context.Background(), req, resp)
 
 	assert.True(t, resp.Diagnostics.HasError())
-	assert.Len(t, resp.Diagnostics.Errors(), 2)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Unable to load credentials from dash0 CLI config dir")
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), configDirNotExistsErrMsg)
+	assert.Len(t, resp.Diagnostics.Errors(), 3)
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Unable to load")
 	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), "Missing Dash0 URL")
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Detail(), "url")
+	assert.Contains(t, resp.Diagnostics.Errors()[2].Summary(), "Missing Dash0 Auth Token")
 }
 
 func TestDash0Provider_Configure_MaxRetries(t *testing.T) {
