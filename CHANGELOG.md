@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.11.0
+
+
+### Enhancements
+
+
+- `provider`: Add `DASH0_MAX_RETRIES` environment variable (#141)
+  Configures the maximum number of retries for failed API requests.
+  Accepted values: 0–5. Default: 3. Behavior before this change: 1 retry.
+  
+
 ## 1.10.3
 
 
