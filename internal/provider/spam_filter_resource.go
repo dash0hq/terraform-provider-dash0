@@ -91,9 +91,10 @@ func (r *SpamFilterResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			},
 			"spam_filter_yaml": schema.StringAttribute{
 				Description: "The spam filter definition in YAML format. " +
-					"The YAML must include a `metadata.name` field and a `spec` with `contexts` (list of signal types: `log`, `span`, `metric`) " +
-					"and `filter` (list of key-value matchers). " +
-					"See [About Spam Filters](https://dash0.com/docs/dash0/data-management/spam-filters) for the available options.",
+					"The YAML must include a `metadata.name` field and a `spec` with a `filter` (list of key-value matchers) " +
+					"and either `contexts` (`v1alpha1`, a list of signal types: `log`, `span`, `datapoint` or `web_event`) or " +
+					"`context` (`v1alpha2`, a single signal type out of `log`, `span`, `datapoint` or `web_event`). The " +
+					"`apiVersion` field determines which shape is expected. ",
 				Required: true,
 				PlanModifiers: []planmodifier.String{
 					customplanmodifier.YAMLSemanticEqual(),

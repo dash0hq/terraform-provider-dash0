@@ -22,6 +22,7 @@ Environment variables take precedence over provider configuration attributes.
 ```sh
 export DASH0_API_URL="https://api.us-west-2.aws.dash0.com"
 export DASH0_AUTH_TOKEN="auth_xxxx"
+export DASH0_MAX_RETRIES=3  # optional, default: 3, max: 5
 ```
 
 > [!WARNING]
@@ -29,17 +30,29 @@ export DASH0_AUTH_TOKEN="auth_xxxx"
 > URL used by provider to create an http client, but it will soon be deprecated
 > and it is advised that you use `DASH0_API_URL` instead of it.
 
+The following environment variables are supported:
+
+| Variable | Required | Description | Default |
+|----------|----------|-------------|---------|
+| `DASH0_URL` | Yes | The base URL of the Dash0 API (e.g. `https://api.us-west-2.aws.dash0.com`). Overrides the `url` provider attribute. | — |
+| `DASH0_AUTH_TOKEN` | Yes | The API auth token for Dash0. Must start with `auth_`. Overrides the `auth_token` provider attribute. | — |
+| `DASH0_CONFIG_DIR` | No | A directory in which dash0 CLI config files are present, can be specified when a non-default dir is used. | `3` |
+| `DASH0_MAX_RETRIES` | No | Maximum number of retries for failed API requests (0–5). Overrides the `max_retries` provider attribute. | `3` |
+
 ### Option 2: Provider Configuration
 
-Alternatively, you can configure authentication directly in the provider block:
+Alternatively, you can configure the provider directly in the provider block:
 
 ```hcl
 provider "dash0" {
-  url        = "https://api.us-west-2.aws.dash0.com"
-  auth_token = "auth_xxxx"
+  url         = "https://api.us-west-2.aws.dash0.com"
+  auth_token  = "auth_xxxx"
+  max_retries = 3  # optional, default: 3, max: 5
 }
 ```
+
 **Note:** Environment variables (`DASH0_API_URL` and `DASH0_AUTH_TOKEN`) will override provider configuration attributes if both are set.
+**Note:** Environment variables take precedence over provider configuration attributes when both are set.
 
 ### Option 3: Using [Dash0 CLI](https://github.com/dash0hq/dash0-cli) configured profiles
 
@@ -56,8 +69,10 @@ provider "dash0" {
 
 ```
 
-**Note:** Environment variables (`DASH0_API_URL` and `DASH0_AUTH_TOKEN`) will 
-override provider configuration which overrides CLI configurations.
+**Note:** Environment variables (`DASH0_API_URL` and `DASH0_AUTH_TOKEN`) will override provider configuration which overrides CLI configurations.
+
+
+
 
 ## Examples
 

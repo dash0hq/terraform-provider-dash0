@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -48,9 +49,10 @@ type dash0Provider struct {
 
 // provider-level config model
 type providerConfigModel struct {
-	URL       types.String `tfsdk:"url"`
-	AuthToken types.String `tfsdk:"auth_token"`
-	Profile   types.String `tfsdk:"profile"`
+	URL        types.String `tfsdk:"url"`
+	AuthToken  types.String `tfsdk:"auth_token"`
+	Profile    types.String `tfsdk:"profile"`
+	MaxRetries types.Int64  `tfsdk:"max_retries"`
 }
 
 // Metadata returns the provider type name.
@@ -79,6 +81,10 @@ func providerSchema() schema.Schema {
 				Optional:    true,
 				Sensitive:   true,
 				Description: "The API auth token for Dash0. Tokens can be created in [Dash0 Settings > Auth Tokens](https://app.dash0.com/settings/auth-tokens). If omitted, the DASH0_AUTH_TOKEN environment variable will be used.",
+			},
+			"max_retries": schema.Int64Attribute{
+				Optional:    true,
+				Description: "Maximum number of retries for failed API requests (0–5). If omitted, the DASH0_MAX_RETRIES environment variable will be used. Defaults to 3.",
 			},
 		},
 	}
@@ -326,6 +332,33 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 		return
 	}
 
+	// Resolve max retries: env var > provider attribute > default (3)
+	maxRetries := 3
+	maxRetriesSource := ""
+	if maxRetriesStr := os.Getenv("DASH0_MAX_RETRIES"); maxRetriesStr != "" {
+		parsed, err := strconv.Atoi(maxRetriesStr)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Invalid DASH0_MAX_RETRIES",
+				"The DASH0_MAX_RETRIES environment variable must be a valid integer: "+err.Error(),
+			)
+			return
+		}
+		maxRetries = parsed
+		maxRetriesSource = "DASH0_MAX_RETRIES environment variable"
+	} else if !cfg.MaxRetries.IsNull() && !cfg.MaxRetries.IsUnknown() {
+		maxRetries = int(cfg.MaxRetries.ValueInt64())
+		maxRetriesSource = "max_retries provider attribute"
+	}
+	if maxRetries < 0 || maxRetries > 5 {
+		detail := fmt.Sprintf("max_retries must be between 0 and 5, got: %d", maxRetries)
+		if maxRetriesSource != "" {
+			detail += " (from " + maxRetriesSource + ")"
+		}
+		resp.Diagnostics.AddError("Invalid max_retries", detail)
+		return
+	}
+
 	ctx = tflog.SetField(ctx, "dash0_url", url)
 	ctx = tflog.SetField(ctx, "dash0_auth_token", authToken)
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "dash0_auth_token")
@@ -333,7 +366,7 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 	tflog.Debug(ctx, "Creating Dash0 client")
 
 	// Create dash0Client configuration for data sources and resources
-	dash0Client, err := client.NewDash0Client(url, authToken, p.version)
+	dash0Client, err := client.NewDash0Client(url, authToken, p.version, maxRetries)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create Dash0 API Client",
