@@ -87,23 +87,7 @@ func providerTestConfig(url, authToken, profile *string, maxRetries *int64) tfsd
 			"profile":     profileVal,
 			"max_retries": maxRetriesVal,
 		}),
-		Schema: schema.Schema{
-			Attributes: map[string]schema.Attribute{
-				"url": schema.StringAttribute{
-					Optional: true,
-				},
-				"auth_token": schema.StringAttribute{
-					Optional:  true,
-					Sensitive: true,
-				},
-				"profile": schema.StringAttribute{
-					Optional: true,
-				},
-				"max_retries": schema.Int64Attribute{
-					Optional: true,
-				},
-			},
-		},
+		Schema: providerSchema(),
 	}
 }
 
@@ -239,7 +223,7 @@ func TestDash0Provider_Configure_MissingURL(t *testing.T) {
 
 	assert.True(t, resp.Diagnostics.HasError())
 	require.Len(t, resp.Diagnostics.Errors(), 1)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Dash0 URL")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), missingDash0URLErrMsg)
 	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "url")
 }
 
@@ -269,7 +253,7 @@ func TestDash0Provider_Configure_MissingAuthToken(t *testing.T) {
 
 	assert.True(t, resp.Diagnostics.HasError())
 	require.Len(t, resp.Diagnostics.Errors(), 1)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Dash0 Auth Token")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), missingDash0AuthTokenErrMsg)
 	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "auth_token")
 }
 
@@ -295,6 +279,8 @@ func TestDash0Provider_Configure_MissingBoth(t *testing.T) {
 
 	assert.True(t, resp.Diagnostics.HasError())
 	assert.Len(t, resp.Diagnostics.Errors(), 2)
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), missingDash0URLErrMsg)
+	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), missingDash0AuthTokenErrMsg)
 }
 
 // This tests configuration of a provider with missing URL but now dash0 CLI
@@ -396,8 +382,8 @@ func TestDash0Provider_Configure_MissingBoth_With_Profiles_EmptyValuesInProfile(
 
 	assert.True(t, resp.Diagnostics.HasError())
 	assert.Len(t, resp.Diagnostics.Errors(), 2)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Dash0 URL")
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), "Missing Dash0 Auth Token")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), missingDash0URLErrMsg)
+	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), missingDash0AuthTokenErrMsg)
 }
 
 // This tests configuration of a provider with missing Both URL and Token but
@@ -424,9 +410,9 @@ func TestDash0Provider_Configure_MissingBoth_With_Profiles_EmptyProfilesJsonFile
 
 	assert.True(t, resp.Diagnostics.HasError())
 	assert.Len(t, resp.Diagnostics.Errors(), 3)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Unable to load")
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), "Missing Dash0 URL")
-	assert.Contains(t, resp.Diagnostics.Errors()[2].Summary(), "Missing Dash0 Auth Token")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), dash0CLIProfilesLoadErrMsg)
+	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), missingDash0URLErrMsg)
+	assert.Contains(t, resp.Diagnostics.Errors()[2].Summary(), missingDash0AuthTokenErrMsg)
 }
 
 // Using an profile name which is not the activeProfileName in the provider config
@@ -477,9 +463,9 @@ func TestDash0Provider_Configure_MissingURL_With_Profiles_NonExistantProfileName
 
 	assert.True(t, resp.Diagnostics.HasError())
 	assert.Len(t, resp.Diagnostics.Errors(), 2)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Unable to load credentials from dash0 CLI config dir")
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), profileNotFoundInJsonErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), "Missing Dash0 URL")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), dash0CLIProfilesLoadErrMsg)
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), profileNotFoundInJsonErrMsgDetail)
+	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), missingDash0URLErrMsg)
 }
 
 // Using an incorrect profile name in the provider config our provider should
@@ -505,9 +491,9 @@ func TestDash0Provider_Configure_MissingURL_With_Profiles_NonExistantProfileName
 
 	assert.True(t, resp.Diagnostics.HasError())
 	assert.Len(t, resp.Diagnostics.Errors(), 2)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Unable to load credentials from dash0 CLI config dir")
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), profileNotFoundInJsonErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), "Missing Dash0 URL")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), dash0CLIProfilesLoadErrMsg)
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), profileNotFoundInJsonErrMsgDetail)
+	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), missingDash0URLErrMsg)
 }
 
 // This tests configuration of a provider with missing URL but now dash0 CLI
@@ -533,9 +519,9 @@ func TestDash0Provider_Configure_MissingURL_With_Profile_EmptyActiveProfileName(
 
 	assert.True(t, resp.Diagnostics.HasError())
 	assert.Len(t, resp.Diagnostics.Errors(), 2)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Unable to load credentials from dash0 CLI config dir")
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), emptyActiveProfileErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), "Missing Dash0 URL")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), dash0CLIProfilesLoadErrMsg)
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), emptyActiveProfileErrMsgDetail)
+	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), missingDash0URLErrMsg)
 	assert.Contains(t, resp.Diagnostics.Errors()[1].Detail(), "url")
 }
 
@@ -562,9 +548,9 @@ func TestDash0Provider_Configure_MissingURL_With_Profiles_NonExistantProfilesJso
 
 	assert.True(t, resp.Diagnostics.HasError())
 	assert.Len(t, resp.Diagnostics.Errors(), 2)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Unable to load credentials from dash0 CLI config dir")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), dash0CLIProfilesLoadErrMsg)
 	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "profiles.json: no such file or directory")
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), "Missing Dash0 URL")
+	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), missingDash0URLErrMsg)
 }
 
 // This tests configuration of a provider with missing URL but now dash0 CLI
@@ -591,7 +577,7 @@ func TestDash0Provider_Configure_MissingURL_With_Profile_IncorrectProfileSchema(
 
 	assert.True(t, resp.Diagnostics.HasError())
 	assert.Len(t, resp.Diagnostics.Errors(), 1)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Dash0 URL")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), missingDash0URLErrMsg)
 	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "url")
 }
 
@@ -614,9 +600,9 @@ func TestDash0Provider_Configure_MissingURL_Without_Dash0CLIConfigs_ProfileNameP
 
 	assert.True(t, resp.Diagnostics.HasError())
 	assert.Len(t, resp.Diagnostics.Errors(), 3)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Unable to load")
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), "Missing Dash0 URL")
-	assert.Contains(t, resp.Diagnostics.Errors()[2].Summary(), "Missing Dash0 Auth Token")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), dash0CLIProfilesLoadErrMsg)
+	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), missingDash0URLErrMsg)
+	assert.Contains(t, resp.Diagnostics.Errors()[2].Summary(), missingDash0AuthTokenErrMsg)
 }
 
 func TestDash0Provider_Configure_MaxRetries(t *testing.T) {

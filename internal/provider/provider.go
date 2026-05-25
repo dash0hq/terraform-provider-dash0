@@ -27,10 +27,16 @@ var (
 )
 
 const (
-	configDirNotExistsErrMsg          string = "dash0 CLI config dir does not exists"
-	emptyActiveProfileErrMsg          string = "activeProfile contains empty string"
-	profileNotFoundInJsonErrMsg       string = "profile does not exists"
-	noDash0CLIConfigDirProvidedErrMsg string = "no dash0 CLI config dir provided, cannot fetch profile credentials"
+	// These should be used in the error titles
+	missingDash0URLErrMsg       string = "Missing Dash0 URL"
+	missingDash0AuthTokenErrMsg string = "Missing Dash0 Auth Token"
+	dash0CLIProfilesLoadErrMsg  string = "Unable to load credentials from dash0 CLI profiles"
+
+	// These should be used in the error detailed descriptions
+	configDirNotExistsErrMsgDetail          string = "dash0 CLI config dir does not exists"
+	emptyActiveProfileErrMsgDetail          string = "activeProfile contains empty string"
+	profileNotFoundInJsonErrMsgDetail       string = "profile not found in profiles.json"
+	noDash0CLIConfigDirProvidedErrMsgDetail string = "no dash0 CLI config dir provided, cannot fetch profile credentials"
 )
 
 // New is a helper function to simplify provider server and testing implementation.
@@ -98,12 +104,10 @@ func (p *dash0Provider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 // Loads DASH0_API_URL if defined, if it is not defined then
 // loads DASH0_URL
 func getDash0APIUrlFromEnv() string {
-	dash0ApiUrl, apiUrlEnvFound := os.LookupEnv("DASH0_API_URL")
-	if apiUrlEnvFound {
+	if dash0ApiUrl, apiUrlEnvFound := os.LookupEnv("DASH0_API_URL"); apiUrlEnvFound {
 		return dash0ApiUrl
 	}
-	dash0url, dash0UrlFound := os.LookupEnv("DASH0_URL")
-	if dash0UrlFound {
+	if dash0url, dash0UrlFound := os.LookupEnv("DASH0_URL"); dash0UrlFound {
 		return dash0url
 	}
 	return ""
@@ -114,25 +118,25 @@ func getDash0APIUrlFromEnv() string {
 // return path if it exists
 // check if $HOME/.dash0 or $USERPROFILE/.dash0 exists or not
 // if it exists return the value or return empty string
-func resolveDash0ConfigDir() string {
-	envDefinedConfigDir, isConfigDirEnvDefined := os.LookupEnv("DASH0_CONFIG_DIR")
-	if !isConfigDirEnvDefined {
-		homeDir, homeDirErr := os.UserHomeDir()
-		if homeDirErr == nil {
-			defaultDash0ConfigDir := filepath.Join(homeDir, ".dash0")
-			_, defaultDash0ConfigDirStatErr := os.Stat(defaultDash0ConfigDir)
-			if defaultDash0ConfigDirStatErr != nil {
-				return ""
-			}
-			return defaultDash0ConfigDir
+func resolveDash0ConfigDir() (string, error) {
+	if envDefinedConfigDir, isConfigDirEnvDefined := os.LookupEnv("DASH0_CONFIG_DIR"); isConfigDirEnvDefined {
+		// verify that the defined dir does exists and is accessible to our process
+		if _, envConfigDirStatErr := os.Stat(envDefinedConfigDir); envConfigDirStatErr != nil {
+			return "", envConfigDirStatErr
 		}
-		return ""
+		return envDefinedConfigDir, nil
 	}
-	_, envDefinedConfigDirStat := os.Stat(envDefinedConfigDir)
-	if envDefinedConfigDirStat != nil {
-		return ""
+	homeDir, homeDirErr := os.UserHomeDir()
+	if homeDirErr != nil {
+		return "", homeDirErr
 	}
-	return envDefinedConfigDir
+	defaultDash0ConfigDir := filepath.Join(homeDir, ".dash0")
+	_, defaultDash0ConfigDirStatErr := os.Stat(defaultDash0ConfigDir)
+	if defaultDash0ConfigDirStatErr != nil {
+		return "", defaultDash0ConfigDirStatErr
+	}
+	return defaultDash0ConfigDir, nil
+
 }
 
 // load activeProfile name from `$DASH0_CONFIG_DIR` or return a non-nil error
@@ -162,7 +166,7 @@ func loadActiveProfileFromFile(dash0ConfigDir string) (string, error) {
 func loadUrlAndTokenFromProfiles(dash0ConfigDir string, profile string) (dash0Profiles.Configuration, error) {
 	// If a config dir is specified, make sure that the path exists
 	if dash0ConfigDir == "" {
-		return dash0Profiles.Configuration{}, fmt.Errorf(noDash0CLIConfigDirProvidedErrMsg)
+		return dash0Profiles.Configuration{}, fmt.Errorf(noDash0CLIConfigDirProvidedErrMsgDetail)
 	}
 
 	// Profile name is not provided in the provider configuration, see if there is an activeProfile
@@ -173,7 +177,7 @@ func loadUrlAndTokenFromProfiles(dash0ConfigDir string, profile string) (dash0Pr
 			return dash0Profiles.Configuration{}, dash0ActiveProfileErr
 		}
 		if len(activeProfile) == 0 {
-			return dash0Profiles.Configuration{}, fmt.Errorf(emptyActiveProfileErrMsg)
+			return dash0Profiles.Configuration{}, fmt.Errorf(emptyActiveProfileErrMsgDetail)
 		}
 		profile = activeProfile
 	}
@@ -183,6 +187,10 @@ func loadUrlAndTokenFromProfiles(dash0ConfigDir string, profile string) (dash0Pr
 	if dash0ProfilesFileExistsErr != nil {
 		return dash0Profiles.Configuration{}, dash0ProfilesFileExistsErr
 	}
+
+	// is necessary that we provide the path which was tried to read/parse, because
+	// our provider accepts an env variable as well as calculate a dash0 CLI
+	// dir if not provided, user should know which file failed to read/parse
 
 	dash0ProfilesFileContent,
 		dash0ProfilesFileContentReadErr := os.ReadFile(dash0ProfilesFilePath)
@@ -206,15 +214,17 @@ func loadUrlAndTokenFromProfiles(dash0ConfigDir string, profile string) (dash0Pr
 		}
 	}
 
+	// Again since the profiles.json file can be loaded from env or default home dir
+	// its necessary to provide path of file which was used to load data
 	return dash0Profiles.Configuration{}, fmt.Errorf(
-		"%s, using: %s, looking for profile: %s ", profileNotFoundInJsonErrMsg, dash0ProfilesFilePath, profile,
+		"%s, using: %s, looking for profile: %s ", profileNotFoundInJsonErrMsgDetail, dash0ProfilesFilePath, profile,
 	)
 }
 
 func resolveAuthInfo(cfg *providerConfigModel) (string, string, error) {
 	// Start with environment variables
 	urlEnv := getDash0APIUrlFromEnv()
-	dash0ConfigDir := resolveDash0ConfigDir()
+	dash0ConfigDir, dash0ConfigDirResolveErr := resolveDash0ConfigDir()
 	authTokenEnv := os.Getenv("DASH0_AUTH_TOKEN")
 
 	if urlEnv != "" && authTokenEnv != "" {
@@ -245,12 +255,12 @@ func resolveAuthInfo(cfg *providerConfigModel) (string, string, error) {
 	// no dash0CLIConfigDir exists, cannot load values from config dir,
 	// return an error if profile was provided, if not then silently skip
 	// the process of getting values from config dir
-	if dash0ConfigDir == "" {
+	if dash0ConfigDirResolveErr != nil {
 		if profileToLoad == "" {
 			return url, authToken, nil
 		}
 		if profileToLoad != "" {
-			return url, authToken, fmt.Errorf(configDirNotExistsErrMsg)
+			return url, authToken, dash0ConfigDirResolveErr
 		}
 	}
 	configModel, configModelErr := loadUrlAndTokenFromProfiles(dash0ConfigDir, profileToLoad)
@@ -289,7 +299,7 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Unable to load credentials from dash0 CLI config dir",
+			dash0CLIProfilesLoadErrMsg,
 			err.Error(),
 		)
 	}
@@ -297,7 +307,7 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 	// Validate
 	if url == "" {
 		resp.Diagnostics.AddError(
-			"Missing Dash0 URL",
+			missingDash0URLErrMsg,
 			"The provider cannot create the Dash0 API client, because no Dash0 URL was"+
 				" provided. Set the `url` attribute in the provider block or set the"+
 				" DASH0_API_URL environment variable. You can even"+
@@ -311,7 +321,7 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	if authToken == "" {
 		resp.Diagnostics.AddError(
-			"Missing Dash0 Auth Token",
+			missingDash0AuthTokenErrMsg,
 			"The provider cannot create the Dash0 API client because no"+
 				"Dash0 Auth Token was provided. Set the `auth_token` attribute in the"+
 				"provider block or set the DASH0_AUTH_TOKEN environment variable. You can"+
