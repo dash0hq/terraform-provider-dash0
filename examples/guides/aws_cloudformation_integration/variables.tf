@@ -22,6 +22,12 @@ variable "resources_instrumentation" {
   default     = "true"
 }
 
+variable "collect_lambda_lifecycle_events" {
+  type        = string
+  description = "Whether to forward AWS Lambda lifecycle events (UpdateFunctionConfiguration, DeleteFunction) to Dash0 via EventBridge. Requires a CloudTrail trail logging management events in the selected regions. Must be \"true\" or \"false\"."
+  default     = "true"
+}
+
 variable "technical_id" {
   type        = string
   description = "The Dash0 organization technical ID. Found in the Dash0 UI under Settings > Organization."
@@ -29,11 +35,11 @@ variable "technical_id" {
 
 variable "regions" {
   type        = list(string)
-  description = "AWS regions in which to enable AWS/Lambda metrics streaming. The list is joined into a comma-separated string for CloudFormation."
+  description = "AWS regions in which to enable AWS/Lambda metrics streaming (and Lambda lifecycle event forwarding when enabled). The list is joined into a comma-separated string for CloudFormation."
   default     = ["eu-west-1"]
 }
 
-variable "dash0_ingress_url" {
+variable "dash0_regional_endpoint" {
   type        = string
-  description = "Regional Firehose ingress endpoint for your Dash0 organization. Find it in the Dash0 UI under Settings > Endpoints > AWS CloudWatch Metrics (for example https://ingress.eu-west-1.aws.dash0.com/firehose/cwmetrics)."
+  description = "Regional Dash0 ingress endpoint base URL for your organization. Find it in the Dash0 UI under Settings > Endpoints > AWS CloudWatch Metrics (for example https://ingress.eu-west-1.aws.dash0.com). Provide only the base URL; the template appends the required paths internally."
 }

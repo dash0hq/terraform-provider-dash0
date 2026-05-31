@@ -16,17 +16,19 @@ resource "aws_cloudformation_stack" "dash0_integration" {
   template_url = "https://public-integrations-production.eu-west-1.aws.dash0.com.s3.eu-west-1.amazonaws.com/dash0-customer-integration-cloudformation-v2.yaml"
 
   parameters = {
-    ApiKey                   = var.api_key
-    Dataset                  = var.dataset
-    ResourcesInstrumentation = var.resources_instrumentation
-    TechnicalId              = var.technical_id
-    Regions                  = join(",", var.regions)
-    Dash0IngressUrl          = var.dash0_ingress_url
+    ApiKey                       = var.api_key
+    Dataset                      = var.dataset
+    ResourcesInstrumentation     = var.resources_instrumentation
+    CollectLambdaLifecycleEvents = var.collect_lambda_lifecycle_events
+    TechnicalId                  = var.technical_id
+    Regions                      = join(",", var.regions)
+    Dash0RegionalEndpoint        = var.dash0_regional_endpoint
   }
 
   # CAPABILITY_NAMED_IAM: the template creates named IAM roles.
   # CAPABILITY_AUTO_EXPAND: the template contains a nested AWS::CloudFormation::StackSet
-  # that deploys the per-region Lambda metrics streaming resources.
+  # that deploys the per-region Dash0 resources (Lambda metrics streaming and, optionally,
+  # Lambda lifecycle event forwarding).
   capabilities = ["CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND"]
 }
 
