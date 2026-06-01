@@ -79,7 +79,7 @@ func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				},
 			},
 			"dataset": schema.StringAttribute{
-				Description: "The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the dashboard belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
+				Description: "The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the dashboard belongs to. Provide the dataset's unique identifier (e.g. \"default\" or \"production\"), not its display name. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),

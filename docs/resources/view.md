@@ -24,7 +24,7 @@ resource "dash0_view" "my_check" {
 
 ### Required
 
-- `dataset` (String) The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the view belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
+- `dataset` (String) The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the view belongs to. Provide the dataset's unique identifier (e.g. "default" or "production"), not its display name. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
 - `view_yaml` (String) The view definition in YAML format, specifying the filters, queries, and display settings for the view. The following `metadata.annotations` are supported: `dash0.com/sharing` (sharing settings) and `dash0.com/folder-path` (folder location). Changes to these annotations trigger a resource update; all other metadata annotations are managed by the server and ignored during drift detection.
 
 ### Read-Only
