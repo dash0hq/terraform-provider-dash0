@@ -39,7 +39,7 @@ EOF
 
 ### Required
 
-- `dataset` (String) The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the recording rule belongs to. Provide the dataset's unique identifier (e.g. "default" or "production"), not its display name. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
+- `dataset` (String) The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the recording rule belongs to. Provide the dataset's identifier, which is immutable, not the 'name'. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
 - `recording_rule_yaml` (String) The recording rule definition in YAML format, following the [Prometheus recording rule specification](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/).
 
 ### Read-Only

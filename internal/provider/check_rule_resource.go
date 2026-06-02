@@ -82,7 +82,7 @@ More information on how Prometheus rules are mapped to Dash0 check rules can be 
 				},
 			},
 			"dataset": schema.StringAttribute{
-				Description: "The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the check rule belongs to. Provide the dataset's unique identifier (e.g. \"default\" or \"production\"), not its display name. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
+				Description: "The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the check rule belongs to. Provide the dataset's identifier, which is immutable, not the 'name'. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
