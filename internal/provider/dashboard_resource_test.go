@@ -39,11 +39,13 @@ func TestDashboardResource_Schema(t *testing.T) {
 	assert.Contains(t, resp.Schema.Attributes, "origin")
 	assert.Contains(t, resp.Schema.Attributes, "dataset")
 	assert.Contains(t, resp.Schema.Attributes, "dashboard_yaml")
+	assert.Contains(t, resp.Schema.Attributes, "url")
 
 	// Check specific attribute properties
 	assert.True(t, resp.Schema.Attributes["origin"].(schema.StringAttribute).Computed)
 	assert.True(t, resp.Schema.Attributes["dataset"].(schema.StringAttribute).Required)
 	assert.True(t, resp.Schema.Attributes["dashboard_yaml"].(schema.StringAttribute).Required)
+	assert.True(t, resp.Schema.Attributes["url"].(schema.StringAttribute).Computed)
 }
 
 func TestDashboardResource_Configure(t *testing.T) {
@@ -82,6 +84,7 @@ func TestDashboardResource_Create(t *testing.T) {
 			"origin":         tftypes.NewValue(tftypes.String, ""),
 			"dataset":        tftypes.NewValue(tftypes.String, testDataset),
 			"dashboard_yaml": tftypes.NewValue(tftypes.String, testYaml),
+			"url":            tftypes.NewValue(tftypes.String, nil),
 		}),
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
@@ -93,6 +96,9 @@ func TestDashboardResource_Create(t *testing.T) {
 				},
 				"dashboard_yaml": schema.StringAttribute{
 					Required: true,
+				},
+				"url": schema.StringAttribute{
+					Computed: true,
 				},
 			},
 		},
@@ -111,8 +117,12 @@ func TestDashboardResource_Create(t *testing.T) {
 		State: state,
 	}
 
+	testURL := "https://app.dash0.com/goto/dashboards?dashboard_id=internal-uuid"
+
 	// Setup mock expectations - CreateDashboard(ctx, origin, jsonBody, dataset)
 	mockClient.On("CreateDashboard", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	// After create, the URL is resolved by origin (generated tf_-prefixed value).
+	mockClient.On("GetDashboardURL", mock.Anything, mock.Anything, testDataset).Return(testURL, nil)
 
 	// Execute the create operation
 	r.Create(context.Background(), req, &resp)
@@ -120,6 +130,12 @@ func TestDashboardResource_Create(t *testing.T) {
 	// Verify expectations
 	mockClient.AssertExpectations(t)
 	assert.False(t, resp.Diagnostics.HasError())
+
+	// Verify the resolved URL was written to state
+	var resultState dashboardModel
+	diags := resp.State.Get(context.Background(), &resultState)
+	require.False(t, diags.HasError(), "state cannot be unmarshalled")
+	assert.Equal(t, testURL, resultState.URL.ValueString())
 }
 
 func TestDashboardResource_Read(t *testing.T) {
@@ -144,8 +160,13 @@ func TestDashboardResource_Read(t *testing.T) {
 			"dashboard_yaml": schema.StringAttribute{
 				Required: true,
 			},
+			"url": schema.StringAttribute{
+				Computed: true,
+			},
 		},
 	}
+
+	testURL := "https://app.dash0.com/goto/dashboards?dashboard_id=internal-uuid"
 
 	// Setup state
 	state := tfsdk.State{
@@ -153,6 +174,7 @@ func TestDashboardResource_Read(t *testing.T) {
 			"origin":         tftypes.NewValue(tftypes.String, testOrigin),
 			"dataset":        tftypes.NewValue(tftypes.String, testDataset),
 			"dashboard_yaml": tftypes.NewValue(tftypes.String, "old yaml"),
+			"url":            tftypes.NewValue(tftypes.String, testURL),
 		}),
 		Schema: stateSchema,
 	}
@@ -186,6 +208,8 @@ func TestDashboardResource_Read(t *testing.T) {
 	assert.Equal(t, testOrigin, resultState.Origin.ValueString())
 	assert.Equal(t, testDataset, resultState.Dataset.ValueString())
 	assert.Equal(t, testYaml, resultState.DashboardYaml.ValueString())
+	// URL is carried over from prior state (Read does not re-resolve it).
+	assert.Equal(t, testURL, resultState.URL.ValueString())
 
 	// Test with API error
 	mockClient = new(MockClient)
@@ -218,12 +242,15 @@ func TestDashboardResource_Update(t *testing.T) {
 		mockClient := new(MockClient)
 		r := &DashboardResource{client: mockClient}
 
+		testURL := "https://app.dash0.com/goto/dashboards?dashboard_id=internal-uuid"
+
 		// Create state
 		state := tfsdk.State{
 			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 				"origin":         tftypes.NewValue(tftypes.String, testOrigin),
 				"dataset":        tftypes.NewValue(tftypes.String, testDataset),
 				"dashboard_yaml": tftypes.NewValue(tftypes.String, testYaml),
+				"url":            tftypes.NewValue(tftypes.String, testURL),
 			}),
 			Schema: schema.Schema{
 				Attributes: map[string]schema.Attribute{
@@ -235,6 +262,9 @@ func TestDashboardResource_Update(t *testing.T) {
 					},
 					"dashboard_yaml": schema.StringAttribute{
 						Required: true,
+					},
+					"url": schema.StringAttribute{
+						Computed: true,
 					},
 				},
 			},
@@ -248,6 +278,7 @@ func TestDashboardResource_Update(t *testing.T) {
 				"origin":         tftypes.NewValue(tftypes.String, testOrigin),
 				"dataset":        tftypes.NewValue(tftypes.String, testDataset),
 				"dashboard_yaml": tftypes.NewValue(tftypes.String, updatedYaml),
+				"url":            tftypes.NewValue(tftypes.String, testURL),
 			}),
 			Schema: state.Schema,
 		}
@@ -270,6 +301,12 @@ func TestDashboardResource_Update(t *testing.T) {
 		// Verify expectations
 		mockClient.AssertExpectations(t)
 		assert.False(t, resp.Diagnostics.HasError())
+
+		// URL is carried over from prior state (Update does not re-resolve it).
+		var resultState dashboardModel
+		diags := resp.State.Get(context.Background(), &resultState)
+		require.False(t, diags.HasError(), "state cannot be unmarshalled")
+		assert.Equal(t, testURL, resultState.URL.ValueString())
 	})
 
 	// Test 2: Invalid YAML
@@ -284,6 +321,7 @@ func TestDashboardResource_Update(t *testing.T) {
 				"origin":         tftypes.NewValue(tftypes.String, testOrigin),
 				"dataset":        tftypes.NewValue(tftypes.String, testDataset),
 				"dashboard_yaml": tftypes.NewValue(tftypes.String, testYaml),
+				"url":            tftypes.NewValue(tftypes.String, nil),
 			}),
 			Schema: schema.Schema{
 				Attributes: map[string]schema.Attribute{
@@ -296,6 +334,9 @@ func TestDashboardResource_Update(t *testing.T) {
 					"dashboard_yaml": schema.StringAttribute{
 						Required: true,
 					},
+					"url": schema.StringAttribute{
+						Computed: true,
+					},
 				},
 			},
 		}
@@ -306,6 +347,7 @@ func TestDashboardResource_Update(t *testing.T) {
 				"origin":         tftypes.NewValue(tftypes.String, testOrigin),
 				"dataset":        tftypes.NewValue(tftypes.String, testDataset),
 				"dashboard_yaml": tftypes.NewValue(tftypes.String, "invalid: yaml: : :"),
+				"url":            tftypes.NewValue(tftypes.String, nil),
 			}),
 			Schema: state.Schema,
 		}
@@ -701,6 +743,7 @@ func TestDashboardResource_Delete(t *testing.T) {
 			"origin":         tftypes.NewValue(tftypes.String, testOrigin),
 			"dataset":        tftypes.NewValue(tftypes.String, testDataset),
 			"dashboard_yaml": tftypes.NewValue(tftypes.String, testYaml),
+			"url":            tftypes.NewValue(tftypes.String, "https://app.dash0.com/goto/dashboards?dashboard_id=internal-uuid"),
 		}),
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
@@ -712,6 +755,9 @@ func TestDashboardResource_Delete(t *testing.T) {
 				},
 				"dashboard_yaml": schema.StringAttribute{
 					Required: true,
+				},
+				"url": schema.StringAttribute{
+					Computed: true,
 				},
 			},
 		},

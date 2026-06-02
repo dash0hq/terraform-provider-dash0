@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
@@ -43,6 +44,7 @@ type dashboardModel struct {
 	Origin        types.String `tfsdk:"origin"`
 	Dataset       types.String `tfsdk:"dataset"`
 	DashboardYaml types.String `tfsdk:"dashboard_yaml"`
+	URL           types.String `tfsdk:"url"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -92,8 +94,35 @@ func (r *DashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					customplanmodifier.YAMLSemanticEqual(converter.AnnotationSharing, converter.AnnotationFolderPath),
 				},
 			},
+			"url": schema.StringAttribute{
+				Description: "The URL to open this dashboard in the Dash0 web app, derived from the Dash0 API URL and the dashboard's server-assigned identifier. Computed by the provider after creation. May be empty if the app URL cannot be derived (e.g. for self-hosted deployments with a custom web app domain).",
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 		},
 	}
+}
+
+// setDashboardURL resolves the dashboard's web app URL by origin and stores it
+// on the model. The URL is best-effort metadata: failures are surfaced as
+// warnings and leave the URL null rather than failing the operation.
+func (r *DashboardResource) setDashboardURL(ctx context.Context, model *dashboardModel, diags *diag.Diagnostics) {
+	dashboardURL, err := r.client.GetDashboardURL(ctx, model.Origin.ValueString(), model.Dataset.ValueString())
+	if err != nil {
+		diags.AddWarning(
+			"Unable to determine dashboard URL",
+			fmt.Sprintf("The dashboard was saved successfully, but its URL could not be determined: %s", err),
+		)
+		model.URL = types.StringNull()
+		return
+	}
+	if dashboardURL == "" {
+		model.URL = types.StringNull()
+		return
+	}
+	model.URL = types.StringValue(dashboardURL)
 }
 
 func (r *DashboardResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -129,6 +158,9 @@ func (r *DashboardResource) Create(ctx context.Context, req resource.CreateReque
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create dashboard, got error: %s", err))
 		return
 	}
+
+	// Resolve the web app URL for the newly created dashboard (best-effort).
+	r.setDashboardURL(ctx, &model, &resp.Diagnostics)
 
 	tflog.Trace(ctx, "created a dashboard resource")
 
@@ -217,6 +249,9 @@ func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateReque
 
 	// Update the existing dashboard (dataset changes force recreation via RequiresReplace)
 	plan.Origin = state.Origin
+	// The dashboard's identifier is immutable, so the URL never changes on
+	// update; carry it from state instead of re-resolving it via the API.
+	plan.URL = state.URL
 	err = r.client.UpdateDashboard(ctx, plan.Origin.ValueString(), jsonBody, plan.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update dashboard, got error: %s", err))
@@ -273,4 +308,9 @@ func (r *DashboardResource) ImportState(ctx context.Context, req resource.Import
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dashboard_yaml"), apiResponseJSON)...)
+
+	// Resolve the web app URL (best-effort).
+	model := dashboardModel{Origin: types.StringValue(origin), Dataset: types.StringValue(dataset)}
+	r.setDashboardURL(ctx, &model, &resp.Diagnostics)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("url"), model.URL)...)
 }

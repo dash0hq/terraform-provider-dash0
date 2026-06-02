@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
@@ -43,6 +44,7 @@ type syntheticCheckModel struct {
 	Origin             types.String `tfsdk:"origin"`
 	Dataset            types.String `tfsdk:"dataset"`
 	SyntheticCheckYaml types.String `tfsdk:"synthetic_check_yaml"`
+	URL                types.String `tfsdk:"url"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -92,8 +94,36 @@ func (r *SyntheticCheckResource) Schema(_ context.Context, _ resource.SchemaRequ
 					customplanmodifier.YAMLSemanticEqual(converter.AnnotationSharing),
 				},
 			},
+			"url": schema.StringAttribute{
+				Description: "The URL to open this synthetic check in the Dash0 web app, derived from the Dash0 API URL and the synthetic check's server-assigned identifier. Computed by the provider after creation. May be empty if the app URL cannot be derived (e.g. for self-hosted deployments with a custom web app domain).",
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 		},
 	}
+}
+
+// setSyntheticCheckURL resolves the synthetic check's web app URL by origin and
+// stores it on the model. The URL is best-effort metadata: failures are
+// surfaced as warnings and leave the URL null rather than failing the
+// operation.
+func (r *SyntheticCheckResource) setSyntheticCheckURL(ctx context.Context, model *syntheticCheckModel, diags *diag.Diagnostics) {
+	syntheticCheckURL, err := r.client.GetSyntheticCheckURL(ctx, model.Origin.ValueString(), model.Dataset.ValueString())
+	if err != nil {
+		diags.AddWarning(
+			"Unable to determine synthetic check URL",
+			fmt.Sprintf("The synthetic check was saved successfully, but its URL could not be determined: %s", err),
+		)
+		model.URL = types.StringNull()
+		return
+	}
+	if syntheticCheckURL == "" {
+		model.URL = types.StringNull()
+		return
+	}
+	model.URL = types.StringValue(syntheticCheckURL)
 }
 
 func (r *SyntheticCheckResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -129,6 +159,9 @@ func (r *SyntheticCheckResource) Create(ctx context.Context, req resource.Create
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create synthetic check, got error: %s", err))
 		return
 	}
+
+	// Resolve the web app URL for the newly created synthetic check (best-effort).
+	r.setSyntheticCheckURL(ctx, &model, &resp.Diagnostics)
 
 	tflog.Trace(ctx, "created a synthetic check resource")
 
@@ -217,6 +250,9 @@ func (r *SyntheticCheckResource) Update(ctx context.Context, req resource.Update
 
 	// Update the existing synthetic check (dataset changes force recreation via RequiresReplace)
 	plan.Origin = state.Origin
+	// The synthetic check's identifier is immutable, so the URL never changes on
+	// update; carry it from state instead of re-resolving it via the API.
+	plan.URL = state.URL
 	err = r.client.UpdateSyntheticCheck(ctx, plan.Origin.ValueString(), jsonBody, plan.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update synthetic check, got error: %s", err))
@@ -273,4 +309,9 @@ func (r *SyntheticCheckResource) ImportState(ctx context.Context, req resource.I
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("synthetic_check_yaml"), apiResponseJSON)...)
+
+	// Resolve the web app URL (best-effort).
+	model := syntheticCheckModel{Origin: types.StringValue(origin), Dataset: types.StringValue(dataset)}
+	r.setSyntheticCheckURL(ctx, &model, &resp.Diagnostics)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("url"), model.URL)...)
 }

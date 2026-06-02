@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
@@ -43,6 +44,7 @@ type checkRuleModel struct {
 	Origin        types.String `tfsdk:"origin"`
 	Dataset       types.String `tfsdk:"dataset"`
 	CheckRuleYaml types.String `tfsdk:"check_rule_yaml"`
+	URL           types.String `tfsdk:"url"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -95,8 +97,35 @@ More information on how Prometheus rules are mapped to Dash0 check rules can be 
 					customplanmodifier.YAMLSemanticEqual(converter.AnnotationSharing),
 				},
 			},
+			"url": schema.StringAttribute{
+				Description: "The URL to open this check rule in the Dash0 web app, derived from the Dash0 API URL and the check rule's server-assigned identifier. Computed by the provider after creation. May be empty if the app URL cannot be derived (e.g. for self-hosted deployments with a custom web app domain).",
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 		},
 	}
+}
+
+// setCheckRuleURL resolves the check rule's web app URL by origin and stores it
+// on the model. The URL is best-effort metadata: failures are surfaced as
+// warnings and leave the URL null rather than failing the operation.
+func (r *CheckRuleResource) setCheckRuleURL(ctx context.Context, model *checkRuleModel, diags *diag.Diagnostics) {
+	checkRuleURL, err := r.client.GetCheckRuleURL(ctx, model.Origin.ValueString(), model.Dataset.ValueString())
+	if err != nil {
+		diags.AddWarning(
+			"Unable to determine check rule URL",
+			fmt.Sprintf("The check rule was saved successfully, but its URL could not be determined: %s", err),
+		)
+		model.URL = types.StringNull()
+		return
+	}
+	if checkRuleURL == "" {
+		model.URL = types.StringNull()
+		return
+	}
+	model.URL = types.StringValue(checkRuleURL)
 }
 
 func (r *CheckRuleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -126,6 +155,9 @@ func (r *CheckRuleResource) Create(ctx context.Context, req resource.CreateReque
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create check rule, got error: %s", err))
 		return
 	}
+
+	// Resolve the web app URL for the newly created check rule (best-effort).
+	r.setCheckRuleURL(ctx, &model, &resp.Diagnostics)
 
 	tflog.Trace(ctx, "created a check rule resource")
 
@@ -216,6 +248,9 @@ func (r *CheckRuleResource) Update(ctx context.Context, req resource.UpdateReque
 	// Update the existing check rule (dataset changes force recreation via RequiresReplace)
 	// Pass YAML directly to client (the client handles Prometheus->Dash0 conversion)
 	plan.Origin = state.Origin
+	// The check rule's identifier is immutable, so the URL never changes on
+	// update; carry it from state instead of re-resolving it via the API.
+	plan.URL = state.URL
 	err = r.client.UpdateCheckRule(ctx, plan.Origin.ValueString(), plan.CheckRuleYaml.ValueString(), plan.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update check rule, got error: %s", err))
@@ -272,6 +307,11 @@ func (r *CheckRuleResource) ImportState(ctx context.Context, req resource.Import
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("check_rule_yaml"), apiResponseYAML)...)
+
+	// Resolve the web app URL (best-effort).
+	model := checkRuleModel{Origin: types.StringValue(origin), Dataset: types.StringValue(dataset)}
+	r.setCheckRuleURL(ctx, &model, &resp.Diagnostics)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("url"), model.URL)...)
 }
 
 // injectMetadataName copies metadata.name from sourceYAML into targetYAML when

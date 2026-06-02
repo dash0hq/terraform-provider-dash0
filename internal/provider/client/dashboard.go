@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 )
 
 func (c *dash0Client) CreateDashboard(ctx context.Context, origin string, dashboardJSON string, dataset string) error {
@@ -58,4 +60,34 @@ func (c *dash0Client) DeleteDashboard(ctx context.Context, origin string, datase
 
 	tflog.Debug(ctx, fmt.Sprintf("Dashboard deleted with origin: %s", origin))
 	return nil
+}
+
+// GetDashboardURL builds a deep link to the Dash0 web app for the dashboard
+// with the given origin.
+//
+// The web app addresses dashboards by their server-assigned internal id, which
+// is NOT returned by the single-dashboard endpoint (that only echoes the
+// origin). The internal id is therefore resolved from the list endpoint by
+// matching on origin, mirroring how the dash0 CLI builds dashboard URLs.
+//
+// It returns an empty string (and no error) when the app base URL cannot be
+// derived or the dashboard is not present in the list, so that callers can
+// treat the URL as best-effort metadata rather than failing the operation.
+func (c *dash0Client) GetDashboardURL(ctx context.Context, origin string, dataset string) (string, error) {
+	items, err := c.inner.ListDashboards(ctx, &dataset)
+	if err != nil {
+		return "", err
+	}
+
+	id := matchOriginID(items, origin, func(item *dash0.DashboardApiListItem) (string, *string) {
+		return item.Id, item.Origin
+	})
+	if id == "" {
+		tflog.Warn(ctx, fmt.Sprintf("Dashboard with origin %q not found in dataset %q; dashboard URL will be empty", origin, dataset))
+		return "", nil
+	}
+
+	dashboardURL := dash0.DeeplinkURL(c.apiURL, dash0.DeeplinkAssetTypeDashboard, id)
+	logResolvedURL(ctx, "dashboard", origin, dashboardURL)
+	return dashboardURL, nil
 }

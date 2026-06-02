@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
@@ -43,6 +44,7 @@ type viewModel struct {
 	Origin   types.String `tfsdk:"origin"`
 	Dataset  types.String `tfsdk:"dataset"`
 	ViewYaml types.String `tfsdk:"view_yaml"`
+	URL      types.String `tfsdk:"url"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -92,8 +94,35 @@ func (r *ViewResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 					customplanmodifier.YAMLSemanticEqual(converter.AnnotationSharing, converter.AnnotationFolderPath),
 				},
 			},
+			"url": schema.StringAttribute{
+				Description: "The URL to open this view in the Dash0 web app, derived from the Dash0 API URL and the view's server-assigned identifier. The page is selected based on the view's type (for example the traces explorer for span views). Computed by the provider after creation. May be empty if the app URL cannot be derived (e.g. for self-hosted deployments with a custom web app domain) or the view type has no associated page.",
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 		},
 	}
+}
+
+// setViewURL resolves the view's web app URL by origin and stores it on the
+// model. The URL is best-effort metadata: failures are surfaced as warnings and
+// leave the URL null rather than failing the operation.
+func (r *ViewResource) setViewURL(ctx context.Context, model *viewModel, diags *diag.Diagnostics) {
+	viewURL, err := r.client.GetViewURL(ctx, model.Origin.ValueString(), model.Dataset.ValueString())
+	if err != nil {
+		diags.AddWarning(
+			"Unable to determine view URL",
+			fmt.Sprintf("The view was saved successfully, but its URL could not be determined: %s", err),
+		)
+		model.URL = types.StringNull()
+		return
+	}
+	if viewURL == "" {
+		model.URL = types.StringNull()
+		return
+	}
+	model.URL = types.StringValue(viewURL)
 }
 
 func (r *ViewResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -129,6 +158,9 @@ func (r *ViewResource) Create(ctx context.Context, req resource.CreateRequest, r
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create view, got error: %s", err))
 		return
 	}
+
+	// Resolve the web app URL for the newly created view (best-effort).
+	r.setViewURL(ctx, &model, &resp.Diagnostics)
 
 	tflog.Trace(ctx, "created a view resource")
 
@@ -217,6 +249,9 @@ func (r *ViewResource) Update(ctx context.Context, req resource.UpdateRequest, r
 
 	// Update the existing view (dataset changes force recreation via RequiresReplace)
 	plan.Origin = state.Origin
+	// The view's identifier is immutable, so the URL never changes on update;
+	// carry it from state instead of re-resolving it via the API.
+	plan.URL = state.URL
 	err = r.client.UpdateView(ctx, plan.Origin.ValueString(), jsonBody, plan.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update view, got error: %s", err))
@@ -273,4 +308,9 @@ func (r *ViewResource) ImportState(ctx context.Context, req resource.ImportState
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("view_yaml"), apiResponseJSON)...)
+
+	// Resolve the web app URL (best-effort).
+	model := viewModel{Origin: types.StringValue(origin), Dataset: types.StringValue(dataset)}
+	r.setViewURL(ctx, &model, &resp.Diagnostics)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("url"), model.URL)...)
 }
