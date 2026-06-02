@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -193,6 +194,9 @@ func TestAccViewResource(t *testing.T) {
 
 					resource.TestCheckResourceAttr(viewResourceName, "dataset", "terraform-test"),
 					resource.TestCheckResourceAttrSet(viewResourceName, "origin"),
+					// Verify the computed URL is set and points at the web app deep link
+					resource.TestMatchResourceAttr(viewResourceName, "url",
+						regexp.MustCompile(`^https://app\..+/goto/.+`)),
 				),
 			},
 			// ImportState testing
@@ -221,6 +225,12 @@ func TestAccViewResource(t *testing.T) {
 					// Verify the view_yaml attribute
 					if yaml := states[0].Attributes["view_yaml"]; yaml == "" {
 						return fmt.Errorf("view_yaml attribute is missing or empty")
+					}
+
+					// Verify the computed url is resolved on import
+					urlPattern := regexp.MustCompile(`^https://app\..+/goto/.+`)
+					if u := states[0].Attributes["url"]; !urlPattern.MatchString(u) {
+						return fmt.Errorf("url attribute %q does not match expected view deep link pattern", u)
 					}
 
 					return nil

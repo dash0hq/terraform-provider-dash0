@@ -56,6 +56,7 @@ EOF
 ### Read-Only
 
 - `origin` (String) A unique identifier for the check rule, automatically generated on creation. Used to reference the check rule for updates, reads, deletes, and imports.
+- `url` (String) The URL to open this check rule in the Dash0 web app, derived from the Dash0 API URL and the check rule's server-assigned identifier. Computed by the provider after creation. May be empty if the app URL cannot be derived (e.g. for self-hosted deployments with a custom web app domain).
 
 ## Import
 

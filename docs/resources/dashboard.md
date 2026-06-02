@@ -30,6 +30,7 @@ resource "dash0_dashboard" "my_dashboard" {
 ### Read-Only
 
 - `origin` (String) A unique identifier for the dashboard, automatically generated on creation. Used to reference the dashboard for updates, reads, deletes, and imports.
+- `url` (String) The URL to open this dashboard in the Dash0 web app, derived from the Dash0 API URL and the dashboard's server-assigned identifier. Computed by the provider after creation. May be empty if the app URL cannot be derived (e.g. for self-hosted deployments with a custom web app domain).
 
 ## Import
 

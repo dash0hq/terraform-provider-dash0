@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
@@ -46,6 +47,7 @@ func TestSyntheticCheckResource_Schema(t *testing.T) {
 	assert.Contains(t, attrs, "origin")
 	assert.Contains(t, attrs, "dataset")
 	assert.Contains(t, attrs, "synthetic_check_yaml")
+	assert.Contains(t, attrs, "url")
 
 	// Check origin is computed
 	originAttr := attrs["origin"].(schema.StringAttribute)
@@ -58,6 +60,10 @@ func TestSyntheticCheckResource_Schema(t *testing.T) {
 	// Check synthetic_check_yaml is required
 	checkYamlAttr := attrs["synthetic_check_yaml"].(schema.StringAttribute)
 	assert.True(t, checkYamlAttr.Required)
+
+	// Check url is computed
+	urlAttr := attrs["url"].(schema.StringAttribute)
+	assert.True(t, urlAttr.Computed)
 }
 
 func TestSyntheticCheckResource_Create(t *testing.T) {
@@ -68,6 +74,8 @@ func TestSyntheticCheckResource_Create(t *testing.T) {
 		client: mockClient,
 	}
 
+	testURL := "https://app.dash0.com/goto/alerting/synthetics?check_id=internal-uuid"
+
 	// Setup request
 	req := resource.CreateRequest{
 		Plan: tfsdk.Plan{
@@ -76,6 +84,7 @@ func TestSyntheticCheckResource_Create(t *testing.T) {
 					"origin":               tftypes.String,
 					"dataset":              tftypes.String,
 					"synthetic_check_yaml": tftypes.String,
+					"url":                  tftypes.String,
 				},
 			}, map[string]tftypes.Value{
 				"origin":  tftypes.NewValue(tftypes.String, nil),
@@ -91,6 +100,7 @@ spec:
     spec:
       request:
         url: https://www.example.com`),
+				"url": tftypes.NewValue(tftypes.String, nil),
 			}),
 			Schema: testSyntheticCheckSchema(),
 		},
@@ -104,6 +114,8 @@ spec:
 
 	// Setup mock expectations - CreateSyntheticCheck(ctx, origin, jsonBody, dataset)
 	mockClient.On("CreateSyntheticCheck", ctx, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	// After create, the URL is resolved by origin (generated tf_-prefixed value).
+	mockClient.On("GetSyntheticCheckURL", ctx, mock.Anything, "test-dataset").Return(testURL, nil)
 
 	// Execute
 	r.Create(ctx, req, resp)
@@ -111,6 +123,12 @@ spec:
 	// Verify
 	assert.False(t, resp.Diagnostics.HasError())
 	mockClient.AssertExpectations(t)
+
+	// Verify the resolved URL was written to state
+	var resultState syntheticCheckModel
+	diags := resp.State.Get(ctx, &resultState)
+	require.False(t, diags.HasError(), "state cannot be unmarshalled")
+	assert.Equal(t, testURL, resultState.URL.ValueString())
 }
 
 func TestSyntheticCheckResource_CreateWithError(t *testing.T) {
@@ -129,6 +147,7 @@ func TestSyntheticCheckResource_CreateWithError(t *testing.T) {
 					"origin":               tftypes.String,
 					"dataset":              tftypes.String,
 					"synthetic_check_yaml": tftypes.String,
+					"url":                  tftypes.String,
 				},
 			}, map[string]tftypes.Value{
 				"origin":  tftypes.NewValue(tftypes.String, nil),
@@ -137,6 +156,7 @@ func TestSyntheticCheckResource_CreateWithError(t *testing.T) {
 kind: Dash0SyntheticCheck
 metadata:
   name: examplecom`),
+				"url": tftypes.NewValue(tftypes.String, nil),
 			}),
 			Schema: testSyntheticCheckSchema(),
 		},
@@ -175,11 +195,13 @@ func TestSyntheticCheckResource_Delete(t *testing.T) {
 					"origin":               tftypes.String,
 					"dataset":              tftypes.String,
 					"synthetic_check_yaml": tftypes.String,
+					"url":                  tftypes.String,
 				},
 			}, map[string]tftypes.Value{
 				"origin":               tftypes.NewValue(tftypes.String, "test-origin"),
 				"dataset":              tftypes.NewValue(tftypes.String, "test-dataset"),
 				"synthetic_check_yaml": tftypes.NewValue(tftypes.String, "test-yaml"),
+				"url":                  tftypes.NewValue(tftypes.String, nil),
 			}),
 			Schema: testSyntheticCheckSchema(),
 		},
@@ -210,6 +232,9 @@ func testSyntheticCheckSchema() schema.Schema {
 			},
 			"synthetic_check_yaml": schema.StringAttribute{
 				Required: true,
+			},
+			"url": schema.StringAttribute{
+				Computed: true,
 			},
 		},
 	}
@@ -339,6 +364,8 @@ func TestSyntheticCheckResource_Update(t *testing.T) {
 		client: mockClient,
 	}
 
+	testURL := "https://app.dash0.com/goto/alerting/synthetics?check_id=internal-uuid"
+
 	// Test regular update (same dataset)
 	t.Run("Update same dataset", func(t *testing.T) {
 		req := resource.UpdateRequest{
@@ -348,11 +375,13 @@ func TestSyntheticCheckResource_Update(t *testing.T) {
 						"origin":               tftypes.String,
 						"dataset":              tftypes.String,
 						"synthetic_check_yaml": tftypes.String,
+						"url":                  tftypes.String,
 					},
 				}, map[string]tftypes.Value{
 					"origin":               tftypes.NewValue(tftypes.String, "test-origin"),
 					"dataset":              tftypes.NewValue(tftypes.String, "test-dataset"),
 					"synthetic_check_yaml": tftypes.NewValue(tftypes.String, "old-yaml"),
+					"url":                  tftypes.NewValue(tftypes.String, testURL),
 				}),
 				Schema: testSyntheticCheckSchema(),
 			},
@@ -362,6 +391,7 @@ func TestSyntheticCheckResource_Update(t *testing.T) {
 						"origin":               tftypes.String,
 						"dataset":              tftypes.String,
 						"synthetic_check_yaml": tftypes.String,
+						"url":                  tftypes.String,
 					},
 				}, map[string]tftypes.Value{
 					"origin":  tftypes.NewValue(tftypes.String, "test-origin"),
@@ -370,6 +400,7 @@ func TestSyntheticCheckResource_Update(t *testing.T) {
 kind: Dash0SyntheticCheck
 metadata:
   name: updated`),
+					"url": tftypes.NewValue(tftypes.String, testURL),
 				}),
 				Schema: testSyntheticCheckSchema(),
 			},
@@ -388,5 +419,11 @@ metadata:
 
 		assert.False(t, resp.Diagnostics.HasError())
 		mockClient.AssertExpectations(t)
+
+		// URL is carried over from prior state (Update does not re-resolve it).
+		var resultState syntheticCheckModel
+		diags := resp.State.Get(ctx, &resultState)
+		require.False(t, diags.HasError(), "state cannot be unmarshalled")
+		assert.Equal(t, testURL, resultState.URL.ValueString())
 	})
 }

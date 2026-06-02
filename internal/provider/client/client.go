@@ -3,6 +3,9 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	dash0 "github.com/dash0hq/dash0-api-client-go"
 )
@@ -14,21 +17,34 @@ type Client interface {
 	GetDashboard(ctx context.Context, origin string, dataset string) (string, error)
 	UpdateDashboard(ctx context.Context, origin string, dashboardJSON string, dataset string) error
 	DeleteDashboard(ctx context.Context, origin string, dataset string) error
+	// GetDashboardURL returns a deep link to the Dash0 web app for the dashboard
+	// with the given origin, or an empty string if it cannot be determined.
+	GetDashboardURL(ctx context.Context, origin string, dataset string) (string, error)
 
 	CreateSyntheticCheck(ctx context.Context, origin string, checkJSON string, dataset string) error
 	GetSyntheticCheck(ctx context.Context, origin string, dataset string) (string, error)
 	UpdateSyntheticCheck(ctx context.Context, origin string, checkJSON string, dataset string) error
 	DeleteSyntheticCheck(ctx context.Context, origin string, dataset string) error
+	// GetSyntheticCheckURL returns a deep link to the Dash0 web app for the
+	// synthetic check with the given origin, or an empty string if it cannot be
+	// determined.
+	GetSyntheticCheckURL(ctx context.Context, origin string, dataset string) (string, error)
 
 	CreateView(ctx context.Context, origin string, viewJSON string, dataset string) error
 	GetView(ctx context.Context, origin string, dataset string) (string, error)
 	UpdateView(ctx context.Context, origin string, viewJSON string, dataset string) error
 	DeleteView(ctx context.Context, origin string, dataset string) error
+	// GetViewURL returns a deep link to the Dash0 web app for the view with the
+	// given origin, or an empty string if it cannot be determined.
+	GetViewURL(ctx context.Context, origin string, dataset string) (string, error)
 
 	CreateCheckRule(ctx context.Context, origin string, ruleYAML string, dataset string) error
 	GetCheckRule(ctx context.Context, origin string, dataset string) (string, error)
 	UpdateCheckRule(ctx context.Context, origin string, ruleYAML string, dataset string) error
 	DeleteCheckRule(ctx context.Context, origin string, dataset string) error
+	// GetCheckRuleURL returns a deep link to the Dash0 web app for the check rule
+	// with the given origin, or an empty string if it cannot be determined.
+	GetCheckRuleURL(ctx context.Context, origin string, dataset string) (string, error)
 
 	CreateRecordingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error
 	GetRecordingRule(ctx context.Context, origin string, dataset string) (string, error)
@@ -48,6 +64,32 @@ type Client interface {
 
 // Ensure dash0Client implements Client
 var _ Client = &dash0Client{}
+
+// matchOriginID returns the server-assigned internal id of the list item whose
+// origin matches the given origin, or an empty string when no item matches.
+//
+// The Dash0 web app addresses assets by their internal id, which the
+// single-asset endpoints do not return (they only echo the origin). The id is
+// therefore resolved from the list endpoint by matching on origin. The accessor
+// extracts the (id, origin) pair from each list item type.
+func matchOriginID[T any](items []*T, origin string, accessor func(*T) (string, *string)) string {
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		id, itemOrigin := accessor(item)
+		if itemOrigin != nil && *itemOrigin == origin {
+			return id
+		}
+	}
+	return ""
+}
+
+// logResolvedURL emits a debug log for a resolved deep link, mirroring the
+// logging done by the per-asset URL resolvers.
+func logResolvedURL(ctx context.Context, assetType, origin, resolvedURL string) {
+	tflog.Debug(ctx, fmt.Sprintf("Resolved %s URL for origin %s: %s", assetType, origin, resolvedURL))
+}
 
 // marshalToJSON marshals a value to a JSON string.
 func marshalToJSON(v interface{}) (string, error) {

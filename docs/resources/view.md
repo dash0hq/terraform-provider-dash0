@@ -30,6 +30,7 @@ resource "dash0_view" "my_check" {
 ### Read-Only
 
 - `origin` (String) A unique identifier for the view, automatically generated on creation. Used to reference the view for updates, reads, deletes, and imports.
+- `url` (String) The URL to open this view in the Dash0 web app, derived from the Dash0 API URL and the view's server-assigned identifier. The page is selected based on the view's type (for example the traces explorer for span views). Computed by the provider after creation. May be empty if the app URL cannot be derived (e.g. for self-hosted deployments with a custom web app domain) or the view type has no associated page.
 
 ## Import
 

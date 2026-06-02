@@ -31,6 +31,11 @@ func (m *MockClient) DeleteDashboard(ctx context.Context, origin string, dataset
 	return args.Error(0)
 }
 
+func (m *MockClient) GetDashboardURL(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
+}
+
 func (m *MockClient) CreateSyntheticCheck(ctx context.Context, origin string, checkJSON string, dataset string) error {
 	args := m.Called(ctx, origin, checkJSON, dataset)
 	return args.Error(0)
@@ -49,6 +54,11 @@ func (m *MockClient) UpdateSyntheticCheck(ctx context.Context, origin string, ch
 func (m *MockClient) DeleteSyntheticCheck(ctx context.Context, origin string, dataset string) error {
 	args := m.Called(ctx, origin, dataset)
 	return args.Error(0)
+}
+
+func (m *MockClient) GetSyntheticCheckURL(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
 }
 
 func (m *MockClient) CreateView(ctx context.Context, origin string, viewJSON string, dataset string) error {
@@ -71,6 +81,11 @@ func (m *MockClient) DeleteView(ctx context.Context, origin string, dataset stri
 	return args.Error(0)
 }
 
+func (m *MockClient) GetViewURL(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
+}
+
 func (m *MockClient) CreateCheckRule(ctx context.Context, origin string, ruleYAML string, dataset string) error {
 	args := m.Called(ctx, origin, ruleYAML, dataset)
 	return args.Error(0)
@@ -89,6 +104,11 @@ func (m *MockClient) UpdateCheckRule(ctx context.Context, origin string, ruleYAM
 func (m *MockClient) DeleteCheckRule(ctx context.Context, origin string, dataset string) error {
 	args := m.Called(ctx, origin, dataset)
 	return args.Error(0)
+}
+
+func (m *MockClient) GetCheckRuleURL(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
 }
 
 func (m *MockClient) CreateRecordingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error {

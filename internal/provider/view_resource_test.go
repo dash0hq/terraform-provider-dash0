@@ -39,11 +39,13 @@ func TestViewResource_Schema(t *testing.T) {
 	assert.Contains(t, resp.Schema.Attributes, "origin")
 	assert.Contains(t, resp.Schema.Attributes, "dataset")
 	assert.Contains(t, resp.Schema.Attributes, "view_yaml")
+	assert.Contains(t, resp.Schema.Attributes, "url")
 
 	// Check specific attribute properties
 	assert.True(t, resp.Schema.Attributes["origin"].(schema.StringAttribute).Computed)
 	assert.True(t, resp.Schema.Attributes["dataset"].(schema.StringAttribute).Required)
 	assert.True(t, resp.Schema.Attributes["view_yaml"].(schema.StringAttribute).Required)
+	assert.True(t, resp.Schema.Attributes["url"].(schema.StringAttribute).Computed)
 }
 
 func TestViewResource_Configure(t *testing.T) {
@@ -75,6 +77,7 @@ func TestViewResource_Create(t *testing.T) {
 	// Setup test data
 	testYaml := "kind: View\nmetadata:\n  name: example-view\nspec:\n  title: Example View"
 	testDataset := "test-dataset"
+	testURL := "https://app.dash0.com/goto/traces/explorer?view_id=internal-uuid"
 
 	// Setup plan
 	plan := tfsdk.Plan{
@@ -82,6 +85,7 @@ func TestViewResource_Create(t *testing.T) {
 			"origin":    tftypes.NewValue(tftypes.String, ""),
 			"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 			"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
+			"url":       tftypes.NewValue(tftypes.String, nil),
 		}),
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
@@ -93,6 +97,9 @@ func TestViewResource_Create(t *testing.T) {
 				},
 				"view_yaml": schema.StringAttribute{
 					Required: true,
+				},
+				"url": schema.StringAttribute{
+					Computed: true,
 				},
 			},
 		},
@@ -113,6 +120,8 @@ func TestViewResource_Create(t *testing.T) {
 
 	// Setup mock expectations - CreateView(ctx, origin, jsonBody, dataset)
 	mockClient.On("CreateView", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	// After create, the URL is resolved by origin (generated tf_-prefixed value).
+	mockClient.On("GetViewURL", mock.Anything, mock.Anything, testDataset).Return(testURL, nil)
 
 	// Execute the create operation
 	r.Create(context.Background(), req, &resp)
@@ -120,6 +129,12 @@ func TestViewResource_Create(t *testing.T) {
 	// Verify expectations
 	mockClient.AssertExpectations(t)
 	assert.False(t, resp.Diagnostics.HasError())
+
+	// Verify the resolved URL was written to state
+	var resultState viewModel
+	diags := resp.State.Get(context.Background(), &resultState)
+	require.False(t, diags.HasError(), "state cannot be unmarshalled")
+	assert.Equal(t, testURL, resultState.URL.ValueString())
 }
 
 func TestViewResource_Read(t *testing.T) {
@@ -130,6 +145,8 @@ func TestViewResource_Read(t *testing.T) {
 	testOrigin := "test-origin"
 	testDataset := "test-dataset"
 	testYaml := "kind: View\nmetadata:\n  name: example-view\nspec:\n  title: Example View"
+
+	testURL := "https://app.dash0.com/goto/traces/explorer?view_id=internal-uuid"
 
 	// Create state schema
 	stateSchema := schema.Schema{
@@ -143,6 +160,9 @@ func TestViewResource_Read(t *testing.T) {
 			"view_yaml": schema.StringAttribute{
 				Required: true,
 			},
+			"url": schema.StringAttribute{
+				Computed: true,
+			},
 		},
 	}
 
@@ -152,6 +172,7 @@ func TestViewResource_Read(t *testing.T) {
 			"origin":    tftypes.NewValue(tftypes.String, testOrigin),
 			"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 			"view_yaml": tftypes.NewValue(tftypes.String, "old yaml"),
+			"url":       tftypes.NewValue(tftypes.String, testURL),
 		}),
 		Schema: stateSchema,
 	}
@@ -185,6 +206,8 @@ func TestViewResource_Read(t *testing.T) {
 	assert.Equal(t, testOrigin, resultState.Origin.ValueString())
 	assert.Equal(t, testDataset, resultState.Dataset.ValueString())
 	assert.Equal(t, testYaml, resultState.ViewYaml.ValueString())
+	// URL is carried over from prior state (Read does not re-resolve it).
+	assert.Equal(t, testURL, resultState.URL.ValueString())
 
 	// Test with API error
 	mockClient = new(MockClient)
@@ -396,6 +419,8 @@ func TestViewResource_Update(t *testing.T) {
 	testYaml := "kind: View\nmetadata:\n  name: example-view\nspec:\n  title: Example View"
 	_ = testYaml
 
+	testURL := "https://app.dash0.com/goto/traces/explorer?view_id=internal-uuid"
+
 	// Test 1: Update view YAML only (no dataset change)
 	t.Run("update yaml only", func(t *testing.T) {
 		mockClient := new(MockClient)
@@ -407,6 +432,7 @@ func TestViewResource_Update(t *testing.T) {
 				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
 				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 				"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
+				"url":       tftypes.NewValue(tftypes.String, testURL),
 			}),
 			Schema: schema.Schema{
 				Attributes: map[string]schema.Attribute{
@@ -418,6 +444,9 @@ func TestViewResource_Update(t *testing.T) {
 					},
 					"view_yaml": schema.StringAttribute{
 						Required: true,
+					},
+					"url": schema.StringAttribute{
+						Computed: true,
 					},
 				},
 			},
@@ -431,6 +460,7 @@ func TestViewResource_Update(t *testing.T) {
 				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
 				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 				"view_yaml": tftypes.NewValue(tftypes.String, updatedYaml),
+				"url":       tftypes.NewValue(tftypes.String, testURL),
 			}),
 			Schema: state.Schema,
 		}
@@ -453,6 +483,12 @@ func TestViewResource_Update(t *testing.T) {
 		// Verify expectations
 		mockClient.AssertExpectations(t)
 		assert.False(t, resp.Diagnostics.HasError())
+
+		// URL is carried over from prior state (Update does not re-resolve it).
+		var resultState viewModel
+		diags := resp.State.Get(context.Background(), &resultState)
+		require.False(t, diags.HasError(), "state cannot be unmarshalled")
+		assert.Equal(t, testURL, resultState.URL.ValueString())
 	})
 
 	// Test 2: Invalid YAML
@@ -468,6 +504,7 @@ func TestViewResource_Update(t *testing.T) {
 				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
 				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 				"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
+				"url":       tftypes.NewValue(tftypes.String, nil),
 			}),
 			Schema: schema.Schema{
 				Attributes: map[string]schema.Attribute{
@@ -480,6 +517,9 @@ func TestViewResource_Update(t *testing.T) {
 					"view_yaml": schema.StringAttribute{
 						Required: true,
 					},
+					"url": schema.StringAttribute{
+						Computed: true,
+					},
 				},
 			},
 		}
@@ -490,6 +530,7 @@ func TestViewResource_Update(t *testing.T) {
 				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
 				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 				"view_yaml": tftypes.NewValue(tftypes.String, "invalid: yaml: : :"),
+				"url":       tftypes.NewValue(tftypes.String, nil),
 			}),
 			Schema: state.Schema,
 		}
@@ -526,6 +567,7 @@ func TestViewResource_Delete(t *testing.T) {
 			"origin":    tftypes.NewValue(tftypes.String, testOrigin),
 			"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 			"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
+			"url":       tftypes.NewValue(tftypes.String, "https://app.dash0.com/goto/traces/explorer?view_id=internal-uuid"),
 		}),
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
@@ -537,6 +579,9 @@ func TestViewResource_Delete(t *testing.T) {
 				},
 				"view_yaml": schema.StringAttribute{
 					Required: true,
+				},
+				"url": schema.StringAttribute{
+					Computed: true,
 				},
 			},
 		},
