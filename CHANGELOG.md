@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.12.0
+
+
+### Enhancements
+
+
+- `resources`: Add a computed `url` attribute to the `dash0_dashboard`, `dash0_check_rule`, `dash0_synthetic_check`, `dash0_view` and `dash0_notification_channel` resources that links to the resource in the Dash0 web app (#115)
+  The URL is derived from the configured Dash0 API URL and the resource's server-assigned
+  identifier. For views, the page is selected based on the view's type. It may be empty for
+  self-hosted deployments whose web app uses a custom domain that cannot be derived from the
+  API URL.
+  
+
 ## 1.11.0
 
 
