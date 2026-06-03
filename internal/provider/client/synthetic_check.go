@@ -82,7 +82,7 @@ func (c *dash0Client) GetSyntheticCheckURL(ctx context.Context, origin string, d
 		return "", nil
 	}
 
-	syntheticCheckURL := dash0.DeeplinkURL(c.apiURL, dash0.DeeplinkAssetTypeSyntheticCheck, id)
+	syntheticCheckURL := dash0.DeeplinkURL(c.apiURL, dash0.DeeplinkAssetTypeSyntheticCheck, id, &dataset)
 	logResolvedURL(ctx, "synthetic check", origin, syntheticCheckURL)
 	return syntheticCheckURL, nil
 }

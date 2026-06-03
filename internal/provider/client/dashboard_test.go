@@ -73,7 +73,7 @@ func TestGetDashboardURL(t *testing.T) {
 	t.Run("match by origin returns the library deep link", func(t *testing.T) {
 		got, err := c.GetDashboardURL(t.Context(), "tf_target", "default")
 		require.NoError(t, err)
-		assert.Equal(t, "https://app.dash0.com/goto/dashboards?dashboard_id=33333333-3333-3333-3333-333333333333", got)
+		assert.Equal(t, "https://app.dash0.com/goto/dashboards?dashboard_id=33333333-3333-3333-3333-333333333333&dataset=default", got)
 	})
 
 	t.Run("no match returns empty string and no error", func(t *testing.T) {

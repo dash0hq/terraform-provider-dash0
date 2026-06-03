@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
@@ -50,6 +51,7 @@ type NotificationChannelResource struct {
 type notificationChannelModel struct {
 	Origin                  types.String `tfsdk:"origin"`
 	NotificationChannelYaml types.String `tfsdk:"notification_channel_yaml"`
+	URL                     types.String `tfsdk:"url"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -104,8 +106,35 @@ func (r *NotificationChannelResource) Schema(_ context.Context, _ resource.Schem
 					customplanmodifier.YAMLSemanticEqual(),
 				},
 			},
+			"url": schema.StringAttribute{
+				Description: "The URL to open this notification channel in the Dash0 web app, derived from the Dash0 API URL and the channel's server-assigned identifier. Computed by the provider after creation. May be empty if the app URL cannot be derived (e.g. for self-hosted deployments with a custom web app domain).",
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 		},
 	}
+}
+
+// setNotificationChannelURL resolves the channel's web app URL by origin and
+// stores it on the model. The URL is best-effort metadata: failures are
+// surfaced as warnings and leave the URL null rather than failing the operation.
+func (r *NotificationChannelResource) setNotificationChannelURL(ctx context.Context, model *notificationChannelModel, diags *diag.Diagnostics) {
+	channelURL, err := r.client.GetNotificationChannelURL(ctx, model.Origin.ValueString())
+	if err != nil {
+		diags.AddWarning(
+			"Unable to determine notification channel URL",
+			fmt.Sprintf("The notification channel was saved successfully, but its URL could not be determined: %s", err),
+		)
+		model.URL = types.StringNull()
+		return
+	}
+	if channelURL == "" {
+		model.URL = types.StringNull()
+		return
+	}
+	model.URL = types.StringValue(channelURL)
 }
 
 func (r *NotificationChannelResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -141,6 +170,9 @@ func (r *NotificationChannelResource) Create(ctx context.Context, req resource.C
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create notification channel, got error: %s", err))
 		return
 	}
+
+	// Resolve the web app URL for the newly created channel (best-effort).
+	r.setNotificationChannelURL(ctx, &model, &resp.Diagnostics)
 
 	tflog.Trace(ctx, "created a notification channel resource")
 
@@ -229,6 +261,9 @@ func (r *NotificationChannelResource) Update(ctx context.Context, req resource.U
 
 	// Update the existing notification channel
 	plan.Origin = state.Origin
+	// The channel's identifier is immutable, so the URL never changes on update;
+	// carry it from state instead of re-resolving it via the API.
+	plan.URL = state.URL
 	err = r.client.UpdateNotificationChannel(ctx, plan.Origin.ValueString(), jsonBody)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update notification channel, got error: %s", err))
@@ -274,4 +309,9 @@ func (r *NotificationChannelResource) ImportState(ctx context.Context, req resou
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("notification_channel_yaml"), apiResponseJSON)...)
+
+	// Resolve the web app URL (best-effort).
+	model := notificationChannelModel{Origin: types.StringValue(origin)}
+	r.setNotificationChannelURL(ctx, &model, &resp.Diagnostics)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("url"), model.URL)...)
 }

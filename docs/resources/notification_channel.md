@@ -209,6 +209,7 @@ YAML
 ### Read-Only
 
 - `origin` (String) A unique identifier for the notification channel, automatically generated on creation. Used to reference the notification channel for updates, reads, deletes, and imports.
+- `url` (String) The URL to open this notification channel in the Dash0 web app, derived from the Dash0 API URL and the channel's server-assigned identifier. Computed by the provider after creation. May be empty if the app URL cannot be derived (e.g. for self-hosted deployments with a custom web app domain).
 
 ## Import
 

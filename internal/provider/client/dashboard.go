@@ -87,7 +87,7 @@ func (c *dash0Client) GetDashboardURL(ctx context.Context, origin string, datase
 		return "", nil
 	}
 
-	dashboardURL := dash0.DeeplinkURL(c.apiURL, dash0.DeeplinkAssetTypeDashboard, id)
+	dashboardURL := dash0.DeeplinkURL(c.apiURL, dash0.DeeplinkAssetTypeDashboard, id, &dataset)
 	logResolvedURL(ctx, "dashboard", origin, dashboardURL)
 	return dashboardURL, nil
 }

@@ -88,7 +88,7 @@ func (c *dash0Client) GetViewURL(ctx context.Context, origin string, dataset str
 		return "", nil
 	}
 
-	viewURL := dash0.ViewDeeplinkURL(c.apiURL, matched.Type, matched.Id)
+	viewURL := dash0.ViewDeeplinkURL(c.apiURL, matched.Type, matched.Id, &dataset)
 	logResolvedURL(ctx, "view", origin, viewURL)
 	return viewURL, nil
 }

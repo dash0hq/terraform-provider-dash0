@@ -92,7 +92,7 @@ func (c *dash0Client) GetCheckRuleURL(ctx context.Context, origin string, datase
 		return "", nil
 	}
 
-	checkRuleURL := dash0.DeeplinkURL(c.apiURL, dash0.DeeplinkAssetTypeCheckRule, id)
+	checkRuleURL := dash0.DeeplinkURL(c.apiURL, dash0.DeeplinkAssetTypeCheckRule, id, &dataset)
 	logResolvedURL(ctx, "check rule", origin, checkRuleURL)
 	return checkRuleURL, nil
 }

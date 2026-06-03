@@ -55,6 +55,10 @@ type Client interface {
 	GetNotificationChannel(ctx context.Context, origin string) (string, error)
 	UpdateNotificationChannel(ctx context.Context, origin string, channelJSON string) error
 	DeleteNotificationChannel(ctx context.Context, origin string) error
+	// GetNotificationChannelURL returns a deep link to the Dash0 web app for the
+	// notification channel with the given origin, or an empty string if it cannot
+	// be determined.
+	GetNotificationChannelURL(ctx context.Context, origin string) (string, error)
 
 	CreateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error
 	GetSpamFilter(ctx context.Context, origin string, dataset string) (string, error)
