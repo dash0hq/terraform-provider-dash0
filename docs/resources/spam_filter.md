@@ -57,7 +57,7 @@ EOF
 
 ### Required
 
-- `dataset` (String) The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the spam filter belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
+- `dataset` (String) The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the spam filter belongs to. Provide the dataset's identifier, which is immutable, not the 'name'. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
 - `spam_filter_yaml` (String) The spam filter definition in YAML format. The YAML must include a `metadata.name` field and a `spec` with a `filter` (list of key-value matchers) and either `contexts` (`v1alpha1`, a list of signal types: `log`, `span`, `datapoint` or `web_event`) or `context` (`v1alpha2`, a single signal type out of `log`, `span`, `datapoint` and `web_event`). The `apiVersion` field determines which shape is expected.
 
 ### Read-Only
