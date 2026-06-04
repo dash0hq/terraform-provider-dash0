@@ -9,10 +9,11 @@
 [![Release](https://img.shields.io/github/v/release/dash0hq/terraform-provider-dash0?logo=github)](https://github.com/dash0hq/terraform-provider-dash0/releases)
 [![License](https://img.shields.io/github/license/dash0hq/terraform-provider-dash0)](LICENSE)
 
-The Dash0 provider allows [Terraform](https://terraform.io) and [OpenTofu](https://opentofu.org) to manage resources such as dashboards and check rules within [Dash0](https://dash0.com).
+The Dash0 provider allows [Terraform](https://terraform.io) and [OpenTofu](https://opentofu.org) to manage resources such as dashboards and check rules within [Dash0](https://www.dash0.com).
 
 ## Usage
 Learn how to use this provider by heading to the docs hosted on the [Terraform Registry](https://registry.terraform.io/providers/dash0hq/dash0/latest/docs) or the [OpenTofu Registry](https://search.opentofu.org/provider/dash0hq/dash0/latest).
+Or find the [Terraform Provider documentation](https://www.dash0.com/hub/integrations/int_terraform/overview) in the Dash0 Integration hub.
 
 ## Contributing
 Check out our [contribution guidelines](./CONTRIBUTING.md).
