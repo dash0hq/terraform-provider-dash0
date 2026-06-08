@@ -55,16 +55,13 @@ type Client interface {
 	GetNotificationChannel(ctx context.Context, origin string) (string, error)
 	UpdateNotificationChannel(ctx context.Context, origin string, channelJSON string) error
 	DeleteNotificationChannel(ctx context.Context, origin string) error
-	// GetNotificationChannelURL returns a deep link to the Dash0 web app for the
-	// notification channel with the given origin, or an empty string if it cannot
-	// be determined.
-	GetNotificationChannelURL(ctx context.Context, origin string) (string, error)
-	// GetNotificationChannelID returns the server-assigned id (the bare
-	// dash0.com/id UUID) of the notification channel with the given origin. This
-	// id is the value other resources (synthetic checks, check rules) use to
-	// reference the channel in their notification settings. It returns an empty
-	// string if the id cannot be determined.
-	GetNotificationChannelID(ctx context.Context, origin string) (string, error)
+	// GetNotificationChannelMetadata resolves the server-assigned id and the web
+	// app deep-link URL for the notification channel with the given origin in a
+	// single request. The id is the bare dash0.com/id UUID that other resources
+	// (synthetic checks, check rules) use to reference the channel. Both values
+	// are best-effort: an empty string is returned (with no error) when a value
+	// cannot be determined.
+	GetNotificationChannelMetadata(ctx context.Context, origin string) (id string, url string, err error)
 
 	CreateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error
 	GetSpamFilter(ctx context.Context, origin string, dataset string) (string, error)

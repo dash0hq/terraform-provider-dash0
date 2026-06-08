@@ -19,15 +19,16 @@ type testNotificationChannelClient struct {
 	getResponse string
 	getError    error
 	idResponse  string
-	idError     error
+	urlResponse string
+	metaError   error
 }
 
 func (c *testNotificationChannelClient) GetNotificationChannel(_ context.Context, _ string) (string, error) {
 	return c.getResponse, c.getError
 }
 
-func (c *testNotificationChannelClient) GetNotificationChannelID(_ context.Context, _ string) (string, error) {
-	return c.idResponse, c.idError
+func (c *testNotificationChannelClient) GetNotificationChannelMetadata(_ context.Context, _ string) (string, string, error) {
+	return c.idResponse, c.urlResponse, c.metaError
 }
 
 func TestNotificationChannelResource_ReadWithDiffs(t *testing.T) {

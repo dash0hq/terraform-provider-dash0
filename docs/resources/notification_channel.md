@@ -209,11 +209,29 @@ kind: Dash0SyntheticCheck
 metadata:
   name: homepage-availability
 spec:
+  enabled: true
   plugin:
     kind: http
     spec:
       request:
+        method: get
         url: https://example.com
+      assertions:
+        criticalAssertions:
+          - kind: status_code
+            spec:
+              operator: is
+              value: "200"
+  retries:
+    kind: fixed
+    spec:
+      attempts: 2
+      delay: 1s
+  schedule:
+    interval: 5m
+    locations:
+      - de-frankfurt
+    strategy: all_locations
   notifications:
     # Channels notified when the check is critical or degraded.
     channels:

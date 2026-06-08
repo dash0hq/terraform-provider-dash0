@@ -151,14 +151,9 @@ func (m *MockClient) DeleteNotificationChannel(ctx context.Context, origin strin
 	return args.Error(0)
 }
 
-func (m *MockClient) GetNotificationChannelURL(ctx context.Context, origin string) (string, error) {
+func (m *MockClient) GetNotificationChannelMetadata(ctx context.Context, origin string) (string, string, error) {
 	args := m.Called(ctx, origin)
-	return args.String(0), args.Error(1)
-}
-
-func (m *MockClient) GetNotificationChannelID(ctx context.Context, origin string) (string, error) {
-	args := m.Called(ctx, origin)
-	return args.String(0), args.Error(1)
+	return args.String(0), args.String(1), args.Error(2)
 }
 
 func (m *MockClient) CreateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error {

@@ -128,46 +128,36 @@ func (r *NotificationChannelResource) Schema(_ context.Context, _ resource.Schem
 	}
 }
 
-// setNotificationChannelURL resolves the channel's web app URL by origin and
-// stores it on the model. The URL is best-effort metadata: failures are
-// surfaced as warnings and leave the URL null rather than failing the operation.
-func (r *NotificationChannelResource) setNotificationChannelURL(ctx context.Context, model *notificationChannelModel, diags *diag.Diagnostics) {
-	channelURL, err := r.client.GetNotificationChannelURL(ctx, model.Origin.ValueString())
+// setNotificationChannelMetadata resolves the channel's server-assigned id and
+// web app URL by origin and stores them on the model in a single request.
+//
+// Both are best-effort metadata: a failure is surfaced as a warning and leaves
+// the fields null rather than failing the operation. This is deliberate — the
+// channel itself has already been created or updated by the time this runs, so
+// failing here would leave Terraform believing the operation failed while the
+// resource exists on the server. The values are re-resolved on the next read if
+// they could not be determined here.
+func (r *NotificationChannelResource) setNotificationChannelMetadata(ctx context.Context, model *notificationChannelModel, diags *diag.Diagnostics) {
+	id, channelURL, err := r.client.GetNotificationChannelMetadata(ctx, model.Origin.ValueString())
 	if err != nil {
 		diags.AddWarning(
-			"Unable to determine notification channel URL",
-			fmt.Sprintf("The notification channel was saved successfully, but its URL could not be determined: %s", err),
-		)
-		model.URL = types.StringNull()
-		return
-	}
-	if channelURL == "" {
-		model.URL = types.StringNull()
-		return
-	}
-	model.URL = types.StringValue(channelURL)
-}
-
-// setNotificationChannelID resolves the channel's server-assigned id by origin
-// and stores it on the model. Like the URL, the id is best-effort metadata:
-// failures are surfaced as warnings and leave the id null rather than failing
-// the operation. The id is re-resolved on the next read if it could not be
-// determined here.
-func (r *NotificationChannelResource) setNotificationChannelID(ctx context.Context, model *notificationChannelModel, diags *diag.Diagnostics) {
-	id, err := r.client.GetNotificationChannelID(ctx, model.Origin.ValueString())
-	if err != nil {
-		diags.AddWarning(
-			"Unable to determine notification channel id",
-			fmt.Sprintf("The notification channel was saved successfully, but its id could not be determined: %s", err),
+			"Unable to determine notification channel metadata",
+			fmt.Sprintf("The notification channel was saved successfully, but its id and URL could not be determined: %s", err),
 		)
 		model.ID = types.StringNull()
+		model.URL = types.StringNull()
 		return
 	}
 	if id == "" {
 		model.ID = types.StringNull()
-		return
+	} else {
+		model.ID = types.StringValue(id)
 	}
-	model.ID = types.StringValue(id)
+	if channelURL == "" {
+		model.URL = types.StringNull()
+	} else {
+		model.URL = types.StringValue(channelURL)
+	}
 }
 
 func (r *NotificationChannelResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -204,12 +194,9 @@ func (r *NotificationChannelResource) Create(ctx context.Context, req resource.C
 		return
 	}
 
-	// Resolve the web app URL for the newly created channel (best-effort).
-	r.setNotificationChannelURL(ctx, &model, &resp.Diagnostics)
-
-	// Resolve the server-assigned id so it can be referenced by other resources
-	// (best-effort).
-	r.setNotificationChannelID(ctx, &model, &resp.Diagnostics)
+	// Resolve the server-assigned id (so it can be referenced by other
+	// resources) and the web app URL for the newly created channel (best-effort).
+	r.setNotificationChannelMetadata(ctx, &model, &resp.Diagnostics)
 
 	tflog.Trace(ctx, "created a notification channel resource")
 
@@ -257,9 +244,19 @@ func (r *NotificationChannelResource) Read(ctx context.Context, req resource.Rea
 	}
 
 	// Backfill the server-assigned id when it is missing from state, e.g. for
-	// resources created before the id attribute existed (best-effort).
+	// resources created before the id attribute existed (best-effort). Only the
+	// id is updated here; the URL is left as-is so a transient resolution error
+	// cannot clobber a previously-resolved URL in state.
 	if state.ID.IsNull() || state.ID.IsUnknown() {
-		r.setNotificationChannelID(ctx, &state, &resp.Diagnostics)
+		id, _, err := r.client.GetNotificationChannelMetadata(ctx, state.Origin.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddWarning(
+				"Unable to determine notification channel id",
+				fmt.Sprintf("The notification channel id could not be determined: %s", err),
+			)
+		} else if id != "" {
+			state.ID = types.StringValue(id)
+		}
 	}
 
 	// Set refreshed state
@@ -355,11 +352,9 @@ func (r *NotificationChannelResource) ImportState(ctx context.Context, req resou
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("notification_channel_yaml"), apiResponseJSON)...)
 
-	// Resolve the web app URL and the server-assigned id (best-effort).
+	// Resolve the server-assigned id and the web app URL (best-effort).
 	model := notificationChannelModel{Origin: types.StringValue(origin)}
-	r.setNotificationChannelURL(ctx, &model, &resp.Diagnostics)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("url"), model.URL)...)
-
-	r.setNotificationChannelID(ctx, &model, &resp.Diagnostics)
+	r.setNotificationChannelMetadata(ctx, &model, &resp.Diagnostics)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), model.ID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("url"), model.URL)...)
 }
