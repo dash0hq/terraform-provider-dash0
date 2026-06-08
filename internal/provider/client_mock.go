@@ -156,6 +156,11 @@ func (m *MockClient) GetNotificationChannelURL(ctx context.Context, origin strin
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockClient) GetNotificationChannelID(ctx context.Context, origin string) (string, error) {
+	args := m.Called(ctx, origin)
+	return args.String(0), args.Error(1)
+}
+
 func (m *MockClient) CreateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error {
 	args := m.Called(ctx, origin, filterJSON, dataset)
 	return args.Error(0)

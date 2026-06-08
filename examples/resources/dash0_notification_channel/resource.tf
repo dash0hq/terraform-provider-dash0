@@ -173,3 +173,39 @@ YAML
 # resource "dash0_notification_channel" "from_file" {
 #   notification_channel_yaml = file("${path.module}/notification_channel.yaml")
 # }
+
+# Referencing a notification channel from a synthetic check.
+#
+# Synthetic checks and check rules reference a notification channel by its
+# server-assigned id (the `id` attribute), NOT by `origin`. Use the `id`
+# attribute directly — do not strip the `tf_` prefix off `origin`, as the
+# origin's UUID is a different value than the channel id and the assignment
+# will silently not take effect.
+resource "dash0_synthetic_check" "homepage" {
+  dataset              = "default"
+  synthetic_check_yaml = <<-YAML
+kind: Dash0SyntheticCheck
+metadata:
+  name: homepage-availability
+spec:
+  plugin:
+    kind: http
+    spec:
+      request:
+        url: https://example.com
+  notifications:
+    # Channels notified when the check is critical or degraded.
+    channels:
+      - ${dash0_notification_channel.email.id}
+    # Optional: channels notified only when the check reaches critical.
+    onlyCriticalChannels:
+      - ${dash0_notification_channel.pagerduty.id}
+YAML
+}
+
+# Check rules reference channels by id via an annotation
+# (comma-separated UUIDs):
+#
+#   metadata:
+#     annotations:
+#       dash0.com/notification-channel-ids: ${dash0_notification_channel.email.id}

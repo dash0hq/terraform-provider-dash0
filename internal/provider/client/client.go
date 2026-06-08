@@ -59,6 +59,12 @@ type Client interface {
 	// notification channel with the given origin, or an empty string if it cannot
 	// be determined.
 	GetNotificationChannelURL(ctx context.Context, origin string) (string, error)
+	// GetNotificationChannelID returns the server-assigned id (the bare
+	// dash0.com/id UUID) of the notification channel with the given origin. This
+	// id is the value other resources (synthetic checks, check rules) use to
+	// reference the channel in their notification settings. It returns an empty
+	// string if the id cannot be determined.
+	GetNotificationChannelID(ctx context.Context, origin string) (string, error)
 
 	CreateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error
 	GetSpamFilter(ctx context.Context, origin string, dataset string) (string, error)

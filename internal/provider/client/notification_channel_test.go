@@ -78,3 +78,58 @@ func TestGetNotificationChannelURL(t *testing.T) {
 		assert.Equal(t, "", got)
 	})
 }
+
+// TestGetNotificationChannelID verifies that GetNotificationChannelID resolves
+// the server-assigned id (the bare dash0.com/id UUID) for a channel by origin,
+// and returns an empty string (no error) when the channel carries no id label.
+func TestGetNotificationChannelID(t *testing.T) {
+	strPtr := func(s string) *string { return &s }
+
+	newClient := func(t *testing.T, serverURL string) *dash0Client {
+		inner, err := dash0.NewClient(
+			dash0.WithApiUrl(serverURL),
+			dash0.WithAuthToken("auth_test-token"),
+			dash0.WithUserAgent("test"),
+		)
+		require.NoError(t, err)
+		return &dash0Client{inner: inner, apiURL: "https://api.us-west-2.aws.dash0.com"}
+	}
+
+	t.Run("returns the server-assigned id", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(dash0.NotificationChannelDefinition{
+				Kind: "Dash0NotificationChannel",
+				Metadata: dash0.NotificationChannelMetadata{
+					Name: "Target",
+					Labels: &dash0.NotificationChannelLabels{
+						Dash0Comid:     strPtr("33333333-3333-3333-3333-333333333333"),
+						Dash0Comorigin: strPtr("tf_target"),
+					},
+				},
+			})
+		}))
+		t.Cleanup(server.Close)
+
+		c := newClient(t, server.URL)
+		got, err := c.GetNotificationChannelID(t.Context(), "tf_target")
+		require.NoError(t, err)
+		assert.Equal(t, "33333333-3333-3333-3333-333333333333", got)
+	})
+
+	t.Run("no id label returns empty string and no error", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(dash0.NotificationChannelDefinition{
+				Kind:     "Dash0NotificationChannel",
+				Metadata: dash0.NotificationChannelMetadata{Name: "No ID"},
+			})
+		}))
+		t.Cleanup(server.Close)
+
+		c := newClient(t, server.URL)
+		got, err := c.GetNotificationChannelID(t.Context(), "tf_target")
+		require.NoError(t, err)
+		assert.Equal(t, "", got)
+	})
+}

@@ -50,6 +50,7 @@ type NotificationChannelResource struct {
 // notificationChannelModel is the Terraform state model for a notification channel resource.
 type notificationChannelModel struct {
 	Origin                  types.String `tfsdk:"origin"`
+	ID                      types.String `tfsdk:"id"`
 	NotificationChannelYaml types.String `tfsdk:"notification_channel_yaml"`
 	URL                     types.String `tfsdk:"url"`
 }
@@ -91,6 +92,16 @@ func (r *NotificationChannelResource) Schema(_ context.Context, _ resource.Schem
 			"origin": schema.StringAttribute{
 				Description: "A unique identifier for the notification channel, automatically generated on creation. Used to reference the notification channel for updates, reads, deletes, and imports.",
 				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"id": schema.StringAttribute{
+				Description: "The server-assigned identifier of the notification channel (the bare `dash0.com/id` UUID), resolved by the provider after creation. " +
+					"Use this value to reference the channel from other resources, such as a synthetic check's `spec.notifications.channels` or a check rule's `dash0.com/notification-channel-ids` annotation. " +
+					"Unlike `origin` (the provider-managed `tf_`-prefixed upsert key), this is the identifier other Dash0 resources resolve channels by. " +
+					"May be empty if it cannot be determined.",
+				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -137,6 +148,28 @@ func (r *NotificationChannelResource) setNotificationChannelURL(ctx context.Cont
 	model.URL = types.StringValue(channelURL)
 }
 
+// setNotificationChannelID resolves the channel's server-assigned id by origin
+// and stores it on the model. Like the URL, the id is best-effort metadata:
+// failures are surfaced as warnings and leave the id null rather than failing
+// the operation. The id is re-resolved on the next read if it could not be
+// determined here.
+func (r *NotificationChannelResource) setNotificationChannelID(ctx context.Context, model *notificationChannelModel, diags *diag.Diagnostics) {
+	id, err := r.client.GetNotificationChannelID(ctx, model.Origin.ValueString())
+	if err != nil {
+		diags.AddWarning(
+			"Unable to determine notification channel id",
+			fmt.Sprintf("The notification channel was saved successfully, but its id could not be determined: %s", err),
+		)
+		model.ID = types.StringNull()
+		return
+	}
+	if id == "" {
+		model.ID = types.StringNull()
+		return
+	}
+	model.ID = types.StringValue(id)
+}
+
 func (r *NotificationChannelResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var model notificationChannelModel
 	diags := req.Plan.Get(ctx, &model)
@@ -173,6 +206,10 @@ func (r *NotificationChannelResource) Create(ctx context.Context, req resource.C
 
 	// Resolve the web app URL for the newly created channel (best-effort).
 	r.setNotificationChannelURL(ctx, &model, &resp.Diagnostics)
+
+	// Resolve the server-assigned id so it can be referenced by other resources
+	// (best-effort).
+	r.setNotificationChannelID(ctx, &model, &resp.Diagnostics)
 
 	tflog.Trace(ctx, "created a notification channel resource")
 
@@ -217,6 +254,12 @@ func (r *NotificationChannelResource) Read(ctx context.Context, req resource.Rea
 		}
 	} else {
 		state.NotificationChannelYaml = types.StringValue(apiResponseJSON)
+	}
+
+	// Backfill the server-assigned id when it is missing from state, e.g. for
+	// resources created before the id attribute existed (best-effort).
+	if state.ID.IsNull() || state.ID.IsUnknown() {
+		r.setNotificationChannelID(ctx, &state, &resp.Diagnostics)
 	}
 
 	// Set refreshed state
@@ -264,6 +307,8 @@ func (r *NotificationChannelResource) Update(ctx context.Context, req resource.U
 	// The channel's identifier is immutable, so the URL never changes on update;
 	// carry it from state instead of re-resolving it via the API.
 	plan.URL = state.URL
+	// The server-assigned id is likewise immutable; carry it from state.
+	plan.ID = state.ID
 	err = r.client.UpdateNotificationChannel(ctx, plan.Origin.ValueString(), jsonBody)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update notification channel, got error: %s", err))
@@ -310,8 +355,11 @@ func (r *NotificationChannelResource) ImportState(ctx context.Context, req resou
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("notification_channel_yaml"), apiResponseJSON)...)
 
-	// Resolve the web app URL (best-effort).
+	// Resolve the web app URL and the server-assigned id (best-effort).
 	model := notificationChannelModel{Origin: types.StringValue(origin)}
 	r.setNotificationChannelURL(ctx, &model, &resp.Diagnostics)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("url"), model.URL)...)
+
+	r.setNotificationChannelID(ctx, &model, &resp.Diagnostics)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), model.ID)...)
 }

@@ -51,6 +51,8 @@ func TestAccNotificationChannelResource(t *testing.T) {
 					// Verify attributes
 					resource.TestCheckResourceAttr(notificationChannelResourceName, "notification_channel_yaml", basicNotificationChannelYaml),
 					resource.TestCheckResourceAttrSet(notificationChannelResourceName, "origin"),
+					// The server-assigned id is resolved and exposed for cross-resource references.
+					resource.TestCheckResourceAttrSet(notificationChannelResourceName, "id"),
 				),
 			},
 			// ImportState testing

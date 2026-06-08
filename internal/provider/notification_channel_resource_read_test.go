@@ -18,10 +18,16 @@ type testNotificationChannelClient struct {
 	client.Client
 	getResponse string
 	getError    error
+	idResponse  string
+	idError     error
 }
 
 func (c *testNotificationChannelClient) GetNotificationChannel(_ context.Context, _ string) (string, error) {
 	return c.getResponse, c.getError
+}
+
+func (c *testNotificationChannelClient) GetNotificationChannelID(_ context.Context, _ string) (string, error) {
+	return c.idResponse, c.idError
 }
 
 func TestNotificationChannelResource_ReadWithDiffs(t *testing.T) {
@@ -108,6 +114,9 @@ spec:
 					"origin": schema.StringAttribute{
 						Computed: true,
 					},
+					"id": schema.StringAttribute{
+						Computed: true,
+					},
 					"notification_channel_yaml": schema.StringAttribute{
 						Required: true,
 					},
@@ -119,6 +128,7 @@ spec:
 
 			testClient := &testNotificationChannelClient{
 				getResponse: tc.apiResponseYaml,
+				idResponse:  "11111111-1111-1111-1111-111111111111",
 			}
 
 			r := &NotificationChannelResource{client: testClient}
@@ -127,12 +137,14 @@ spec:
 				tftypes.Object{
 					AttributeTypes: map[string]tftypes.Type{
 						"origin":                    tftypes.String,
+						"id":                        tftypes.String,
 						"notification_channel_yaml": tftypes.String,
 						"url":                       tftypes.String,
 					},
 				},
 				map[string]tftypes.Value{
 					"origin":                    tftypes.NewValue(tftypes.String, testOrigin),
+					"id":                        tftypes.NewValue(tftypes.String, nil),
 					"notification_channel_yaml": tftypes.NewValue(tftypes.String, originalYaml),
 					"url":                       tftypes.NewValue(tftypes.String, nil),
 				},
@@ -165,6 +177,10 @@ spec:
 
 			hasWarnings := resp.Diagnostics.WarningsCount() > 0
 			assert.Equal(t, tc.expectWarning, hasWarnings)
+
+			// The server-assigned id is backfilled from the client when missing
+			// from state.
+			assert.Equal(t, "11111111-1111-1111-1111-111111111111", resultState.ID.ValueString())
 		})
 	}
 }
