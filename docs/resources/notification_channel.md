@@ -41,6 +41,9 @@ YAML
 #      Channels > Add Notification Channel > Slack Bot > Authorize). This is a
 #      one-time operation per Slack workspace.
 #   2. Invite the bot to the target channel: /invite @Dash0
+#   3. The Dash0 bot must be explicitly added to each Slack channel it will post to.
+#      In Slack, open the target channel and run `/invite @Dash0`. Repeat this for every channel
+#      you want to receive notifications in.
 resource "dash0_notification_channel" "slack_bot" {
   notification_channel_yaml = <<-YAML
 kind: Dash0NotificationChannel
