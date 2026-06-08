@@ -128,16 +128,8 @@ func (r *SyntheticCheckResource) resolveSyntheticCheck(ctx context.Context, mode
 		model.URL = types.StringNull()
 		return
 	}
-	if id == "" {
-		model.ID = types.StringNull()
-	} else {
-		model.ID = types.StringValue(id)
-	}
-	if syntheticCheckURL == "" {
-		model.URL = types.StringNull()
-	} else {
-		model.URL = types.StringValue(syntheticCheckURL)
-	}
+	model.ID = stringOrNull(id)
+	model.URL = stringOrNull(syntheticCheckURL)
 }
 
 func (r *SyntheticCheckResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

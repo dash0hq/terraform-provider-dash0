@@ -127,11 +127,7 @@ func (r *SpamFilterResource) resolveSpamFilter(ctx context.Context, model *spamF
 		model.ID = types.StringNull()
 		return
 	}
-	if id == "" {
-		model.ID = types.StringNull()
-	} else {
-		model.ID = types.StringValue(id)
-	}
+	model.ID = stringOrNull(id)
 }
 
 func (r *SpamFilterResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

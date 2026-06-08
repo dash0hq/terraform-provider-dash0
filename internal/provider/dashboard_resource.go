@@ -128,16 +128,8 @@ func (r *DashboardResource) resolveDashboard(ctx context.Context, model *dashboa
 		model.URL = types.StringNull()
 		return
 	}
-	if id == "" {
-		model.ID = types.StringNull()
-	} else {
-		model.ID = types.StringValue(id)
-	}
-	if dashboardURL == "" {
-		model.URL = types.StringNull()
-	} else {
-		model.URL = types.StringValue(dashboardURL)
-	}
+	model.ID = stringOrNull(id)
+	model.URL = stringOrNull(dashboardURL)
 }
 
 func (r *DashboardResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

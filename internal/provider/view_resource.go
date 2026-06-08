@@ -128,16 +128,8 @@ func (r *ViewResource) resolveView(ctx context.Context, model *viewModel, diags 
 		model.URL = types.StringNull()
 		return
 	}
-	if id == "" {
-		model.ID = types.StringNull()
-	} else {
-		model.ID = types.StringValue(id)
-	}
-	if viewURL == "" {
-		model.URL = types.StringNull()
-	} else {
-		model.URL = types.StringValue(viewURL)
-	}
+	model.ID = stringOrNull(id)
+	model.URL = stringOrNull(viewURL)
 }
 
 func (r *ViewResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

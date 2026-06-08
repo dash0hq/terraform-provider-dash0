@@ -140,16 +140,8 @@ func (r *NotificationChannelResource) resolveNotificationChannel(ctx context.Con
 		model.URL = types.StringNull()
 		return
 	}
-	if id == "" {
-		model.ID = types.StringNull()
-	} else {
-		model.ID = types.StringValue(id)
-	}
-	if channelURL == "" {
-		model.URL = types.StringNull()
-	} else {
-		model.URL = types.StringValue(channelURL)
-	}
+	model.ID = stringOrNull(id)
+	model.URL = stringOrNull(channelURL)
 }
 
 func (r *NotificationChannelResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

@@ -122,11 +122,7 @@ func (r *RecordingRuleResource) resolveRecordingRule(ctx context.Context, model 
 		model.ID = types.StringNull()
 		return
 	}
-	if id == "" {
-		model.ID = types.StringNull()
-	} else {
-		model.ID = types.StringValue(id)
-	}
+	model.ID = stringOrNull(id)
 }
 
 func (r *RecordingRuleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
