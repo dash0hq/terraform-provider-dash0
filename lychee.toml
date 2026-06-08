@@ -1,0 +1,71 @@
+# Configuration for `make lint-links`, which validates that HTTP(S) URLs
+# referenced from documentation, resource descriptions, and changelog
+# entries actually resolve. See https://lychee.cli.rs/configuration/.
+
+max_concurrency = 14
+max_retries = 3
+timeout = 20
+
+# Treat these statuses as success. 401/403/429 indicate that the URL exists
+# but is auth-protected (Dash0 API/app, GitHub rate limits) — failing on
+# them would produce noise without catching real broken links.
+accept = ["200..=299", "301..=308", "401", "403", "429"]
+
+user_agent = "terraform-provider-dash0-linkcheck/1.0 (+https://github.com/dash0hq/terraform-provider-dash0)"
+
+# Only HTTP(S) links matter for this project.
+scheme = ["http", "https"]
+
+exclude_loopback = true
+exclude_private = true
+# mailto: links are skipped by default (include_mail defaults to false).
+
+# Cache successful checks across runs so re-runs after a docs regeneration
+# don't re-hit every upstream host. Stored at .lycheecache (gitignored).
+cache = true
+max_cache_age = "1d"
+
+# File extensions to scan for URLs. Markdown is parsed natively; the rest
+# fall through to plaintext extraction via lychee's URL regex.
+extensions = ["md", "markdown", "tmpl", "go", "yaml", "yml", "tf", "tfvars", "sh"]
+
+# Directories to skip during recursive walks. The CLI also limits inputs
+# to user-facing roots, but this is a belt-and-suspenders guard against
+# accidentally pulling vendored or generated files into scope.
+exclude_path = [
+    "^\\.git/",
+    "^\\.tools/",
+    "^\\.lycheecache",
+    "^vendor/",
+    "^node_modules/",
+    # Go test files contain placeholder URLs (regex patterns, stub hosts)
+    # that are not meant to resolve. Production-code Description strings
+    # are still checked.
+    "_test\\.go$",
+]
+
+# Skip placeholder URLs that intentionally do not resolve. Each entry is a
+# regex matched against the full URL string.
+exclude = [
+    # RFC 2606 reserved domains and other example/placeholder hosts.
+    '^https?://([a-z0-9-]+\.)*example\.(com|org|net)(/|$)',
+    '^https?://([a-z0-9-]+\.)*example\.webhook\.office\.com(/|$)',
+    '^https?://(www\.)?different\.com(/|$)',
+    '^https?://(www\.)?(env|provider)\.com(/|$)',
+    # URLs containing template placeholders, regex metacharacters, or ellipses.
+    '\.{3}',
+    '\\',
+    '[{}<>]',
+    # Well-known dummy identifiers used in unit-test fixtures.
+    'internal-uuid',
+    'tf_target',
+    '33333333-3333-3333-3333-333333333333',
+    'T00000000',
+    'B00000000',
+    'XXXXXXXXXXXXXXXXXXXXXXXX',
+    # Webhook stub paths on real third-party hosts (require credentials).
+    '^https://chat\.googleapis\.com/v1/spaces/',
+    '^https://discord\.com/api/webhooks/',
+    '^https://hooks\.slack\.com/services/',
+    '^https://events\.pagerduty\.com/v2/enqueue',
+]
