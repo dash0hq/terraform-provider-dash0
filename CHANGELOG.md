@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.13.0
+
+
+### Enhancements
+
+
+- `provider`: Expose `id` as a computed attribute on every resource (#119)
+  All provider resources — dashboards, views, check rules, synthetic checks,
+  recording rules, spam filters, and notification channels — now expose a
+  computed `id` attribute holding the server-assigned UUID. Reference it (e.g.
+  as `${dash0_notification_channel.example.id}`) when wiring one resource's
+  identifier into another resource's YAML, where the Dash0 API expects raw
+  UUIDs rather than provider-generated origins.
+  
+
 ## 1.12.0
 
 
