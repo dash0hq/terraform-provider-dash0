@@ -61,19 +61,18 @@ func (c *dash0Client) DeleteView(ctx context.Context, origin string, dataset str
 	return nil
 }
 
-// GetViewURL builds a deep link to the Dash0 web app for the view with the
-// given origin. The internal id and view type are resolved from the list
-// endpoint by matching on origin; the view type selects the correct page (for
-// example the traces explorer for span views).
+// ResolveView looks up the server-assigned id and deep-link URL for the view
+// with the given origin by matching against the list endpoint. The view type
+// selects the correct page (for example the traces explorer for span views).
 //
-// It returns an empty string (and no error) when the app base URL cannot be
-// derived, the view is not present in the list, or the view type has no
-// associated page, so that callers can treat the URL as best-effort metadata
-// rather than failing the operation.
-func (c *dash0Client) GetViewURL(ctx context.Context, origin string, dataset string) (string, error) {
+// It returns empty strings (and no error) when the view is not present in the
+// list, so that callers can treat both fields as best-effort metadata rather
+// than failing the operation. The URL is additionally empty when the app base
+// URL cannot be derived or the view type has no associated page.
+func (c *dash0Client) ResolveView(ctx context.Context, origin string, dataset string) (string, string, error) {
 	items, err := c.inner.ListViews(ctx, &dataset)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	var matched *dash0.ViewApiListItem
@@ -84,11 +83,11 @@ func (c *dash0Client) GetViewURL(ctx context.Context, origin string, dataset str
 		}
 	}
 	if matched == nil {
-		tflog.Warn(ctx, fmt.Sprintf("View with origin %q not found in dataset %q; view URL will be empty", origin, dataset))
-		return "", nil
+		tflog.Warn(ctx, fmt.Sprintf("View with origin %q not found in dataset %q; id and URL will be empty", origin, dataset))
+		return "", "", nil
 	}
 
 	viewURL := dash0.ViewDeeplinkURL(c.apiURL, matched.Type, matched.Id, &dataset)
 	logResolvedURL(ctx, "view", origin, viewURL)
-	return viewURL, nil
+	return matched.Id, viewURL, nil
 }

@@ -83,6 +83,7 @@ func TestViewResource_Create(t *testing.T) {
 	plan := tfsdk.Plan{
 		Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 			"origin":    tftypes.NewValue(tftypes.String, ""),
+			"id":        tftypes.NewValue(tftypes.String, nil),
 			"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 			"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
 			"url":       tftypes.NewValue(tftypes.String, nil),
@@ -90,6 +91,9 @@ func TestViewResource_Create(t *testing.T) {
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
 				"origin": schema.StringAttribute{
+					Computed: true,
+				},
+				"id": schema.StringAttribute{
 					Computed: true,
 				},
 				"dataset": schema.StringAttribute{
@@ -121,7 +125,7 @@ func TestViewResource_Create(t *testing.T) {
 	// Setup mock expectations - CreateView(ctx, origin, jsonBody, dataset)
 	mockClient.On("CreateView", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	// After create, the URL is resolved by origin (generated tf_-prefixed value).
-	mockClient.On("GetViewURL", mock.Anything, mock.Anything, testDataset).Return(testURL, nil)
+	mockClient.On("ResolveView", mock.Anything, mock.Anything, testDataset).Return("test-id", testURL, nil)
 
 	// Execute the create operation
 	r.Create(context.Background(), req, &resp)
@@ -154,6 +158,9 @@ func TestViewResource_Read(t *testing.T) {
 			"origin": schema.StringAttribute{
 				Computed: true,
 			},
+			"id": schema.StringAttribute{
+				Computed: true,
+			},
 			"dataset": schema.StringAttribute{
 				Required: true,
 			},
@@ -170,6 +177,7 @@ func TestViewResource_Read(t *testing.T) {
 	state := tfsdk.State{
 		Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 			"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+			"id":        tftypes.NewValue(tftypes.String, nil),
 			"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 			"view_yaml": tftypes.NewValue(tftypes.String, "old yaml"),
 			"url":       tftypes.NewValue(tftypes.String, testURL),
@@ -430,6 +438,7 @@ func TestViewResource_Update(t *testing.T) {
 		state := tfsdk.State{
 			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+				"id":        tftypes.NewValue(tftypes.String, nil),
 				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 				"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
 				"url":       tftypes.NewValue(tftypes.String, testURL),
@@ -437,6 +446,9 @@ func TestViewResource_Update(t *testing.T) {
 			Schema: schema.Schema{
 				Attributes: map[string]schema.Attribute{
 					"origin": schema.StringAttribute{
+						Computed: true,
+					},
+					"id": schema.StringAttribute{
 						Computed: true,
 					},
 					"dataset": schema.StringAttribute{
@@ -458,6 +470,7 @@ func TestViewResource_Update(t *testing.T) {
 		plan := tfsdk.Plan{
 			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+				"id":        tftypes.NewValue(tftypes.String, nil),
 				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 				"view_yaml": tftypes.NewValue(tftypes.String, updatedYaml),
 				"url":       tftypes.NewValue(tftypes.String, testURL),
@@ -502,6 +515,7 @@ func TestViewResource_Update(t *testing.T) {
 		state := tfsdk.State{
 			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+				"id":        tftypes.NewValue(tftypes.String, nil),
 				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 				"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
 				"url":       tftypes.NewValue(tftypes.String, nil),
@@ -509,6 +523,9 @@ func TestViewResource_Update(t *testing.T) {
 			Schema: schema.Schema{
 				Attributes: map[string]schema.Attribute{
 					"origin": schema.StringAttribute{
+						Computed: true,
+					},
+					"id": schema.StringAttribute{
 						Computed: true,
 					},
 					"dataset": schema.StringAttribute{
@@ -528,6 +545,7 @@ func TestViewResource_Update(t *testing.T) {
 		plan := tfsdk.Plan{
 			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+				"id":        tftypes.NewValue(tftypes.String, nil),
 				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 				"view_yaml": tftypes.NewValue(tftypes.String, "invalid: yaml: : :"),
 				"url":       tftypes.NewValue(tftypes.String, nil),
@@ -565,6 +583,7 @@ func TestViewResource_Delete(t *testing.T) {
 	state := tfsdk.State{
 		Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 			"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+			"id":        tftypes.NewValue(tftypes.String, nil),
 			"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 			"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
 			"url":       tftypes.NewValue(tftypes.String, "https://app.dash0.com/goto/traces/explorer?view_id=internal-uuid"),
@@ -572,6 +591,9 @@ func TestViewResource_Delete(t *testing.T) {
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
 				"origin": schema.StringAttribute{
+					Computed: true,
+				},
+				"id": schema.StringAttribute{
 					Computed: true,
 				},
 				"dataset": schema.StringAttribute{

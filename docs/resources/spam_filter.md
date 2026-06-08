@@ -4,13 +4,14 @@ page_title: "dash0_spam_filter Resource - Dash0"
 subcategory: ""
 description: |-
   Manages a Dash0 Spam Filter. Spam filters allow you to drop noisy or unwanted telemetry data before it is stored, reducing costs and improving signal-to-noise ratio. Filters are scoped to a dataset and can target logs, spans, or metrics.
+  See Set Spam Filters https://dash0.com/docs/dash0/cost-control/spam-filters for more details.
 ---
 
 # dash0_spam_filter (Resource)
 
 Manages a Dash0 Spam Filter. Spam filters allow you to drop noisy or unwanted telemetry data before it is stored, reducing costs and improving signal-to-noise ratio. Filters are scoped to a dataset and can target logs, spans, or metrics.
 
-See [About Spam Filters](https://www.dash0.com/docs/dash0/cost-control/spam-filters) for more details.
+See [Set Spam Filters](https://dash0.com/docs/dash0/cost-control/spam-filters) for more details.
 
 ## Example Usage
 
@@ -58,10 +59,11 @@ EOF
 ### Required
 
 - `dataset` (String) The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the spam filter belongs to. Provide the dataset's identifier, which is immutable, not the 'name'. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
-- `spam_filter_yaml` (String) The spam filter definition in YAML format. The YAML must include a `metadata.name` field and a `spec` with a `filter` (list of key-value matchers) and either `contexts` (`v1alpha1`, a list of signal types: `log`, `span`, `datapoint` or `web_event`) or `context` (`v1alpha2`, a single signal type out of `log`, `span`, `datapoint` and `web_event`). The `apiVersion` field determines which shape is expected.
+- `spam_filter_yaml` (String) The spam filter definition in YAML format. The YAML must include a `metadata.name` field and a `spec` with a `filter` (list of key-value matchers) and either `contexts` (`v1alpha1`, a list of signal types: `log`, `span`, `datapoint` or `web_event`) or `context` (`v1alpha2`, a single signal type out of `log`, `span`, `datapoint` or `web_event`). The `apiVersion` field determines which shape is expected.
 
 ### Read-Only
 
+- `id` (String) The server-assigned UUID of the spam filter, resolved by the provider after creation. Useful for cross-referencing the filter from other resources or external systems. Spam filters are not addressable in the Dash0 web app, so no `url` is exposed.
 - `origin` (String) A unique identifier for the spam filter, automatically generated on creation. Used to reference the spam filter for updates, reads, deletes, and imports.
 
 ## Import

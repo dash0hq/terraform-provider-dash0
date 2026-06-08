@@ -98,6 +98,9 @@ spec:
 					"origin": schema.StringAttribute{
 						Computed: true,
 					},
+					"id": schema.StringAttribute{
+						Computed: true,
+					},
 					"dataset": schema.StringAttribute{
 						Required: true,
 					},
@@ -123,6 +126,7 @@ spec:
 				tftypes.Object{
 					AttributeTypes: map[string]tftypes.Type{
 						"origin":         tftypes.String,
+						"id":             tftypes.String,
 						"dataset":        tftypes.String,
 						"dashboard_yaml": tftypes.String,
 						"url":            tftypes.String,
@@ -130,6 +134,7 @@ spec:
 				},
 				map[string]tftypes.Value{
 					"origin":         tftypes.NewValue(tftypes.String, testOrigin),
+					"id":             tftypes.NewValue(tftypes.String, nil),
 					"dataset":        tftypes.NewValue(tftypes.String, testDataset),
 					"dashboard_yaml": tftypes.NewValue(tftypes.String, originalYaml),
 					"url":            tftypes.NewValue(tftypes.String, "https://app.dash0.com/goto/dashboards?dashboard_id=internal-uuid"),

@@ -24,11 +24,11 @@ func TestUnmarshalNotificationChannel_Invalid(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// TestGetNotificationChannelURL verifies that GetNotificationChannelURL resolves
-// the server-assigned id by matching on origin and returns the library-built
-// deep link. Notification channels are org-level, so the URL has no dataset
-// query parameter.
-func TestGetNotificationChannelURL(t *testing.T) {
+// TestResolveNotificationChannel verifies that ResolveNotificationChannel
+// finds the server-assigned id by matching on origin and returns both the id
+// and the library-built deep link. Notification channels are org-level, so
+// the URL has no dataset query parameter.
+func TestResolveNotificationChannel(t *testing.T) {
 	strPtr := func(s string) *string { return &s }
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -66,15 +66,17 @@ func TestGetNotificationChannelURL(t *testing.T) {
 
 	c := &dash0Client{inner: inner, apiURL: "https://api.us-west-2.aws.dash0.com"}
 
-	t.Run("match by origin returns the library deep link without dataset", func(t *testing.T) {
-		got, err := c.GetNotificationChannelURL(t.Context(), "tf_target")
+	t.Run("match by origin returns id and library deep link without dataset", func(t *testing.T) {
+		id, url, err := c.ResolveNotificationChannel(t.Context(), "tf_target")
 		require.NoError(t, err)
-		assert.Equal(t, "https://app.dash0.com/goto/settings/notifications?channel_id=33333333-3333-3333-3333-333333333333", got)
+		assert.Equal(t, "33333333-3333-3333-3333-333333333333", id)
+		assert.Equal(t, "https://app.dash0.com/goto/settings/notifications?channel_id=33333333-3333-3333-3333-333333333333", url)
 	})
 
-	t.Run("no match returns empty string and no error", func(t *testing.T) {
-		got, err := c.GetNotificationChannelURL(t.Context(), "tf_missing")
+	t.Run("no match returns empty id and url and no error", func(t *testing.T) {
+		id, url, err := c.ResolveNotificationChannel(t.Context(), "tf_missing")
 		require.NoError(t, err)
-		assert.Equal(t, "", got)
+		assert.Equal(t, "", id)
+		assert.Equal(t, "", url)
 	})
 }

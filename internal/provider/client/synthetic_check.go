@@ -61,28 +61,29 @@ func (c *dash0Client) DeleteSyntheticCheck(ctx context.Context, origin string, d
 	return nil
 }
 
-// GetSyntheticCheckURL builds a deep link to the Dash0 web app for the synthetic
-// check with the given origin. The internal id is resolved from the list
-// endpoint by matching on origin (see matchOriginID).
+// ResolveSyntheticCheck looks up the server-assigned id and deep-link URL for
+// the synthetic check with the given origin by matching against the list
+// endpoint (see matchOriginID).
 //
-// It returns an empty string (and no error) when the app base URL cannot be
-// derived or the synthetic check is not present in the list, so that callers
-// can treat the URL as best-effort metadata rather than failing the operation.
-func (c *dash0Client) GetSyntheticCheckURL(ctx context.Context, origin string, dataset string) (string, error) {
+// It returns empty strings (and no error) when the synthetic check is not
+// present in the list, so that callers can treat both fields as best-effort
+// metadata rather than failing the operation. The URL is additionally empty
+// when the app base URL cannot be derived from the API URL.
+func (c *dash0Client) ResolveSyntheticCheck(ctx context.Context, origin string, dataset string) (string, string, error) {
 	items, err := c.inner.ListSyntheticChecks(ctx, &dataset)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	id := matchOriginID(items, origin, func(item *dash0.SyntheticChecksApiListItem) (string, *string) {
 		return item.Id, item.Origin
 	})
 	if id == "" {
-		tflog.Warn(ctx, fmt.Sprintf("Synthetic check with origin %q not found in dataset %q; synthetic check URL will be empty", origin, dataset))
-		return "", nil
+		tflog.Warn(ctx, fmt.Sprintf("Synthetic check with origin %q not found in dataset %q; id and URL will be empty", origin, dataset))
+		return "", "", nil
 	}
 
 	syntheticCheckURL := dash0.DeeplinkURL(c.apiURL, dash0.DeeplinkAssetTypeSyntheticCheck, id, &dataset)
 	logResolvedURL(ctx, "synthetic check", origin, syntheticCheckURL)
-	return syntheticCheckURL, nil
+	return id, syntheticCheckURL, nil
 }

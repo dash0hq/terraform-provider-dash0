@@ -152,12 +152,14 @@ func TestRecordingRuleResource_Create_InvalidYAML(t *testing.T) {
 			tftypes.Object{
 				AttributeTypes: map[string]tftypes.Type{
 					"origin":              tftypes.String,
+					"id":                  tftypes.String,
 					"dataset":             tftypes.String,
 					"recording_rule_yaml": tftypes.String,
 				},
 			},
 			map[string]tftypes.Value{
 				"origin":              tftypes.NewValue(tftypes.String, "test-origin"),
+				"id":                  tftypes.NewValue(tftypes.String, nil),
 				"dataset":             tftypes.NewValue(tftypes.String, "test-dataset"),
 				"recording_rule_yaml": tftypes.NewValue(tftypes.String, "invalid: yaml: content: ["),
 			},
@@ -165,6 +167,9 @@ func TestRecordingRuleResource_Create_InvalidYAML(t *testing.T) {
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
 				"origin": schema.StringAttribute{
+					Computed: true,
+				},
+				"id": schema.StringAttribute{
 					Computed: true,
 				},
 				"dataset": schema.StringAttribute{
@@ -201,12 +206,14 @@ func TestRecordingRuleResource_ReadError(t *testing.T) {
 			tftypes.Object{
 				AttributeTypes: map[string]tftypes.Type{
 					"origin":              tftypes.String,
+					"id":                  tftypes.String,
 					"dataset":             tftypes.String,
 					"recording_rule_yaml": tftypes.String,
 				},
 			},
 			map[string]tftypes.Value{
 				"origin":              tftypes.NewValue(tftypes.String, "test-origin"),
+				"id":                  tftypes.NewValue(tftypes.String, nil),
 				"dataset":             tftypes.NewValue(tftypes.String, "test-dataset"),
 				"recording_rule_yaml": tftypes.NewValue(tftypes.String, "test-yaml"),
 			},
@@ -214,6 +221,9 @@ func TestRecordingRuleResource_ReadError(t *testing.T) {
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
 				"origin": schema.StringAttribute{
+					Computed: true,
+				},
+				"id": schema.StringAttribute{
 					Computed: true,
 				},
 				"dataset": schema.StringAttribute{

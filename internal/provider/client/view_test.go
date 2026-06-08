@@ -24,9 +24,9 @@ func TestUnmarshalView_Invalid(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// TestGetViewURL verifies that GetViewURL resolves the id by matching on origin,
+// TestResolveView verifies that ResolveView resolves the id by matching on origin,
 // selects the right page based on the view's type, and includes the dataset.
-func TestGetViewURL(t *testing.T) {
+func TestResolveView(t *testing.T) {
 	strPtr := func(s string) *string { return &s }
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -47,14 +47,16 @@ func TestGetViewURL(t *testing.T) {
 	c := &dash0Client{inner: inner, apiURL: "https://api.us-west-2.aws.dash0.com"}
 
 	t.Run("span view routes to traces explorer with dataset", func(t *testing.T) {
-		got, err := c.GetViewURL(t.Context(), "tf_target", "production")
+		id, url, err := c.ResolveView(t.Context(), "tf_target", "production")
 		require.NoError(t, err)
-		assert.Equal(t, "https://app.dash0.com/goto/traces/explorer?dataset=production&view_id=33333333-3333-3333-3333-333333333333", got)
+		assert.Equal(t, "33333333-3333-3333-3333-333333333333", id)
+		assert.Equal(t, "https://app.dash0.com/goto/traces/explorer?dataset=production&view_id=33333333-3333-3333-3333-333333333333", url)
 	})
 
-	t.Run("no match returns empty string and no error", func(t *testing.T) {
-		got, err := c.GetViewURL(t.Context(), "tf_missing", "production")
+	t.Run("no match returns empty strings and no error", func(t *testing.T) {
+		id, url, err := c.ResolveView(t.Context(), "tf_missing", "production")
 		require.NoError(t, err)
-		assert.Equal(t, "", got)
+		assert.Equal(t, "", id)
+		assert.Equal(t, "", url)
 	})
 }
