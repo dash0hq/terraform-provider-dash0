@@ -31,9 +31,9 @@ func (m *MockClient) DeleteDashboard(ctx context.Context, origin string, dataset
 	return args.Error(0)
 }
 
-func (m *MockClient) GetDashboardURL(ctx context.Context, origin string, dataset string) (string, error) {
+func (m *MockClient) ResolveDashboard(ctx context.Context, origin string, dataset string) (string, string, error) {
 	args := m.Called(ctx, origin, dataset)
-	return args.String(0), args.Error(1)
+	return args.String(0), args.String(1), args.Error(2)
 }
 
 func (m *MockClient) CreateSyntheticCheck(ctx context.Context, origin string, checkJSON string, dataset string) error {
@@ -56,9 +56,9 @@ func (m *MockClient) DeleteSyntheticCheck(ctx context.Context, origin string, da
 	return args.Error(0)
 }
 
-func (m *MockClient) GetSyntheticCheckURL(ctx context.Context, origin string, dataset string) (string, error) {
+func (m *MockClient) ResolveSyntheticCheck(ctx context.Context, origin string, dataset string) (string, string, error) {
 	args := m.Called(ctx, origin, dataset)
-	return args.String(0), args.Error(1)
+	return args.String(0), args.String(1), args.Error(2)
 }
 
 func (m *MockClient) CreateView(ctx context.Context, origin string, viewJSON string, dataset string) error {
@@ -81,9 +81,9 @@ func (m *MockClient) DeleteView(ctx context.Context, origin string, dataset stri
 	return args.Error(0)
 }
 
-func (m *MockClient) GetViewURL(ctx context.Context, origin string, dataset string) (string, error) {
+func (m *MockClient) ResolveView(ctx context.Context, origin string, dataset string) (string, string, error) {
 	args := m.Called(ctx, origin, dataset)
-	return args.String(0), args.Error(1)
+	return args.String(0), args.String(1), args.Error(2)
 }
 
 func (m *MockClient) CreateCheckRule(ctx context.Context, origin string, ruleYAML string, dataset string) error {
@@ -106,9 +106,9 @@ func (m *MockClient) DeleteCheckRule(ctx context.Context, origin string, dataset
 	return args.Error(0)
 }
 
-func (m *MockClient) GetCheckRuleURL(ctx context.Context, origin string, dataset string) (string, error) {
+func (m *MockClient) ResolveCheckRule(ctx context.Context, origin string, dataset string) (string, string, error) {
 	args := m.Called(ctx, origin, dataset)
-	return args.String(0), args.Error(1)
+	return args.String(0), args.String(1), args.Error(2)
 }
 
 func (m *MockClient) CreateRecordingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error {
@@ -131,6 +131,11 @@ func (m *MockClient) DeleteRecordingRule(ctx context.Context, origin string, dat
 	return args.Error(0)
 }
 
+func (m *MockClient) ResolveRecordingRule(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
+}
+
 func (m *MockClient) CreateNotificationChannel(ctx context.Context, origin string, channelJSON string) error {
 	args := m.Called(ctx, origin, channelJSON)
 	return args.Error(0)
@@ -151,9 +156,9 @@ func (m *MockClient) DeleteNotificationChannel(ctx context.Context, origin strin
 	return args.Error(0)
 }
 
-func (m *MockClient) GetNotificationChannelURL(ctx context.Context, origin string) (string, error) {
+func (m *MockClient) ResolveNotificationChannel(ctx context.Context, origin string) (string, string, error) {
 	args := m.Called(ctx, origin)
-	return args.String(0), args.Error(1)
+	return args.String(0), args.String(1), args.Error(2)
 }
 
 func (m *MockClient) CreateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error {
@@ -174,4 +179,9 @@ func (m *MockClient) UpdateSpamFilter(ctx context.Context, origin string, filter
 func (m *MockClient) DeleteSpamFilter(ctx context.Context, origin string, dataset string) error {
 	args := m.Called(ctx, origin, dataset)
 	return args.Error(0)
+}
+
+func (m *MockClient) ResolveSpamFilter(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
 }

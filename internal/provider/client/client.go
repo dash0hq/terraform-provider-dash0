@@ -12,58 +12,60 @@ import (
 
 // Client defines the interface for interacting with the Dash0 API.
 // All methods use raw JSON strings for request/response bodies.
+//
+// The ResolveX methods translate a provider-generated origin into the
+// server-assigned identifier (and, where applicable, the deep-link URL into
+// the Dash0 web app). All are best-effort: when the asset cannot be located,
+// they return empty strings and no error so callers can surface the result as
+// optional metadata rather than failing the operation.
 type Client interface {
 	CreateDashboard(ctx context.Context, origin string, dashboardJSON string, dataset string) error
 	GetDashboard(ctx context.Context, origin string, dataset string) (string, error)
 	UpdateDashboard(ctx context.Context, origin string, dashboardJSON string, dataset string) error
 	DeleteDashboard(ctx context.Context, origin string, dataset string) error
-	// GetDashboardURL returns a deep link to the Dash0 web app for the dashboard
-	// with the given origin, or an empty string if it cannot be determined.
-	GetDashboardURL(ctx context.Context, origin string, dataset string) (string, error)
+	ResolveDashboard(ctx context.Context, origin string, dataset string) (string, string, error)
 
 	CreateSyntheticCheck(ctx context.Context, origin string, checkJSON string, dataset string) error
 	GetSyntheticCheck(ctx context.Context, origin string, dataset string) (string, error)
 	UpdateSyntheticCheck(ctx context.Context, origin string, checkJSON string, dataset string) error
 	DeleteSyntheticCheck(ctx context.Context, origin string, dataset string) error
-	// GetSyntheticCheckURL returns a deep link to the Dash0 web app for the
-	// synthetic check with the given origin, or an empty string if it cannot be
-	// determined.
-	GetSyntheticCheckURL(ctx context.Context, origin string, dataset string) (string, error)
+	ResolveSyntheticCheck(ctx context.Context, origin string, dataset string) (string, string, error)
 
 	CreateView(ctx context.Context, origin string, viewJSON string, dataset string) error
 	GetView(ctx context.Context, origin string, dataset string) (string, error)
 	UpdateView(ctx context.Context, origin string, viewJSON string, dataset string) error
 	DeleteView(ctx context.Context, origin string, dataset string) error
-	// GetViewURL returns a deep link to the Dash0 web app for the view with the
-	// given origin, or an empty string if it cannot be determined.
-	GetViewURL(ctx context.Context, origin string, dataset string) (string, error)
+	ResolveView(ctx context.Context, origin string, dataset string) (string, string, error)
 
 	CreateCheckRule(ctx context.Context, origin string, ruleYAML string, dataset string) error
 	GetCheckRule(ctx context.Context, origin string, dataset string) (string, error)
 	UpdateCheckRule(ctx context.Context, origin string, ruleYAML string, dataset string) error
 	DeleteCheckRule(ctx context.Context, origin string, dataset string) error
-	// GetCheckRuleURL returns a deep link to the Dash0 web app for the check rule
-	// with the given origin, or an empty string if it cannot be determined.
-	GetCheckRuleURL(ctx context.Context, origin string, dataset string) (string, error)
+	ResolveCheckRule(ctx context.Context, origin string, dataset string) (string, string, error)
 
 	CreateRecordingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error
 	GetRecordingRule(ctx context.Context, origin string, dataset string) (string, error)
 	UpdateRecordingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error
 	DeleteRecordingRule(ctx context.Context, origin string, dataset string) error
+	// ResolveRecordingRule returns the server-assigned id of the recording rule
+	// with the given origin (no deep-link URL — the Dash0 web app does not
+	// expose a per-recording-rule page).
+	ResolveRecordingRule(ctx context.Context, origin string, dataset string) (string, error)
 
 	CreateNotificationChannel(ctx context.Context, origin string, channelJSON string) error
 	GetNotificationChannel(ctx context.Context, origin string) (string, error)
 	UpdateNotificationChannel(ctx context.Context, origin string, channelJSON string) error
 	DeleteNotificationChannel(ctx context.Context, origin string) error
-	// GetNotificationChannelURL returns a deep link to the Dash0 web app for the
-	// notification channel with the given origin, or an empty string if it cannot
-	// be determined.
-	GetNotificationChannelURL(ctx context.Context, origin string) (string, error)
+	ResolveNotificationChannel(ctx context.Context, origin string) (string, string, error)
 
 	CreateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error
 	GetSpamFilter(ctx context.Context, origin string, dataset string) (string, error)
 	UpdateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error
 	DeleteSpamFilter(ctx context.Context, origin string, dataset string) error
+	// ResolveSpamFilter returns the server-assigned id of the spam filter with
+	// the given origin (no deep-link URL — the Dash0 web app does not expose
+	// a per-spam-filter page).
+	ResolveSpamFilter(ctx context.Context, origin string, dataset string) (string, error)
 }
 
 // Ensure dash0Client implements Client

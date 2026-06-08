@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
@@ -41,6 +42,7 @@ type RecordingRuleResource struct {
 // recordingRuleModel is the Terraform state model for a recording rule resource.
 type recordingRuleModel struct {
 	Origin            types.String `tfsdk:"origin"`
+	ID                types.String `tfsdk:"id"`
 	Dataset           types.String `tfsdk:"dataset"`
 	RecordingRuleYaml types.String `tfsdk:"recording_rule_yaml"`
 }
@@ -69,13 +71,20 @@ func (r *RecordingRuleResource) Metadata(_ context.Context, req resource.Metadat
 
 func (r *RecordingRuleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: `Manages a Dash0 Recording Rule. Recording rules pre-compute frequently needed or computationally expensive PromQL expressions and save the results as new time series. See [About Recording Rules](https://dash0.com/docs/dash0/monitoring/recording-rules/about-recording-rules) for more details. The recording rule definition uses the [Prometheus Rule format](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/).
+		Description: `Manages a Dash0 Recording Rule. Recording rules pre-compute frequently needed or computationally expensive PromQL expressions and save the results as new time series. See [Manage Check Rules as Code](https://dash0.com/docs/dash0/monitoring/alerting/manage-check-rules-as-code) for more details — recording rules share the same Prometheus rule format and management surface as alert check rules. The recording rule definition uses the [Prometheus Rule format](https://prometheus-operator.dev/docs/api-reference/api/#monitoring.coreos.com/v1.PrometheusRule).
 
 More information on how Prometheus rules are mapped to Dash0 recording rules can be found in the [Dash0 Operator documentation](https://dash0.com/docs/dash0/monitoring/kubernetes/about-kubernetes#managing-dash0-recording-rules).`,
 
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
 				Description: "A unique identifier for the recording rule, automatically generated on creation. Used to reference the recording rule for updates, reads, deletes, and imports.",
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"id": schema.StringAttribute{
+				Description: "The server-assigned identifier of the recording rule group, resolved by the provider after creation. The value has the form `recording_rule_group_<ulid>` (a ULID, not a UUID) because recording rules live inside groups and the API addresses the whole group. Recording rules are not addressable in the Dash0 web app, so no `url` is exposed.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -96,6 +105,27 @@ More information on how Prometheus rules are mapped to Dash0 recording rules can
 				},
 			},
 		},
+	}
+}
+
+// resolveRecordingRule populates the recording rule's server-assigned id on
+// the model by looking it up via the list endpoint. The id is best-effort
+// metadata: failures are surfaced as warnings and leave the attribute null
+// rather than failing the operation.
+func (r *RecordingRuleResource) resolveRecordingRule(ctx context.Context, model *recordingRuleModel, diags *diag.Diagnostics) {
+	id, err := r.client.ResolveRecordingRule(ctx, model.Origin.ValueString(), model.Dataset.ValueString())
+	if err != nil {
+		diags.AddWarning(
+			"Unable to resolve recording rule metadata",
+			fmt.Sprintf("The recording rule was saved successfully, but its id could not be determined: %s", err),
+		)
+		model.ID = types.StringNull()
+		return
+	}
+	if id == "" {
+		model.ID = types.StringNull()
+	} else {
+		model.ID = types.StringValue(id)
 	}
 }
 
@@ -132,6 +162,9 @@ func (r *RecordingRuleResource) Create(ctx context.Context, req resource.CreateR
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create recording rule, got error: %s", err))
 		return
 	}
+
+	// Resolve the id for the newly created recording rule (best-effort).
+	r.resolveRecordingRule(ctx, &model, &resp.Diagnostics)
 
 	tflog.Trace(ctx, "created a recording rule resource")
 
@@ -220,6 +253,9 @@ func (r *RecordingRuleResource) Update(ctx context.Context, req resource.UpdateR
 
 	// Update the existing recording rule (dataset changes force recreation via RequiresReplace)
 	plan.Origin = state.Origin
+	// The recording rule's identifier is immutable, so the id never changes on
+	// update; carry it from state instead of re-resolving it via the API.
+	plan.ID = state.ID
 	err = r.client.UpdateRecordingRule(ctx, plan.Origin.ValueString(), jsonBody, plan.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update recording rule, got error: %s", err))
@@ -276,4 +312,9 @@ func (r *RecordingRuleResource) ImportState(ctx context.Context, req resource.Im
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("recording_rule_yaml"), apiResponseJSON)...)
+
+	// Resolve the id (best-effort).
+	model := recordingRuleModel{Origin: types.StringValue(origin), Dataset: types.StringValue(dataset)}
+	r.resolveRecordingRule(ctx, &model, &resp.Diagnostics)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), model.ID)...)
 }

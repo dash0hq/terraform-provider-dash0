@@ -42,6 +42,7 @@ type ViewResource struct {
 // viewModel is the Terraform state model for a view resource.
 type viewModel struct {
 	Origin   types.String `tfsdk:"origin"`
+	ID       types.String `tfsdk:"id"`
 	Dataset  types.String `tfsdk:"dataset"`
 	ViewYaml types.String `tfsdk:"view_yaml"`
 	URL      types.String `tfsdk:"url"`
@@ -80,6 +81,13 @@ func (r *ViewResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"id": schema.StringAttribute{
+				Description: "The server-assigned UUID of the view, resolved by the provider after creation. Reference this value when wiring the view's identifier into another resource.",
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"dataset": schema.StringAttribute{
 				Description: "The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the view belongs to. Provide the dataset's identifier, which is immutable, not the 'name'. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
 				Required:    true,
@@ -105,24 +113,31 @@ func (r *ViewResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 	}
 }
 
-// setViewURL resolves the view's web app URL by origin and stores it on the
-// model. The URL is best-effort metadata: failures are surfaced as warnings and
-// leave the URL null rather than failing the operation.
-func (r *ViewResource) setViewURL(ctx context.Context, model *viewModel, diags *diag.Diagnostics) {
-	viewURL, err := r.client.GetViewURL(ctx, model.Origin.ValueString(), model.Dataset.ValueString())
+// resolveView populates the view's server-assigned id and web app URL on the
+// model by looking them up via the list endpoint. Both are best-effort
+// metadata: failures are surfaced as warnings and leave the attributes null
+// rather than failing the operation.
+func (r *ViewResource) resolveView(ctx context.Context, model *viewModel, diags *diag.Diagnostics) {
+	id, viewURL, err := r.client.ResolveView(ctx, model.Origin.ValueString(), model.Dataset.ValueString())
 	if err != nil {
 		diags.AddWarning(
-			"Unable to determine view URL",
-			fmt.Sprintf("The view was saved successfully, but its URL could not be determined: %s", err),
+			"Unable to resolve view metadata",
+			fmt.Sprintf("The view was saved successfully, but its id and URL could not be determined: %s", err),
 		)
+		model.ID = types.StringNull()
 		model.URL = types.StringNull()
 		return
+	}
+	if id == "" {
+		model.ID = types.StringNull()
+	} else {
+		model.ID = types.StringValue(id)
 	}
 	if viewURL == "" {
 		model.URL = types.StringNull()
-		return
+	} else {
+		model.URL = types.StringValue(viewURL)
 	}
-	model.URL = types.StringValue(viewURL)
 }
 
 func (r *ViewResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -159,8 +174,8 @@ func (r *ViewResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	// Resolve the web app URL for the newly created view (best-effort).
-	r.setViewURL(ctx, &model, &resp.Diagnostics)
+	// Resolve the id and web app URL for the newly created view (best-effort).
+	r.resolveView(ctx, &model, &resp.Diagnostics)
 
 	tflog.Trace(ctx, "created a view resource")
 
@@ -249,8 +264,9 @@ func (r *ViewResource) Update(ctx context.Context, req resource.UpdateRequest, r
 
 	// Update the existing view (dataset changes force recreation via RequiresReplace)
 	plan.Origin = state.Origin
-	// The view's identifier is immutable, so the URL never changes on update;
-	// carry it from state instead of re-resolving it via the API.
+	// The view's identifier is immutable, so neither the id nor the URL change
+	// on update; carry them from state instead of re-resolving them via the API.
+	plan.ID = state.ID
 	plan.URL = state.URL
 	err = r.client.UpdateView(ctx, plan.Origin.ValueString(), jsonBody, plan.Dataset.ValueString())
 	if err != nil {
@@ -309,8 +325,9 @@ func (r *ViewResource) ImportState(ctx context.Context, req resource.ImportState
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("view_yaml"), apiResponseJSON)...)
 
-	// Resolve the web app URL (best-effort).
+	// Resolve the id and web app URL (best-effort).
 	model := viewModel{Origin: types.StringValue(origin), Dataset: types.StringValue(dataset)}
-	r.setViewURL(ctx, &model, &resp.Diagnostics)
+	r.resolveView(ctx, &model, &resp.Diagnostics)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), model.ID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("url"), model.URL)...)
 }

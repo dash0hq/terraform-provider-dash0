@@ -70,15 +70,17 @@ func TestGetDashboardURL(t *testing.T) {
 	// inner points at the test server; apiURL drives the deep link host.
 	c := &dash0Client{inner: inner, apiURL: "https://api.us-west-2.aws.dash0.com"}
 
-	t.Run("match by origin returns the library deep link", func(t *testing.T) {
-		got, err := c.GetDashboardURL(t.Context(), "tf_target", "default")
+	t.Run("match by origin returns the id and library deep link", func(t *testing.T) {
+		id, url, err := c.ResolveDashboard(t.Context(), "tf_target", "default")
 		require.NoError(t, err)
-		assert.Equal(t, "https://app.dash0.com/goto/dashboards?dashboard_id=33333333-3333-3333-3333-333333333333&dataset=default", got)
+		assert.Equal(t, "33333333-3333-3333-3333-333333333333", id)
+		assert.Equal(t, "https://app.dash0.com/goto/dashboards?dashboard_id=33333333-3333-3333-3333-333333333333&dataset=default", url)
 	})
 
-	t.Run("no match returns empty string and no error", func(t *testing.T) {
-		got, err := c.GetDashboardURL(t.Context(), "tf_missing", "default")
+	t.Run("no match returns empty strings and no error", func(t *testing.T) {
+		id, url, err := c.ResolveDashboard(t.Context(), "tf_missing", "default")
 		require.NoError(t, err)
-		assert.Equal(t, "", got)
+		assert.Equal(t, "", id)
+		assert.Equal(t, "", url)
 	})
 }

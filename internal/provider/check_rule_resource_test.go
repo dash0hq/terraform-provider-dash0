@@ -165,6 +165,7 @@ func TestCheckRuleResource_Create_InvalidYAML(t *testing.T) {
 			tftypes.Object{
 				AttributeTypes: map[string]tftypes.Type{
 					"origin":          tftypes.String,
+					"id":              tftypes.String,
 					"dataset":         tftypes.String,
 					"check_rule_yaml": tftypes.String,
 					"url":             tftypes.String,
@@ -172,6 +173,7 @@ func TestCheckRuleResource_Create_InvalidYAML(t *testing.T) {
 			},
 			map[string]tftypes.Value{
 				"origin":          tftypes.NewValue(tftypes.String, "test-origin"),
+				"id":              tftypes.NewValue(tftypes.String, nil),
 				"dataset":         tftypes.NewValue(tftypes.String, "test-dataset"),
 				"check_rule_yaml": tftypes.NewValue(tftypes.String, "invalid: yaml: content: ["),
 				"url":             tftypes.NewValue(tftypes.String, nil),
@@ -180,6 +182,9 @@ func TestCheckRuleResource_Create_InvalidYAML(t *testing.T) {
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
 				"origin": schema.StringAttribute{
+					Computed: true,
+				},
+				"id": schema.StringAttribute{
 					Computed: true,
 				},
 				"dataset": schema.StringAttribute{
@@ -208,6 +213,9 @@ func testCheckRuleSchema() schema.Schema {
 	return schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
+				Computed: true,
+			},
+			"id": schema.StringAttribute{
 				Computed: true,
 			},
 			"dataset": schema.StringAttribute{
@@ -243,6 +251,7 @@ spec:
 	plan := tfsdk.Plan{
 		Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 			"origin":          tftypes.NewValue(tftypes.String, ""),
+			"id":              tftypes.NewValue(tftypes.String, nil),
 			"dataset":         tftypes.NewValue(tftypes.String, testDataset),
 			"check_rule_yaml": tftypes.NewValue(tftypes.String, testYaml),
 			"url":             tftypes.NewValue(tftypes.String, nil),
@@ -256,7 +265,7 @@ spec:
 
 	mockClient.On("CreateCheckRule", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	// After create, the URL is resolved by origin (generated tf_-prefixed value).
-	mockClient.On("GetCheckRuleURL", mock.Anything, mock.Anything, testDataset).Return(testURL, nil)
+	mockClient.On("ResolveCheckRule", mock.Anything, mock.Anything, testDataset).Return("test-id", testURL, nil)
 
 	r.Create(context.Background(), req, &resp)
 
@@ -290,6 +299,7 @@ spec:
 	state := tfsdk.State{
 		Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 			"origin":          tftypes.NewValue(tftypes.String, testOrigin),
+			"id":              tftypes.NewValue(tftypes.String, nil),
 			"dataset":         tftypes.NewValue(tftypes.String, testDataset),
 			"check_rule_yaml": tftypes.NewValue(tftypes.String, testYaml),
 			"url":             tftypes.NewValue(tftypes.String, testURL),
@@ -299,6 +309,7 @@ spec:
 	plan := tfsdk.Plan{
 		Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 			"origin":          tftypes.NewValue(tftypes.String, testOrigin),
+			"id":              tftypes.NewValue(tftypes.String, nil),
 			"dataset":         tftypes.NewValue(tftypes.String, testDataset),
 			"check_rule_yaml": tftypes.NewValue(tftypes.String, testYaml+"\n          for: 5m"),
 			"url":             tftypes.NewValue(tftypes.String, testURL),
@@ -450,6 +461,7 @@ func TestCheckRuleResource_ReadError(t *testing.T) {
 			tftypes.Object{
 				AttributeTypes: map[string]tftypes.Type{
 					"origin":          tftypes.String,
+					"id":              tftypes.String,
 					"dataset":         tftypes.String,
 					"check_rule_yaml": tftypes.String,
 					"url":             tftypes.String,
@@ -457,6 +469,7 @@ func TestCheckRuleResource_ReadError(t *testing.T) {
 			},
 			map[string]tftypes.Value{
 				"origin":          tftypes.NewValue(tftypes.String, "test-origin"),
+				"id":              tftypes.NewValue(tftypes.String, nil),
 				"dataset":         tftypes.NewValue(tftypes.String, "test-dataset"),
 				"check_rule_yaml": tftypes.NewValue(tftypes.String, "test-yaml"),
 				"url":             tftypes.NewValue(tftypes.String, nil),
@@ -465,6 +478,9 @@ func TestCheckRuleResource_ReadError(t *testing.T) {
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
 				"origin": schema.StringAttribute{
+					Computed: true,
+				},
+				"id": schema.StringAttribute{
 					Computed: true,
 				},
 				"dataset": schema.StringAttribute{

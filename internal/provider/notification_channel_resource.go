@@ -50,6 +50,7 @@ type NotificationChannelResource struct {
 // notificationChannelModel is the Terraform state model for a notification channel resource.
 type notificationChannelModel struct {
 	Origin                  types.String `tfsdk:"origin"`
+	ID                      types.String `tfsdk:"id"`
 	NotificationChannelYaml types.String `tfsdk:"notification_channel_yaml"`
 	URL                     types.String `tfsdk:"url"`
 }
@@ -95,6 +96,13 @@ func (r *NotificationChannelResource) Schema(_ context.Context, _ resource.Schem
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"id": schema.StringAttribute{
+				Description: "The server-assigned UUID of the notification channel, resolved by the provider after creation. Reference this value when wiring the channel into another resource's YAML — for example, in a `dash0_synthetic_check`'s `spec.notifications.channels` list, which requires raw UUIDs rather than origins.",
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"notification_channel_yaml": schema.StringAttribute{
 				Description: "The notification channel definition in YAML format. " +
 					"The YAML must include `kind: Dash0NotificationChannel`, a `metadata.name` field, " +
@@ -117,24 +125,31 @@ func (r *NotificationChannelResource) Schema(_ context.Context, _ resource.Schem
 	}
 }
 
-// setNotificationChannelURL resolves the channel's web app URL by origin and
-// stores it on the model. The URL is best-effort metadata: failures are
-// surfaced as warnings and leave the URL null rather than failing the operation.
-func (r *NotificationChannelResource) setNotificationChannelURL(ctx context.Context, model *notificationChannelModel, diags *diag.Diagnostics) {
-	channelURL, err := r.client.GetNotificationChannelURL(ctx, model.Origin.ValueString())
+// resolveNotificationChannel populates the channel's server-assigned id and
+// web app URL on the model by looking them up via the list endpoint. Both are
+// best-effort metadata: failures are surfaced as warnings and leave the
+// attributes null rather than failing the operation.
+func (r *NotificationChannelResource) resolveNotificationChannel(ctx context.Context, model *notificationChannelModel, diags *diag.Diagnostics) {
+	id, channelURL, err := r.client.ResolveNotificationChannel(ctx, model.Origin.ValueString())
 	if err != nil {
 		diags.AddWarning(
-			"Unable to determine notification channel URL",
-			fmt.Sprintf("The notification channel was saved successfully, but its URL could not be determined: %s", err),
+			"Unable to resolve notification channel metadata",
+			fmt.Sprintf("The notification channel was saved successfully, but its id and URL could not be determined: %s", err),
 		)
+		model.ID = types.StringNull()
 		model.URL = types.StringNull()
 		return
+	}
+	if id == "" {
+		model.ID = types.StringNull()
+	} else {
+		model.ID = types.StringValue(id)
 	}
 	if channelURL == "" {
 		model.URL = types.StringNull()
-		return
+	} else {
+		model.URL = types.StringValue(channelURL)
 	}
-	model.URL = types.StringValue(channelURL)
 }
 
 func (r *NotificationChannelResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -171,8 +186,8 @@ func (r *NotificationChannelResource) Create(ctx context.Context, req resource.C
 		return
 	}
 
-	// Resolve the web app URL for the newly created channel (best-effort).
-	r.setNotificationChannelURL(ctx, &model, &resp.Diagnostics)
+	// Resolve the id and web app URL for the newly created channel (best-effort).
+	r.resolveNotificationChannel(ctx, &model, &resp.Diagnostics)
 
 	tflog.Trace(ctx, "created a notification channel resource")
 
@@ -261,8 +276,10 @@ func (r *NotificationChannelResource) Update(ctx context.Context, req resource.U
 
 	// Update the existing notification channel
 	plan.Origin = state.Origin
-	// The channel's identifier is immutable, so the URL never changes on update;
-	// carry it from state instead of re-resolving it via the API.
+	// The channel's server-assigned identifier is immutable, so neither the id
+	// nor the URL change on update; carry them from state instead of
+	// re-resolving them via the API.
+	plan.ID = state.ID
 	plan.URL = state.URL
 	err = r.client.UpdateNotificationChannel(ctx, plan.Origin.ValueString(), jsonBody)
 	if err != nil {
@@ -310,8 +327,9 @@ func (r *NotificationChannelResource) ImportState(ctx context.Context, req resou
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("notification_channel_yaml"), apiResponseJSON)...)
 
-	// Resolve the web app URL (best-effort).
+	// Resolve the id and web app URL (best-effort).
 	model := notificationChannelModel{Origin: types.StringValue(origin)}
-	r.setNotificationChannelURL(ctx, &model, &resp.Diagnostics)
+	r.resolveNotificationChannel(ctx, &model, &resp.Diagnostics)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), model.ID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("url"), model.URL)...)
 }

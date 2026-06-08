@@ -19,9 +19,10 @@ func TestNewDash0Client_CheckRule(t *testing.T) {
 	assert.NotNil(t, c)
 }
 
-// TestGetCheckRuleURL verifies that GetCheckRuleURL resolves the id by matching
-// on origin and returns the library-built deep link including the dataset.
-func TestGetCheckRuleURL(t *testing.T) {
+// TestResolveCheckRule verifies that ResolveCheckRule resolves the id by matching
+// on origin and returns it along with the library-built deep link including the
+// dataset.
+func TestResolveCheckRule(t *testing.T) {
 	strPtr := func(s string) *string { return &s }
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -41,15 +42,17 @@ func TestGetCheckRuleURL(t *testing.T) {
 
 	c := &dash0Client{inner: inner, apiURL: "https://api.us-west-2.aws.dash0.com"}
 
-	t.Run("match by origin returns the library deep link with dataset", func(t *testing.T) {
-		got, err := c.GetCheckRuleURL(t.Context(), "tf_target", "production")
+	t.Run("match by origin returns id and library deep link with dataset", func(t *testing.T) {
+		id, url, err := c.ResolveCheckRule(t.Context(), "tf_target", "production")
 		require.NoError(t, err)
-		assert.Equal(t, "https://app.dash0.com/goto/alerting/check-rules?check_rule_id=tf_target&dataset=production", got)
+		assert.Equal(t, "tf_target", id)
+		assert.Equal(t, "https://app.dash0.com/goto/alerting/check-rules?check_rule_id=tf_target&dataset=production", url)
 	})
 
-	t.Run("no match returns empty string and no error", func(t *testing.T) {
-		got, err := c.GetCheckRuleURL(t.Context(), "tf_missing", "production")
+	t.Run("no match returns empty strings and no error", func(t *testing.T) {
+		id, url, err := c.ResolveCheckRule(t.Context(), "tf_missing", "production")
 		require.NoError(t, err)
-		assert.Equal(t, "", got)
+		assert.Equal(t, "", id)
+		assert.Equal(t, "", url)
 	})
 }

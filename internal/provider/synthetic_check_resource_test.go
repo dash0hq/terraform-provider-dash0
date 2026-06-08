@@ -82,12 +82,14 @@ func TestSyntheticCheckResource_Create(t *testing.T) {
 			Raw: tftypes.NewValue(tftypes.Object{
 				AttributeTypes: map[string]tftypes.Type{
 					"origin":               tftypes.String,
+					"id":                   tftypes.String,
 					"dataset":              tftypes.String,
 					"synthetic_check_yaml": tftypes.String,
 					"url":                  tftypes.String,
 				},
 			}, map[string]tftypes.Value{
 				"origin":  tftypes.NewValue(tftypes.String, nil),
+				"id":      tftypes.NewValue(tftypes.String, nil),
 				"dataset": tftypes.NewValue(tftypes.String, "test-dataset"),
 				"synthetic_check_yaml": tftypes.NewValue(tftypes.String, `
 kind: Dash0SyntheticCheck
@@ -115,7 +117,7 @@ spec:
 	// Setup mock expectations - CreateSyntheticCheck(ctx, origin, jsonBody, dataset)
 	mockClient.On("CreateSyntheticCheck", ctx, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	// After create, the URL is resolved by origin (generated tf_-prefixed value).
-	mockClient.On("GetSyntheticCheckURL", ctx, mock.Anything, "test-dataset").Return(testURL, nil)
+	mockClient.On("ResolveSyntheticCheck", ctx, mock.Anything, "test-dataset").Return("test-id", testURL, nil)
 
 	// Execute
 	r.Create(ctx, req, resp)
@@ -145,12 +147,14 @@ func TestSyntheticCheckResource_CreateWithError(t *testing.T) {
 			Raw: tftypes.NewValue(tftypes.Object{
 				AttributeTypes: map[string]tftypes.Type{
 					"origin":               tftypes.String,
+					"id":                   tftypes.String,
 					"dataset":              tftypes.String,
 					"synthetic_check_yaml": tftypes.String,
 					"url":                  tftypes.String,
 				},
 			}, map[string]tftypes.Value{
 				"origin":  tftypes.NewValue(tftypes.String, nil),
+				"id":      tftypes.NewValue(tftypes.String, nil),
 				"dataset": tftypes.NewValue(tftypes.String, "test-dataset"),
 				"synthetic_check_yaml": tftypes.NewValue(tftypes.String, `
 kind: Dash0SyntheticCheck
@@ -193,12 +197,14 @@ func TestSyntheticCheckResource_Delete(t *testing.T) {
 			Raw: tftypes.NewValue(tftypes.Object{
 				AttributeTypes: map[string]tftypes.Type{
 					"origin":               tftypes.String,
+					"id":                   tftypes.String,
 					"dataset":              tftypes.String,
 					"synthetic_check_yaml": tftypes.String,
 					"url":                  tftypes.String,
 				},
 			}, map[string]tftypes.Value{
 				"origin":               tftypes.NewValue(tftypes.String, "test-origin"),
+				"id":                   tftypes.NewValue(tftypes.String, nil),
 				"dataset":              tftypes.NewValue(tftypes.String, "test-dataset"),
 				"synthetic_check_yaml": tftypes.NewValue(tftypes.String, "test-yaml"),
 				"url":                  tftypes.NewValue(tftypes.String, nil),
@@ -225,6 +231,9 @@ func testSyntheticCheckSchema() schema.Schema {
 	return schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
+				Computed: true,
+			},
+			"id": schema.StringAttribute{
 				Computed: true,
 			},
 			"dataset": schema.StringAttribute{
@@ -373,12 +382,14 @@ func TestSyntheticCheckResource_Update(t *testing.T) {
 				Raw: tftypes.NewValue(tftypes.Object{
 					AttributeTypes: map[string]tftypes.Type{
 						"origin":               tftypes.String,
+						"id":                   tftypes.String,
 						"dataset":              tftypes.String,
 						"synthetic_check_yaml": tftypes.String,
 						"url":                  tftypes.String,
 					},
 				}, map[string]tftypes.Value{
 					"origin":               tftypes.NewValue(tftypes.String, "test-origin"),
+					"id":                   tftypes.NewValue(tftypes.String, nil),
 					"dataset":              tftypes.NewValue(tftypes.String, "test-dataset"),
 					"synthetic_check_yaml": tftypes.NewValue(tftypes.String, "old-yaml"),
 					"url":                  tftypes.NewValue(tftypes.String, testURL),
@@ -389,12 +400,14 @@ func TestSyntheticCheckResource_Update(t *testing.T) {
 				Raw: tftypes.NewValue(tftypes.Object{
 					AttributeTypes: map[string]tftypes.Type{
 						"origin":               tftypes.String,
+						"id":                   tftypes.String,
 						"dataset":              tftypes.String,
 						"synthetic_check_yaml": tftypes.String,
 						"url":                  tftypes.String,
 					},
 				}, map[string]tftypes.Value{
 					"origin":  tftypes.NewValue(tftypes.String, "test-origin"),
+					"id":      tftypes.NewValue(tftypes.String, nil),
 					"dataset": tftypes.NewValue(tftypes.String, "test-dataset"),
 					"synthetic_check_yaml": tftypes.NewValue(tftypes.String, `
 kind: Dash0SyntheticCheck

@@ -130,12 +130,14 @@ spec:
 					Raw: tftypes.NewValue(tftypes.Object{
 						AttributeTypes: map[string]tftypes.Type{
 							"origin":               tftypes.String,
+							"id":                   tftypes.String,
 							"dataset":              tftypes.String,
 							"synthetic_check_yaml": tftypes.String,
 							"url":                  tftypes.String,
 						},
 					}, map[string]tftypes.Value{
 						"origin":               tftypes.NewValue(tftypes.String, "test-origin"),
+						"id":                   tftypes.NewValue(tftypes.String, nil),
 						"dataset":              tftypes.NewValue(tftypes.String, "test-dataset"),
 						"synthetic_check_yaml": tftypes.NewValue(tftypes.String, tt.currentState),
 						"url":                  tftypes.NewValue(tftypes.String, testURL),
