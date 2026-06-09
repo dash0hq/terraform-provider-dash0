@@ -3,10 +3,9 @@ package provider
 import (
 	"cmp"
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -24,19 +23,6 @@ import (
 // Ensure the implementation satisfies the expected interfaces
 var (
 	_ provider.Provider = &dash0Provider{}
-)
-
-const (
-	// These should be used in the error titles
-	missingDash0URLErrMsg       string = "Missing Dash0 URL"
-	missingDash0AuthTokenErrMsg string = "Missing Dash0 Auth Token"
-	dash0CLIProfilesLoadErrMsg  string = "Unable to load credentials from dash0 CLI profiles"
-
-	// These should be used in the error detailed descriptions
-	configDirNotExistsErrMsgDetail          string = "dash0 CLI config dir does not exists"
-	emptyActiveProfileErrMsgDetail          string = "activeProfile contains empty string"
-	profileNotFoundInJsonErrMsgDetail       string = "profile not found in profiles.json"
-	noDash0CLIConfigDirProvidedErrMsgDetail string = "no dash0 CLI config dir provided, cannot fetch profile credentials"
 )
 
 // New is a helper function to simplify provider server and testing implementation.
@@ -69,28 +55,24 @@ func (p *dash0Provider) Metadata(_ context.Context, _ provider.MetadataRequest, 
 
 func providerSchema() schema.Schema {
 	return schema.Schema{
-		Description: "The Dash0 provider allows you to manage resources on the [Dash0](https://www.dash0.com) observability platform, including dashboards, check rules, recording rules, recording rule groups, synthetic checks, and views. Authentication can be provided via provider configuration attributes or via the DASH0_API_URL and DASH0_AUTH_TOKEN environment variables.",
+		Description: "The Dash0 provider allows you to manage resources on the [Dash0](https://www.dash0.com) observability platform, including dashboards, check rules, recording rules, recording rule groups, synthetic checks, and views. Credentials can be supplied via provider configuration attributes, via the DASH0_API_URL and DASH0_AUTH_TOKEN environment variables, or via a dash0 CLI profile.",
 		Attributes: map[string]schema.Attribute{
-			"profile": schema.StringAttribute{
-				Optional: true,
-				Description: "The `profile` attribute is used only when `url` or `auth_token` are not provided via environment variables or provider configuration. " +
-					"When needed, the provider loads missing credentials from the dash0 CLI config files using the following logic:\n" +
-					" - If `profile` is set, credentials are loaded from that named profile in the dash0 CLI config files. If the profile is not found, an error is raised.\n" +
-					" - If `profile` is not set, the provider falls back to the profile specified in `~/.dash0/activeProfile`.\n" +
-					" - If neither approach yields credentials, an error is raised.",
-			},
 			"url": schema.StringAttribute{
 				Optional:    true,
-				Description: "The base URL of the Dash0 API (e.g. \"https://api.us-west-2.aws.dash0.com\"). If omitted, the DASH0_API_URL environment variable will be used. (DASH0_URL is configured as a fallback and will be deprecated, please use DASH0_API_URL instead)",
+				Description: "The base URL of the Dash0 API (e.g. \"https://api.us-west-2.aws.dash0.com\"). If omitted, the DASH0_API_URL environment variable is used. DASH0_URL is accepted as a deprecated fallback.",
 			},
 			"auth_token": schema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,
-				Description: "The API auth token for Dash0. Tokens can be created in [Dash0 Settings > Auth Tokens](https://app.dash0.com/settings/auth-tokens). If omitted, the DASH0_AUTH_TOKEN environment variable will be used.",
+				Description: "The API auth token for Dash0. Tokens can be created in [Dash0 Settings > Auth Tokens](https://app.dash0.com/settings/auth-tokens). If omitted, the DASH0_AUTH_TOKEN environment variable is used.",
+			},
+			"profile": schema.StringAttribute{
+				Optional:    true,
+				Description: "The name of a [dash0 CLI](https://github.com/dash0hq/dash0-cli) profile to load credentials from when `url`/`auth_token` are not supplied via attributes or environment variables. If unset, the active profile in the dash0 CLI configuration directory is used. The directory defaults to `~/.dash0` and can be overridden with the DASH0_CONFIG_DIR environment variable.",
 			},
 			"max_retries": schema.Int64Attribute{
 				Optional:    true,
-				Description: "Maximum number of retries for failed API requests (0–5). If omitted, the DASH0_MAX_RETRIES environment variable will be used. Defaults to 3.",
+				Description: "Maximum number of retries for failed API requests (0–5). If omitted, the DASH0_MAX_RETRIES environment variable is used. Defaults to 3.",
 			},
 		},
 	}
@@ -101,187 +83,95 @@ func (p *dash0Provider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 	resp.Schema = providerSchema()
 }
 
-// Loads DASH0_API_URL if defined, if it is not defined then
-// loads DASH0_URL
-func getDash0APIUrlFromEnv() string {
-	if dash0ApiUrl, apiUrlEnvFound := os.LookupEnv("DASH0_API_URL"); apiUrlEnvFound {
-		return dash0ApiUrl
+// getEnvURL reads the Dash0 API URL from the environment, preferring
+// DASH0_API_URL and falling back to the deprecated DASH0_URL.
+func getEnvURL() string {
+	if v := os.Getenv("DASH0_API_URL"); v != "" {
+		return v
 	}
-	if dash0url, dash0UrlFound := os.LookupEnv("DASH0_URL"); dash0UrlFound {
-		return dash0url
-	}
-	return ""
+	return os.Getenv("DASH0_URL")
 }
 
-// compute dash0 CLI config dir and return its value -
-// load DASH0_CONFIG_DIR if it is defined
-// return path if it exists
-// check if $HOME/.dash0 or $USERPROFILE/.dash0 exists or not
-// if it exists return the value or return empty string
-func resolveDash0ConfigDir() (string, error) {
-	if envDefinedConfigDir, isConfigDirEnvDefined := os.LookupEnv("DASH0_CONFIG_DIR"); isConfigDirEnvDefined {
-		// verify that the defined dir does exists and is accessible to our process
-		if _, envConfigDirStatErr := os.Stat(envDefinedConfigDir); envConfigDirStatErr != nil {
-			return "", envConfigDirStatErr
+// loadProfileConfiguration resolves a dash0 CLI profile to a Configuration.
+// If profileName is empty, the active profile from the CLI config directory is
+// used. Profile lookup is delegated to dash0-api-client-go's profiles package,
+// which honors the DASH0_CONFIG_DIR environment variable and falls back to
+// `~/.dash0`.
+func loadProfileConfiguration(profileName string) (*dash0Profiles.Configuration, error) {
+	store, err := dash0Profiles.NewStore()
+	if err != nil {
+		return nil, err
+	}
+	if profileName == "" {
+		active, err := store.GetActiveProfile()
+		if err != nil {
+			return nil, err
 		}
-		return envDefinedConfigDir, nil
+		return &active.Configuration, nil
 	}
-	homeDir, homeDirErr := os.UserHomeDir()
-	if homeDirErr != nil {
-		return "", homeDirErr
+	profiles, err := store.GetProfiles()
+	if err != nil {
+		return nil, err
 	}
-	defaultDash0ConfigDir := filepath.Join(homeDir, ".dash0")
-	_, defaultDash0ConfigDirStatErr := os.Stat(defaultDash0ConfigDir)
-	if defaultDash0ConfigDirStatErr != nil {
-		return "", defaultDash0ConfigDirStatErr
+	for _, p := range profiles {
+		if p.Name == profileName {
+			return &p.Configuration, nil
+		}
 	}
-	return defaultDash0ConfigDir, nil
-
+	return nil, fmt.Errorf("profile %q not found in dash0 CLI configuration", profileName)
 }
 
-// load activeProfile name from `$DASH0_CONFIG_DIR` or return a non-nil error
-func loadActiveProfileFromFile(dash0ConfigDir string) (string, error) {
-	activeProfileFilePath := filepath.Join(dash0ConfigDir, "activeProfile")
-
-	_, activeProfileFileExistsErr := os.Stat(activeProfileFilePath)
-	if activeProfileFileExistsErr != nil {
-		// error possibly the file does not exists
-		return "", activeProfileFileExistsErr
-	}
-
-	activeProfileFileContent,
-		activeProfileFileContentErr := os.ReadFile(activeProfileFilePath)
-	if activeProfileFileContentErr != nil {
-		// error reading activeProfileFilePath
-		// can be permissions error
-		return "", activeProfileFileContentErr
-	}
-	// trimming space because many editors put a new line automatically
-	// and having a new line in profile name breaks auth to dash0 APIs
-	profile := strings.TrimSpace(string(activeProfileFileContent))
-	return profile, nil
-}
-
-// load configuration from dash0Config or return a non-nil error
-func loadUrlAndTokenFromProfiles(dash0ConfigDir string, profile string) (dash0Profiles.Configuration, error) {
-	// If a config dir is specified, make sure that the path exists
-	if dash0ConfigDir == "" {
-		return dash0Profiles.Configuration{}, fmt.Errorf(noDash0CLIConfigDirProvidedErrMsgDetail)
-	}
-
-	// Profile name is not provided in the provider configuration, see if there is an activeProfile
-	// file defined in the dash0 CLI config directory
-	if profile == "" {
-		activeProfile, dash0ActiveProfileErr := loadActiveProfileFromFile(dash0ConfigDir)
-		if dash0ActiveProfileErr != nil {
-			return dash0Profiles.Configuration{}, dash0ActiveProfileErr
-		}
-		if len(activeProfile) == 0 {
-			return dash0Profiles.Configuration{}, fmt.Errorf(emptyActiveProfileErrMsgDetail)
-		}
-		profile = activeProfile
-	}
-
-	dash0ProfilesFilePath := filepath.Join(dash0ConfigDir, "profiles.json")
-	_, dash0ProfilesFileExistsErr := os.Stat(dash0ProfilesFilePath)
-	if dash0ProfilesFileExistsErr != nil {
-		return dash0Profiles.Configuration{}, dash0ProfilesFileExistsErr
-	}
-
-	// is necessary that we provide the path which was tried to read/parse, because
-	// our provider accepts an env variable as well as calculate a dash0 CLI
-	// dir if not provided, user should know which file failed to read/parse
-
-	dash0ProfilesFileContent,
-		dash0ProfilesFileContentReadErr := os.ReadFile(dash0ProfilesFilePath)
-	if dash0ProfilesFileContentReadErr != nil {
-		return dash0Profiles.Configuration{}, fmt.Errorf(
-			"reading %s failed with exception: %s", dash0ProfilesFilePath, dash0ProfilesFileContentReadErr,
-		)
-	}
-
-	var profilesConfigFile dash0Profiles.ProfilesFile
-	profileJsonUnmarshalErr := json.Unmarshal(dash0ProfilesFileContent, &profilesConfigFile)
-	if profileJsonUnmarshalErr != nil {
-		return dash0Profiles.Configuration{}, fmt.Errorf(
-			"parsing %s failed with exception: %s", dash0ProfilesFilePath, profileJsonUnmarshalErr,
-		)
-	}
-
-	for _, profileData := range profilesConfigFile.Profiles {
-		if profileData.Name == profile {
-			return profileData.Configuration, nil
-		}
-	}
-
-	// Again since the profiles.json file can be loaded from env or default home dir
-	// its necessary to provide path of file which was used to load data
-	return dash0Profiles.Configuration{}, fmt.Errorf(
-		"%s, using: %s, looking for profile: %s ", profileNotFoundInJsonErrMsgDetail, dash0ProfilesFilePath, profile,
-	)
-}
-
+// resolveAuthInfo computes the Dash0 URL and auth token according to the
+// documented precedence:
+//
+//  1. DASH0_API_URL / DASH0_AUTH_TOKEN environment variables (DASH0_URL is
+//     accepted as a deprecated fallback for the URL).
+//  2. Provider attributes (`url`, `auth_token`).
+//  3. dash0 CLI profile — the one named by the `profile` attribute, or the
+//     active profile if `profile` is empty.
+//
+// Errors loading the CLI profile are surfaced when the user asked for a
+// specific profile or when an unexpected error (e.g. malformed profiles file)
+// occurs. ErrNoActiveProfile with no explicit profile is treated as "no CLI
+// profile configured" and silently ignored — the caller is then expected to
+// emit a "missing credentials" diagnostic.
 func resolveAuthInfo(cfg *providerConfigModel) (string, string, error) {
-	// Start with environment variables
-	urlEnv := getDash0APIUrlFromEnv()
-	dash0ConfigDir, dash0ConfigDirResolveErr := resolveDash0ConfigDir()
-	authTokenEnv := os.Getenv("DASH0_AUTH_TOKEN")
-
-	if urlEnv != "" && authTokenEnv != "" {
-		return urlEnv, authTokenEnv, nil
-	}
-
-	var urlProvider, authTokenProvider string
+	var attrURL, attrAuthToken string
 	if !cfg.URL.IsNull() && !cfg.URL.IsUnknown() {
-		urlProvider = cfg.URL.ValueString()
+		attrURL = cfg.URL.ValueString()
 	}
-
 	if !cfg.AuthToken.IsNull() && !cfg.AuthToken.IsUnknown() {
-		authTokenProvider = cfg.AuthToken.ValueString()
+		attrAuthToken = cfg.AuthToken.ValueString()
 	}
 
-	url := cmp.Or(urlEnv, urlProvider)
-	authToken := cmp.Or(authTokenEnv, authTokenProvider)
+	url := cmp.Or(getEnvURL(), attrURL)
+	authToken := cmp.Or(os.Getenv("DASH0_AUTH_TOKEN"), attrAuthToken)
 
 	if url != "" && authToken != "" {
 		return url, authToken, nil
 	}
 
-	var profileToLoad string
+	var profileName string
+	var profileExplicit bool
 	if !cfg.Profile.IsNull() && !cfg.Profile.IsUnknown() {
-		profileToLoad = cfg.Profile.ValueString()
+		profileName = cfg.Profile.ValueString()
+		profileExplicit = profileName != ""
 	}
 
-	// no dash0CLIConfigDir exists, cannot load values from config dir,
-	// return an error if profile was provided, if not then silently skip
-	// the process of getting values from config dir
-	if dash0ConfigDirResolveErr != nil {
-		if profileToLoad == "" {
+	profileCfg, err := loadProfileConfiguration(profileName)
+	if err != nil {
+		if !profileExplicit && errors.Is(err, dash0Profiles.ErrNoActiveProfile) {
 			return url, authToken, nil
 		}
-		if profileToLoad != "" {
-			return url, authToken, dash0ConfigDirResolveErr
-		}
-	}
-	configModel, configModelErr := loadUrlAndTokenFromProfiles(dash0ConfigDir, profileToLoad)
-
-	var urlConfig, authTokenConfig string
-	if len(strings.TrimSpace(configModel.ApiUrl)) > 0 {
-		urlConfig = strings.TrimSpace(configModel.ApiUrl)
-	}
-	if len(strings.TrimSpace(configModel.AuthToken)) > 0 {
-		authTokenConfig = strings.TrimSpace(configModel.AuthToken)
+		return url, authToken, err
 	}
 
-	url = cmp.Or(urlEnv, urlProvider, urlConfig)
-	authToken = cmp.Or(authTokenEnv, authTokenProvider, authTokenConfig)
-
-	// if one of either url or authToken is still empty then return
-	// the exception as well, that will be provided to user
-	if url == "" || authToken == "" {
-		return url, authToken, configModelErr
+	if url == "" {
+		url = profileCfg.ApiUrl
 	}
-
+	if authToken == "" {
+		authToken = profileCfg.AuthToken
+	}
 	return url, authToken, nil
 }
 
@@ -295,43 +185,37 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 		return
 	}
 
-	url, authToken, err := resolveAuthInfo(&cfg)
+	if os.Getenv("DASH0_API_URL") == "" && os.Getenv("DASH0_URL") != "" {
+		tflog.Warn(ctx, "DASH0_URL is deprecated; please switch to DASH0_API_URL")
+	}
 
+	url, authToken, err := resolveAuthInfo(&cfg)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			dash0CLIProfilesLoadErrMsg,
+			"Unable to load credentials from dash0 CLI profile",
 			err.Error(),
 		)
 	}
 
-	// Validate
 	if url == "" {
 		resp.Diagnostics.AddError(
-			missingDash0URLErrMsg,
-			"The provider cannot create the Dash0 API client, because no Dash0 URL was"+
-				" provided. Set the `url` attribute in the provider block or set the"+
-				" DASH0_API_URL environment variable. You can even"+
-				" use a dash0 CLI profile and provide the profile name as `profile`"+
-				" attribute to the provider. If `profile` is not defined, the"+
-				" current `activeProfile` of dash0 CLI will be used."+
-				" DASH0_URL is the legacy way of defining DASH0_API_URL will be deprecated"+
-				" in future releases.",
+			"Missing Dash0 URL",
+			"The provider cannot create the Dash0 API client because no Dash0 URL was provided. "+
+				"Set the `url` attribute in the provider block, set the DASH0_API_URL environment "+
+				"variable, or configure a dash0 CLI profile (referenced via the `profile` attribute, "+
+				"or as the active profile in `~/.dash0`).",
 		)
 	}
-
 	if authToken == "" {
 		resp.Diagnostics.AddError(
-			missingDash0AuthTokenErrMsg,
-			"The provider cannot create the Dash0 API client because no"+
-				"Dash0 Auth Token was provided. Set the `auth_token` attribute in the"+
-				"provider block or set the DASH0_AUTH_TOKEN environment variable. You can"+
-				"even configure a dash0 CLI profile and provide the profile name as"+
-				"`profile` attribute to the provider. If `profile` is not defined, the"+
-				"current `activeProfile` of dash0 CLI will be used.",
+			"Missing Dash0 Auth Token",
+			"The provider cannot create the Dash0 API client because no Dash0 auth token was provided. "+
+				"Set the `auth_token` attribute in the provider block, set the DASH0_AUTH_TOKEN "+
+				"environment variable, or configure a dash0 CLI profile (referenced via the `profile` "+
+				"attribute, or as the active profile in `~/.dash0`).",
 		)
 	}
-
-	if !strings.HasPrefix(authToken, "auth_") && authToken != "" {
+	if authToken != "" && !strings.HasPrefix(authToken, "auth_") {
 		resp.Diagnostics.AddError(
 			"Invalid Dash0 Auth Token",
 			"The auth token must start with 'auth_'. Check your DASH0_AUTH_TOKEN environment variable or provider configuration.",

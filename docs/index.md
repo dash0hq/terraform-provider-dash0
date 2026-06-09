@@ -13,11 +13,15 @@ The changelog for this provider can be found [on GitHub](https://github.com/dash
 
 ## Authentication
 
-The Dash0 provider supports two authentication methods. You can get the authentication credentials through [Dash0's settings screens](https://app.dash0.com/settings/auth-tokens).
+The Dash0 provider supports three authentication sources. You can get the authentication credentials through [Dash0's settings screens](https://app.dash0.com/settings/auth-tokens).
+
+Credentials are resolved in this order:
+
+1. The `DASH0_API_URL` and `DASH0_AUTH_TOKEN` environment variables (`DASH0_URL` is accepted as a deprecated fallback for the URL).
+2. The `url` and `auth_token` provider attributes.
+3. A [dash0 CLI](https://github.com/dash0hq/dash0-cli) profile — the one named by the `profile` provider attribute, or the active profile in the CLI configuration directory if `profile` is unset.
 
 ### Option 1: Environment Variables (Recommended)
-
-Environment variables take precedence over provider configuration attributes.
 
 ```sh
 export DASH0_API_URL="https://api.us-west-2.aws.dash0.com"
@@ -25,25 +29,21 @@ export DASH0_AUTH_TOKEN="auth_xxxx"
 export DASH0_MAX_RETRIES=3  # optional, default: 3, max: 5
 ```
 
-> [!WARNING]
-> Currently you can still use `DASH0_URL` environment variable to define the Api 
-> URL used by provider to create an http client, but it will soon be deprecated
-> and it is advised that you use `DASH0_API_URL` instead of it.
-
 The following environment variables are supported:
 
 | Variable | Required | Description | Default |
 |----------|----------|-------------|---------|
-| `DASH0_URL` | Yes | The base URL of the Dash0 API (e.g. `https://api.us-west-2.aws.dash0.com`). Overrides the `url` provider attribute. | — |
+| `DASH0_API_URL` | Yes | The base URL of the Dash0 API (e.g. `https://api.us-west-2.aws.dash0.com`). Overrides the `url` provider attribute. | — |
+| `DASH0_URL` | No | Deprecated alias for `DASH0_API_URL`. Used only when `DASH0_API_URL` is not set. | — |
 | `DASH0_AUTH_TOKEN` | Yes | The API auth token for Dash0. Must start with `auth_`. Overrides the `auth_token` provider attribute. | — |
-| `DASH0_CONFIG_DIR` | No | A directory in which dash0 CLI config files are present, can be specified when a non-default dir is used. | `3` |
+| `DASH0_CONFIG_DIR` | No | Directory containing the dash0 CLI configuration files (`activeProfile`, `profiles.json`). Used when loading credentials from a CLI profile. | `~/.dash0` |
 | `DASH0_MAX_RETRIES` | No | Maximum number of retries for failed API requests (0–5). Overrides the `max_retries` provider attribute. | `3` |
 
 ### Option 2: Provider Configuration
 
 Alternatively, you can configure the provider directly in the provider block:
 
-```hcl
+```terraform
 provider "dash0" {
   url         = "https://api.us-west-2.aws.dash0.com"
   auth_token  = "auth_xxxx"
@@ -51,28 +51,31 @@ provider "dash0" {
 }
 ```
 
-**Note:** Environment variables (`DASH0_API_URL` and `DASH0_AUTH_TOKEN`) will override provider configuration attributes if both are set.
-**Note:** Environment variables take precedence over provider configuration attributes when both are set.
+Environment variables take precedence over provider configuration attributes when both are set.
 
-### Option 3: Using [Dash0 CLI](https://github.com/dash0hq/dash0-cli) configured profiles
+### Option 3: dash0 CLI profile
 
-If Dash0 CLI is installed and configured already with the credentials for it 
-to be able to connect to Dash0 APIs, the provider will automatically pick up 
-current `activeProfile` credentials from it. You can also specify a specific
-profile from which you want the provider to pick up credentials from by 
-specifying `profile` attribute like below - 
+If the [dash0 CLI](https://github.com/dash0hq/dash0-cli) is installed and configured, the provider can load credentials from one of its profiles when neither environment variables nor provider attributes supply them. By default the active profile is used; the `profile` attribute selects a specific profile by name.
 
-```hcl
-provider "dash0" {
-  profile = "test"
+```terraform
+terraform {
+  required_providers {
+    dash0 = {
+      source  = "dash0hq/dash0"
+      version = "~> 1.6.0"
+    }
+  }
 }
 
+# The `profile` attribute loads credentials from a named dash0 CLI profile
+# (configured via `dash0 config profiles create`). Omit it to fall back to the
+# CLI's active profile.
+provider "dash0" {
+  profile = "test1"
+}
 ```
 
-**Note:** Environment variables (`DASH0_API_URL` and `DASH0_AUTH_TOKEN`) will override provider configuration which overrides CLI configurations.
-
-
-
+The CLI configuration directory defaults to `~/.dash0`; set `DASH0_CONFIG_DIR` to point at a different location (useful for tests or for sandboxed environments).
 
 ## Examples
 
@@ -92,7 +95,7 @@ terraform {
 
 provider "dash0" {
   # Configuration will be read from environment variables:
-  # DASH0_URL and DASH0_AUTH_TOKEN
+  # DASH0_API_URL and DASH0_AUTH_TOKEN
 }
 ```
 

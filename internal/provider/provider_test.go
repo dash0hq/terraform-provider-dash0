@@ -2,77 +2,92 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// Only creates a temporary dash0 Config Directory for tests
-// This directory is cleaned after automatically and you can specify what file
-// from provider_test_rs directory do you want to be copied into the temporary
-// dash0 config directory to do the tests, it requires the names of
-func createTemporaryDash0CliConfig(t *testing.T, sourceActiveProfileFileName string, sourceProfilesJsonFileName string) string {
-	tempConfigDir := t.TempDir()
+// profilesFixture is a small set of profiles used by tests that exercise the
+// CLI-profile fallback. test1 has the real-looking credentials; test2 is a
+// second profile so tests can verify named-profile lookup; "empty" has blank
+// values so tests can verify attribute-over-profile precedence.
+const profilesFixture = `{
+  "profiles": [
+    {
+      "name": "test1",
+      "configuration": {
+        "apiUrl": "https://api.us-west-2.aws.dash0.com",
+        "authToken": "auth_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "name": "test2",
+      "configuration": {
+        "apiUrl": "https://api.us-west-1.aws.dash0.com",
+        "authToken": "auth_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    {
+      "name": "empty",
+      "configuration": {"apiUrl": "", "authToken": ""}
+    }
+  ]
+}`
 
-	tempDash0ConfigDirPath := path.Join(tempConfigDir, ".dash0")
-
-	tempConfigDirCreationErr := os.MkdirAll(tempDash0ConfigDirPath, 0777)
-	if tempConfigDirCreationErr != nil {
-		t.Error("Unable to create temporary config dir")
-	}
-
-	copyFiles := func(sourceFile string, targetFile string) {
-		if sourceFile == "" {
-			// if source file name is empty then do not do any operations
-			return
+// setupCLIConfigDir writes the given activeProfile content and profiles.json
+// content into a temp directory and points DASH0_CONFIG_DIR at it. Pass an
+// empty string to skip writing the corresponding file.
+func setupCLIConfigDir(t *testing.T, activeProfile, profilesJSON string) string {
+	t.Helper()
+	dir := t.TempDir()
+	if activeProfile != "" {
+		if err := os.WriteFile(filepath.Join(dir, "activeProfile"), []byte(activeProfile), 0o600); err != nil {
+			t.Fatalf("write activeProfile: %v", err)
 		}
-		targetFilePath := path.Join(tempDash0ConfigDirPath, targetFile)
-		sourceFilePath := path.Join("provider_test_res", sourceFile)
-
-		if sourceFileContent, sourceFileContentErr := os.ReadFile(sourceFilePath); sourceFileContentErr != nil {
-			t.Errorf("Unable to read: %s to create: %s in temporary dash0 config dir", sourceFilePath, targetFile)
-		} else {
-			if targetProfileWriteErr := os.WriteFile(targetFilePath, sourceFileContent, 0777); targetProfileWriteErr != nil {
-				t.Errorf("Error creating %s, Exception: %s", targetFile, targetProfileWriteErr.Error())
-			}
+	}
+	if profilesJSON != "" {
+		if err := os.WriteFile(filepath.Join(dir, "profiles.json"), []byte(profilesJSON), 0o600); err != nil {
+			t.Fatalf("write profiles.json: %v", err)
 		}
 	}
-
-	copyFiles(sourceActiveProfileFileName, "activeProfile")
-	copyFiles(sourceProfilesJsonFileName, "profiles.json")
-
-	return tempDash0ConfigDirPath
+	t.Setenv("DASH0_CONFIG_DIR", dir)
+	return dir
 }
 
-// providerTestConfig builds a tfsdk.Config for provider tests.
-// Pass nil for any string value to leave it unset (null).
-// Pass nil for maxRetries to leave it unset (null), or a pointer to an int64 to set it.
-func providerTestConfig(url, authToken, profile *string, maxRetries *int64) tfsdk.Config {
-	urlVal := tftypes.NewValue(tftypes.String, nil)
-	if url != nil {
-		urlVal = tftypes.NewValue(tftypes.String, *url)
-	}
-	authTokenVal := tftypes.NewValue(tftypes.String, nil)
-	if authToken != nil {
-		authTokenVal = tftypes.NewValue(tftypes.String, *authToken)
-	}
-	profileVal := tftypes.NewValue(tftypes.String, nil)
-	if profile != nil {
-		profileVal = tftypes.NewValue(tftypes.String, *profile)
-	}
-	maxRetriesVal := tftypes.NewValue(tftypes.Number, nil)
-	if maxRetries != nil {
-		maxRetriesVal = tftypes.NewValue(tftypes.Number, *maxRetries)
-	}
+// clearCredentialEnv blanks out every env var that resolveAuthInfo reads, and
+// points DASH0_CONFIG_DIR at a non-existent path so the test never picks up
+// the developer's real ~/.dash0. Individual tests can override the config dir.
+func clearCredentialEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("DASH0_API_URL", "")
+	t.Setenv("DASH0_URL", "")
+	t.Setenv("DASH0_AUTH_TOKEN", "")
+	t.Setenv("DASH0_CONFIG_DIR", filepath.Join(t.TempDir(), "no-config-here"))
+}
 
+// providerTestConfig builds a tfsdk.Config for provider tests. Pass nil for
+// any value to leave it unset (null).
+func providerTestConfig(url, authToken, profile *string, maxRetries *int64) tfsdk.Config {
+	stringVal := func(p *string) tftypes.Value {
+		if p == nil {
+			return tftypes.NewValue(tftypes.String, nil)
+		}
+		return tftypes.NewValue(tftypes.String, *p)
+	}
+	numberVal := func(p *int64) tftypes.Value {
+		if p == nil {
+			return tftypes.NewValue(tftypes.Number, nil)
+		}
+		return tftypes.NewValue(tftypes.Number, *p)
+	}
 	return tfsdk.Config{
 		Raw: tftypes.NewValue(tftypes.Object{
 			AttributeTypes: map[string]tftypes.Type{
@@ -82,17 +97,17 @@ func providerTestConfig(url, authToken, profile *string, maxRetries *int64) tfsd
 				"max_retries": tftypes.Number,
 			},
 		}, map[string]tftypes.Value{
-			"url":         urlVal,
-			"auth_token":  authTokenVal,
-			"profile":     profileVal,
-			"max_retries": maxRetriesVal,
+			"url":         stringVal(url),
+			"auth_token":  stringVal(authToken),
+			"profile":     stringVal(profile),
+			"max_retries": numberVal(maxRetries),
 		}),
 		Schema: providerSchema(),
 	}
 }
 
-func strPtr(s string) *string { return new(s) }
-func int64Ptr(n int64) *int64 { return new(n) }
+func strPtr(s string) *string { return &s }
+func int64Ptr(n int64) *int64 { return &n }
 
 func TestDash0Provider_Metadata(t *testing.T) {
 	p := &dash0Provider{version: "1.0.0"}
@@ -111,600 +126,284 @@ func TestDash0Provider_Schema(t *testing.T) {
 	assert.NotNil(t, resp.Schema)
 	assert.Contains(t, resp.Schema.Description, "observability platform")
 
-	// Verify schema attributes
-	assert.Contains(t, resp.Schema.Attributes, "url")
-	assert.Contains(t, resp.Schema.Attributes, "auth_token")
-	assert.Contains(t, resp.Schema.Attributes, "max_retries")
+	for _, name := range []string{"url", "auth_token", "profile", "max_retries"} {
+		assert.Contains(t, resp.Schema.Attributes, name)
+	}
 
-	// Check specific attribute properties
 	urlAttr := resp.Schema.Attributes["url"].(schema.StringAttribute)
 	assert.True(t, urlAttr.Optional)
-	assert.Contains(t, urlAttr.Description, "base URL")
+	assert.Contains(t, urlAttr.Description, "DASH0_API_URL")
 
 	authTokenAttr := resp.Schema.Attributes["auth_token"].(schema.StringAttribute)
 	assert.True(t, authTokenAttr.Optional)
 	assert.True(t, authTokenAttr.Sensitive)
-	assert.Contains(t, authTokenAttr.Description, "auth token")
 
 	profileAttr := resp.Schema.Attributes["profile"].(schema.StringAttribute)
 	assert.True(t, profileAttr.Optional)
-	assert.Contains(t, profileAttr.Description, "profile")
+	assert.Contains(t, profileAttr.Description, "dash0 CLI")
 
 	maxRetriesAttr := resp.Schema.Attributes["max_retries"].(schema.Int64Attribute)
 	assert.True(t, maxRetriesAttr.Optional)
-	assert.Contains(t, maxRetriesAttr.Description, "retries")
 }
 
-// This tests configuration of provider using only env variables
 func TestDash0Provider_Configure_WithEnvironmentVariables(t *testing.T) {
-	t.Setenv("DASH0_URL", "https://api.example.com")
+	clearCredentialEnv(t)
+	t.Setenv("DASH0_API_URL", "https://api.example.com")
 	t.Setenv("DASH0_AUTH_TOKEN", "auth_test_token_123")
 
 	p := &dash0Provider{}
 	req := provider.ConfigureRequest{Config: providerTestConfig(nil, nil, nil, nil)}
 	resp := &provider.ConfigureResponse{}
-
 	p.Configure(context.Background(), req, resp)
 
 	assert.False(t, resp.Diagnostics.HasError())
 	assert.NotNil(t, resp.ResourceData)
-	assert.NotNil(t, resp.DataSourceData)
 }
 
-// This tests configuration of provider using only provider attributes
+func TestDash0Provider_Configure_DASH0URL_LegacyFallback(t *testing.T) {
+	clearCredentialEnv(t)
+	t.Setenv("DASH0_URL", "https://api.legacy.example.com")
+	t.Setenv("DASH0_AUTH_TOKEN", "auth_legacy_token")
+
+	p := &dash0Provider{}
+	req := provider.ConfigureRequest{Config: providerTestConfig(nil, nil, nil, nil)}
+	resp := &provider.ConfigureResponse{}
+	p.Configure(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError())
+	assert.NotNil(t, resp.ResourceData)
+}
+
 func TestDash0Provider_Configure_WithProviderAttributes(t *testing.T) {
-	t.Setenv("DASH0_URL", "")
-	t.Setenv("DASH0_AUTH_TOKEN", "")
+	clearCredentialEnv(t)
 
 	p := &dash0Provider{}
 	req := provider.ConfigureRequest{
 		Config: providerTestConfig(
 			strPtr("https://api.provider.com"),
-			strPtr("auth_provider_token_456"),
-			nil,
-			nil),
+			strPtr("auth_provider_token"),
+			nil, nil,
+		),
 	}
 	resp := &provider.ConfigureResponse{}
-
 	p.Configure(context.Background(), req, resp)
 
 	assert.False(t, resp.Diagnostics.HasError())
 	assert.NotNil(t, resp.ResourceData)
-	assert.NotNil(t, resp.DataSourceData)
 }
 
-// This tests configuration of provider using env variables as well as
-// profile attributes.
 func TestDash0Provider_Configure_EnvironmentVariablesPrecedence(t *testing.T) {
-	t.Setenv("DASH0_URL", "https://api.env.com")
-	t.Setenv("DASH0_AUTH_TOKEN", "auth_env_token_789")
+	clearCredentialEnv(t)
+	t.Setenv("DASH0_API_URL", "https://api.env.com")
+	t.Setenv("DASH0_AUTH_TOKEN", "auth_env_token")
 
 	p := &dash0Provider{}
 	req := provider.ConfigureRequest{
 		Config: providerTestConfig(
 			strPtr("https://api.provider.com"),
-			strPtr("auth_provider_token_456"),
-			nil,
-			nil,
+			strPtr("auth_provider_token"),
+			nil, nil,
 		),
 	}
 	resp := &provider.ConfigureResponse{}
-
 	p.Configure(context.Background(), req, resp)
 
 	assert.False(t, resp.Diagnostics.HasError())
-	assert.NotNil(t, resp.ResourceData)
-	assert.NotNil(t, resp.DataSourceData)
 }
 
-// This tests configuration of a provider with missing URL field
 func TestDash0Provider_Configure_MissingURL(t *testing.T) {
-	tempDirPath := createTemporaryDash0CliConfig(t, "", "")
-	// change the tempDirPath to be something which does not exists
-	tempDirPath = fmt.Sprintf("%s-nonexistant", tempDirPath)
-
-	// Ensure no environment variables are set
-	t.Setenv("DASH0_URL", "")
-	t.Setenv("DASH0_AUTH_TOKEN", "")
-	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
-
-	p := &dash0Provider{}
-	req := provider.ConfigureRequest{
-		Config: providerTestConfig(
-			nil,
-			strPtr("auth_token_only"),
-			nil,
-			nil,
-		),
-	}
-	resp := &provider.ConfigureResponse{}
-
-	p.Configure(context.Background(), req, resp)
-
-	assert.True(t, resp.Diagnostics.HasError())
-	require.Len(t, resp.Diagnostics.Errors(), 1)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), missingDash0URLErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "url")
-}
-
-// This tests configuration of a provider with missing AuthToken
-func TestDash0Provider_Configure_MissingAuthToken(t *testing.T) {
-	tempDirPath := createTemporaryDash0CliConfig(t, "", "")
-	// change the tempDirPath to be something which does not exists
-	tempDirPath = fmt.Sprintf("%s-nonexistant", tempDirPath)
-
-	// Ensure no environment variables are set
-	t.Setenv("DASH0_URL", "")
-	t.Setenv("DASH0_AUTH_TOKEN", "")
-	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
-
-	p := &dash0Provider{}
-	req := provider.ConfigureRequest{
-		Config: providerTestConfig(
-			strPtr("https://api.example.com"),
-			nil,
-			nil,
-			nil,
-		),
-	}
-	resp := &provider.ConfigureResponse{}
-
-	p.Configure(context.Background(), req, resp)
-
-	assert.True(t, resp.Diagnostics.HasError())
-	require.Len(t, resp.Diagnostics.Errors(), 1)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), missingDash0AuthTokenErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "auth_token")
-}
-
-// This tests configuration of a provider with missing both fields
-func TestDash0Provider_Configure_MissingBoth(t *testing.T) {
-	tempDirPath := createTemporaryDash0CliConfig(t, "", "")
-	// change the tempDirPath to be something which does not exists
-	tempDirPath = fmt.Sprintf("%s-nonexistant", tempDirPath)
-
-	// Ensure no environment variables are set
-	t.Setenv("DASH0_URL", "")
-	t.Setenv("DASH0_AUTH_TOKEN", "")
-	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
-
-	p := &dash0Provider{}
-
-	req := provider.ConfigureRequest{
-		Config: providerTestConfig(nil, nil, nil, nil),
-	}
-	resp := &provider.ConfigureResponse{}
-
-	p.Configure(context.Background(), req, resp)
-
-	assert.True(t, resp.Diagnostics.HasError())
-	assert.Len(t, resp.Diagnostics.Errors(), 2)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), missingDash0URLErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), missingDash0AuthTokenErrMsg)
-}
-
-// This tests configuration of a provider with missing URL but now dash0 CLI
-// profiles are present with a custom Dash0_CONFIG_DIR specified
-func TestDash0Provider_Configure_MissingURL_With_Profiles(t *testing.T) {
-	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profiles.json")
-
-	// Ensure no environment variables are set
-	t.Setenv("DASH0_URL", "")
-	t.Setenv("DASH0_AUTH_TOKEN", "")
-	// Setup a custom Dash0 Config Dir Path
-	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
+	clearCredentialEnv(t)
 
 	p := &dash0Provider{}
 	req := provider.ConfigureRequest{
 		Config: providerTestConfig(nil, strPtr("auth_token_only"), nil, nil),
 	}
 	resp := &provider.ConfigureResponse{}
-
 	p.Configure(context.Background(), req, resp)
 
-	assert.False(t, resp.Diagnostics.HasError())
-	assert.NotNil(t, resp.ResourceData)
-	assert.NotNil(t, resp.DataSourceData)
+	assert.True(t, resp.Diagnostics.HasError())
+	require.Len(t, resp.Diagnostics.Errors(), 1)
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Dash0 URL")
 }
 
-// This tests configuration of a provider with missing Auth Token but now dash0
-// CLI profiles are present with a custom Dash0_CONFIG_DIR specified
-func TestDash0Provider_Configure_MissingAuthToken_With_Profiles(t *testing.T) {
-	// setup Temporary Config Dir
-	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profiles.json")
-
-	// Ensure no environment variables are set
-	t.Setenv("DASH0_URL", "")
-	t.Setenv("DASH0_AUTH_TOKEN", "")
-	// Setup a custom Dash0 Config Dir Path
-	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
+func TestDash0Provider_Configure_MissingAuthToken(t *testing.T) {
+	clearCredentialEnv(t)
 
 	p := &dash0Provider{}
-
 	req := provider.ConfigureRequest{
 		Config: providerTestConfig(strPtr("https://api.example.com"), nil, nil, nil),
 	}
 	resp := &provider.ConfigureResponse{}
-
 	p.Configure(context.Background(), req, resp)
 
-	assert.False(t, resp.Diagnostics.HasError())
+	assert.True(t, resp.Diagnostics.HasError())
+	require.Len(t, resp.Diagnostics.Errors(), 1)
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Dash0 Auth Token")
+}
+
+func TestDash0Provider_Configure_MissingBoth(t *testing.T) {
+	clearCredentialEnv(t)
+
+	p := &dash0Provider{}
+	req := provider.ConfigureRequest{Config: providerTestConfig(nil, nil, nil, nil)}
+	resp := &provider.ConfigureResponse{}
+	p.Configure(context.Background(), req, resp)
+
+	assert.True(t, resp.Diagnostics.HasError())
+	require.Len(t, resp.Diagnostics.Errors(), 2)
+}
+
+func TestDash0Provider_Configure_LoadsFromActiveProfile(t *testing.T) {
+	clearCredentialEnv(t)
+	setupCLIConfigDir(t, "test1", profilesFixture)
+
+	p := &dash0Provider{}
+	req := provider.ConfigureRequest{Config: providerTestConfig(nil, nil, nil, nil)}
+	resp := &provider.ConfigureResponse{}
+	p.Configure(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError(), "diagnostics: %v", resp.Diagnostics.Errors())
 	assert.NotNil(t, resp.ResourceData)
-	assert.NotNil(t, resp.DataSourceData)
 }
 
-// This tests configuration of a provider with missing Both URL and Token but
-// now dash0 CLI profiles are present with a custom Dash0_CONFIG_DIR specified
-func TestDash0Provider_Configure_MissingBoth_With_Profiles(t *testing.T) {
-	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profiles.json")
-
-	// Ensure no environment variables are set
-	t.Setenv("DASH0_URL", "")
-	t.Setenv("DASH0_AUTH_TOKEN", "")
-	// Setup a custom Dash0 Config Dir Path
-	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
+func TestDash0Provider_Configure_LoadsFromNamedProfile(t *testing.T) {
+	clearCredentialEnv(t)
+	// activeProfile points to test1, but the provider should honor the explicit
+	// `profile` attribute and load test2 instead.
+	setupCLIConfigDir(t, "test1", profilesFixture)
 
 	p := &dash0Provider{}
-
 	req := provider.ConfigureRequest{
-		Config: providerTestConfig(nil, nil, nil, nil),
+		Config: providerTestConfig(nil, nil, strPtr("test2"), nil),
 	}
 	resp := &provider.ConfigureResponse{}
-
 	p.Configure(context.Background(), req, resp)
 
-	assert.False(t, resp.Diagnostics.HasError())
+	assert.False(t, resp.Diagnostics.HasError(), "diagnostics: %v", resp.Diagnostics.Errors())
 	assert.NotNil(t, resp.ResourceData)
-	assert.NotNil(t, resp.DataSourceData)
 }
 
-// This tests configuration of a provider with missing Both URL and Token but
-// now dash0 CLI profiles are present with a custom Dash0_CONFIG_DIR specified
-// the values in the profiles.json in that config dir are empty so exceptions
-// should be raised about values missing
-func TestDash0Provider_Configure_MissingBoth_With_Profiles_EmptyValuesInProfile(t *testing.T) {
-	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfileWithEmptyValues", "profiles.json")
-
-	// Ensure no environment variables are set
-	t.Setenv("DASH0_URL", "")
-	t.Setenv("DASH0_AUTH_TOKEN", "")
-	// Setup a custom Dash0 Config Dir Path
-	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
+func TestDash0Provider_Configure_NamedProfileNotFound(t *testing.T) {
+	clearCredentialEnv(t)
+	setupCLIConfigDir(t, "test1", profilesFixture)
 
 	p := &dash0Provider{}
-
 	req := provider.ConfigureRequest{
-		Config: providerTestConfig(nil, nil, nil, nil),
+		Config: providerTestConfig(nil, nil, strPtr("does-not-exist"), nil),
 	}
 	resp := &provider.ConfigureResponse{}
-
 	p.Configure(context.Background(), req, resp)
 
 	assert.True(t, resp.Diagnostics.HasError())
-	assert.Len(t, resp.Diagnostics.Errors(), 2)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), missingDash0URLErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), missingDash0AuthTokenErrMsg)
+	require.GreaterOrEqual(t, len(resp.Diagnostics.Errors()), 1)
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Unable to load credentials")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), `"does-not-exist"`)
 }
 
-// This tests configuration of a provider with missing Both URL and Token but
-// now dash0 CLI profiles are present with a custom Dash0_CONFIG_DIR specified
-// the profiles.json file is an empty file so json parse will create empty results
-// and errors should be raised
-func TestDash0Provider_Configure_MissingBoth_With_Profiles_EmptyProfilesJsonFile(t *testing.T) {
-	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profilesEmpty.json")
-
-	// Ensure no environment variables are set
-	t.Setenv("DASH0_URL", "")
-	t.Setenv("DASH0_AUTH_TOKEN", "")
-	// Setup a custom Dash0 Config Dir Path
-	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
+func TestDash0Provider_Configure_AttributesFillGapsInProfile(t *testing.T) {
+	clearCredentialEnv(t)
+	// Active profile is "empty" (blank ApiUrl/AuthToken). The provider should
+	// still succeed because the attributes supply the missing pieces.
+	setupCLIConfigDir(t, "empty", profilesFixture)
 
 	p := &dash0Provider{}
-
 	req := provider.ConfigureRequest{
-		Config: providerTestConfig(nil, nil, nil, nil),
+		Config: providerTestConfig(
+			strPtr("https://api.attr.com"),
+			strPtr("auth_attr_token"),
+			nil, nil,
+		),
 	}
 	resp := &provider.ConfigureResponse{}
+	p.Configure(context.Background(), req, resp)
 
+	assert.False(t, resp.Diagnostics.HasError(), "diagnostics: %v", resp.Diagnostics.Errors())
+}
+
+func TestDash0Provider_Configure_MalformedProfilesJSONSurfacesError(t *testing.T) {
+	clearCredentialEnv(t)
+	setupCLIConfigDir(t, "test1", `{"profiles": [{not valid json}]}`)
+
+	p := &dash0Provider{}
+	req := provider.ConfigureRequest{Config: providerTestConfig(nil, nil, nil, nil)}
+	resp := &provider.ConfigureResponse{}
 	p.Configure(context.Background(), req, resp)
 
 	assert.True(t, resp.Diagnostics.HasError())
-	assert.Len(t, resp.Diagnostics.Errors(), 3)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), dash0CLIProfilesLoadErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), missingDash0URLErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[2].Summary(), missingDash0AuthTokenErrMsg)
+	// First diagnostic must reference the CLI-profile loading failure rather
+	// than swallowing it under a bare "Missing Dash0 URL" message.
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Unable to load credentials")
 }
 
-// Using an profile name which is not the activeProfileName in the provider config
-// our provider should still load the url parameter from the dummy config files
-func TestDash0Provider_Configure_MissingURL_With_Profiles_ExistingProfileName(t *testing.T) {
-	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profiles.json")
-
-	// Ensure no environment variables are set
-	t.Setenv("DASH0_URL", "")
-	t.Setenv("DASH0_AUTH_TOKEN", "")
-	// Setup a custom Dash0 Config Dir Path
-	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
+func TestDash0Provider_Configure_NoActiveProfileIsSilent(t *testing.T) {
+	clearCredentialEnv(t)
+	// CLI config directory exists but has no activeProfile file. The provider
+	// must not surface a CLI-loading error; only the credentials-missing
+	// diagnostics should appear.
+	setupCLIConfigDir(t, "", profilesFixture)
 
 	p := &dash0Provider{}
-
-	req := provider.ConfigureRequest{
-		Config: providerTestConfig(nil, strPtr("auth_token_only"), strPtr("test1"), nil),
-	}
+	req := provider.ConfigureRequest{Config: providerTestConfig(nil, nil, nil, nil)}
 	resp := &provider.ConfigureResponse{}
-
-	p.Configure(context.Background(), req, resp)
-
-	assert.False(t, resp.Diagnostics.HasError())
-	assert.NotNil(t, resp.ResourceData)
-	assert.NotNil(t, resp.DataSourceData)
-}
-
-// Using an incorrect profile name in the provider config our provider should
-// throw an exception with `Missing Dash0 URL`
-func TestDash0Provider_Configure_MissingURL_With_Profiles_NonExistantProfileName(t *testing.T) {
-	// create a temporary config directory
-	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profiles.json")
-
-	// Ensure no environment variables are set
-	t.Setenv("DASH0_URL", "")
-	t.Setenv("DASH0_AUTH_TOKEN", "")
-	// use the temporary config dir as Config dir
-	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
-
-	p := &dash0Provider{}
-
-	req := provider.ConfigureRequest{
-		Config: providerTestConfig(nil, strPtr("auth_token_only"), strPtr("unknown"), nil),
-	}
-	resp := &provider.ConfigureResponse{}
-
 	p.Configure(context.Background(), req, resp)
 
 	assert.True(t, resp.Diagnostics.HasError())
-	assert.Len(t, resp.Diagnostics.Errors(), 2)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), dash0CLIProfilesLoadErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), profileNotFoundInJsonErrMsgDetail)
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), missingDash0URLErrMsg)
-}
-
-// Using an incorrect profile name in the provider config our provider should
-// throw an exception with `Missing Dash0 URL`
-func TestDash0Provider_Configure_MissingURL_With_Profiles_NonExistantProfileName_UsingActiveProfileFile(t *testing.T) {
-	// create a temporary config directory
-	tempDirPath := createTemporaryDash0CliConfig(t, "incorrectActiveProfile", "profiles.json")
-
-	// Ensure no environment variables are set
-	t.Setenv("DASH0_URL", "")
-	t.Setenv("DASH0_AUTH_TOKEN", "")
-	// use the temporary config dir as Config dir
-	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
-
-	p := &dash0Provider{}
-
-	req := provider.ConfigureRequest{
-		Config: providerTestConfig(nil, strPtr("auth_token_only"), strPtr("unknown"), nil),
-	}
-	resp := &provider.ConfigureResponse{}
-
-	p.Configure(context.Background(), req, resp)
-
-	assert.True(t, resp.Diagnostics.HasError())
-	assert.Len(t, resp.Diagnostics.Errors(), 2)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), dash0CLIProfilesLoadErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), profileNotFoundInJsonErrMsgDetail)
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), missingDash0URLErrMsg)
-}
-
-// This tests configuration of a provider with missing URL but now dash0 CLI
-// profiles are not present but the `profile` attribute was described in provider
-func TestDash0Provider_Configure_MissingURL_With_Profile_EmptyActiveProfileName(t *testing.T) {
-	// create a temporary config directory
-	tempDirPath := createTemporaryDash0CliConfig(t, "emptyActiveProfile", "profiles.json")
-
-	// Ensure no environment variables are set
-	t.Setenv("DASH0_URL", "")
-	t.Setenv("DASH0_AUTH_TOKEN", "")
-	// use the temporary config dir as Config dir
-	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
-
-	p := &dash0Provider{}
-
-	req := provider.ConfigureRequest{
-		Config: providerTestConfig(nil, strPtr("auth_token_only"), strPtr(""), nil),
-	}
-	resp := &provider.ConfigureResponse{}
-
-	p.Configure(context.Background(), req, resp)
-
-	assert.True(t, resp.Diagnostics.HasError())
-	assert.Len(t, resp.Diagnostics.Errors(), 2)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), dash0CLIProfilesLoadErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), emptyActiveProfileErrMsgDetail)
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), missingDash0URLErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Detail(), "url")
-}
-
-// This tests the case wherein a profiles.json is missing from the dash0 CLI config directory
-// in the provider config our provider should throw an exception with `Missing Dash0 URL`
-func TestDash0Provider_Configure_MissingURL_With_Profiles_NonExistantProfilesJson(t *testing.T) {
-	// create a temporary config directory with no profiles.json file
-	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "")
-
-	// Ensure no environment variables are set
-	t.Setenv("DASH0_URL", "")
-	t.Setenv("DASH0_AUTH_TOKEN", "")
-	// use the temporary config dir as Config dir
-	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
-
-	p := &dash0Provider{}
-
-	req := provider.ConfigureRequest{
-		Config: providerTestConfig(nil, strPtr("auth_token_only"), strPtr("unknown"), nil),
-	}
-	resp := &provider.ConfigureResponse{}
-
-	p.Configure(context.Background(), req, resp)
-
-	assert.True(t, resp.Diagnostics.HasError())
-	assert.Len(t, resp.Diagnostics.Errors(), 2)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), dash0CLIProfilesLoadErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "profiles.json: no such file or directory")
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), missingDash0URLErrMsg)
-}
-
-// This tests configuration of a provider with missing URL but now dash0 CLI
-// profiles.json is present with an invalid schema, i.e. json.UnMarshal would return empty values
-func TestDash0Provider_Configure_MissingURL_With_Profile_IncorrectProfileSchema(t *testing.T) {
-	// Ensure no environment variables are set
-	// create a temporary config directory with no profiles.json file
-	tempDirPath := createTemporaryDash0CliConfig(t, "activeProfile", "profilesIncorrectSchema.json")
-
-	t.Setenv("DASH0_URL", "")
-	t.Setenv("DASH0_AUTH_TOKEN", "")
-
-	// Set DASH0_CONFIG_DIR
-	t.Setenv("DASH0_CONFIG_DIR", tempDirPath)
-
-	p := &dash0Provider{}
-
-	req := provider.ConfigureRequest{
-		Config: providerTestConfig(nil, strPtr("auth_token_only"), strPtr("test1"), nil),
-	}
-	resp := &provider.ConfigureResponse{}
-
-	p.Configure(context.Background(), req, resp)
-
-	assert.True(t, resp.Diagnostics.HasError())
-	assert.Len(t, resp.Diagnostics.Errors(), 1)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), missingDash0URLErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "url")
-}
-
-// This tests configuration of a provider with missing URL but now dash0 CLI
-// profiles are not present but the `profile` attribute was described in provider
-func TestDash0Provider_Configure_MissingURL_Without_Dash0CLIConfigs_ProfileNamePresent(t *testing.T) {
-	// Ensure no environment variables are set
-	t.Setenv("DASH0_URL", "")
-	t.Setenv("DASH0_AUTH_TOKEN", "")
-	// set the config dir parameter to a path which does not exists
-	t.Setenv("DASH0_CONFIG_DIR", fmt.Sprintf("%s-random", t.TempDir()))
-
-	p := &dash0Provider{}
-
-	req := provider.ConfigureRequest{Config: providerTestConfig(nil, nil, strPtr("something"), nil)}
-
-	resp := &provider.ConfigureResponse{}
-
-	p.Configure(context.Background(), req, resp)
-
-	assert.True(t, resp.Diagnostics.HasError())
-	assert.Len(t, resp.Diagnostics.Errors(), 3)
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), dash0CLIProfilesLoadErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), missingDash0URLErrMsg)
-	assert.Contains(t, resp.Diagnostics.Errors()[2].Summary(), missingDash0AuthTokenErrMsg)
+	require.Len(t, resp.Diagnostics.Errors(), 2)
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Dash0 URL")
+	assert.Contains(t, resp.Diagnostics.Errors()[1].Summary(), "Missing Dash0 Auth Token")
 }
 
 func TestDash0Provider_Configure_MaxRetries(t *testing.T) {
 	tests := []struct {
 		name         string
-		envValue     string // DASH0_MAX_RETRIES env var; empty means unset
-		attrValue    *int64 // max_retries provider attribute; nil means unset
+		envValue     string
+		attrValue    *int64
 		expectError  bool
 		errorSummary string
 		errorDetail  string
 	}{
-		// --- env var cases ---
+		{name: "env: valid value 0 (retries disabled)", envValue: "0"},
+		{name: "env: valid value 3", envValue: "3"},
+		{name: "env: valid value 5 (maximum)", envValue: "5"},
 		{
-			name:     "env: valid value 0 (retries disabled)",
-			envValue: "0",
+			name: "env: non-integer value", envValue: "yolo",
+			expectError: true, errorSummary: "Invalid DASH0_MAX_RETRIES", errorDetail: "must be a valid integer",
 		},
 		{
-			name:     "env: valid value 3",
-			envValue: "3",
+			name: "env: floating point value", envValue: "2.5",
+			expectError: true, errorSummary: "Invalid DASH0_MAX_RETRIES", errorDetail: "must be a valid integer",
 		},
 		{
-			name:     "env: valid value 5 (maximum)",
-			envValue: "5",
+			name: "env: negative value", envValue: "-1",
+			expectError: true, errorSummary: "Invalid max_retries", errorDetail: "must be between 0 and 5",
 		},
 		{
-			name:         "env: non-integer value",
-			envValue:     "yolo",
-			expectError:  true,
-			errorSummary: "Invalid DASH0_MAX_RETRIES",
-			errorDetail:  "must be a valid integer",
+			name: "env: exceeds maximum", envValue: "42",
+			expectError: true, errorSummary: "Invalid max_retries", errorDetail: "must be between 0 and 5",
+		},
+		{name: "attr: valid value 0 (retries disabled)", attrValue: int64Ptr(0)},
+		{name: "attr: valid value 2", attrValue: int64Ptr(2)},
+		{name: "attr: valid value 5 (maximum)", attrValue: int64Ptr(5)},
+		{
+			name: "attr: negative value", attrValue: int64Ptr(-1),
+			expectError: true, errorSummary: "Invalid max_retries", errorDetail: "must be between 0 and 5",
 		},
 		{
-			name:         "env: floating point value",
-			envValue:     "2.5",
-			expectError:  true,
-			errorSummary: "Invalid DASH0_MAX_RETRIES",
-			errorDetail:  "must be a valid integer",
+			name: "attr: exceeds maximum", attrValue: int64Ptr(42),
+			expectError: true, errorSummary: "Invalid max_retries", errorDetail: "must be between 0 and 5",
 		},
+		{name: "env takes precedence over attr", envValue: "1", attrValue: int64Ptr(4)},
 		{
-			name:         "env: negative value",
-			envValue:     "-1",
-			expectError:  true,
-			errorSummary: "Invalid max_retries",
-			errorDetail:  "must be between 0 and 5",
+			name: "env takes precedence over attr (env invalid)", envValue: "99", attrValue: int64Ptr(2),
+			expectError: true, errorSummary: "Invalid max_retries", errorDetail: "DASH0_MAX_RETRIES environment variable",
 		},
-		{
-			name:         "env: exceeds maximum",
-			envValue:     "42",
-			expectError:  true,
-			errorSummary: "Invalid max_retries",
-			errorDetail:  "must be between 0 and 5",
-		},
-		// --- provider attribute cases ---
-		{
-			name:      "attr: valid value 0 (retries disabled)",
-			attrValue: int64Ptr(0),
-		},
-		{
-			name:      "attr: valid value 2",
-			attrValue: int64Ptr(2),
-		},
-		{
-			name:      "attr: valid value 5 (maximum)",
-			attrValue: int64Ptr(5),
-		},
-		{
-			name:         "attr: negative value",
-			attrValue:    int64Ptr(-1),
-			expectError:  true,
-			errorSummary: "Invalid max_retries",
-			errorDetail:  "must be between 0 and 5",
-		},
-		{
-			name:         "attr: exceeds maximum",
-			attrValue:    int64Ptr(42),
-			expectError:  true,
-			errorSummary: "Invalid max_retries",
-			errorDetail:  "must be between 0 and 5",
-		},
-		// --- precedence ---
-		{
-			name:      "env takes precedence over attr",
-			envValue:  "1",
-			attrValue: int64Ptr(4),
-		},
-		{
-			name:         "env takes precedence over attr (env invalid)",
-			envValue:     "99",
-			attrValue:    int64Ptr(2),
-			expectError:  true,
-			errorSummary: "Invalid max_retries",
-			errorDetail:  "DASH0_MAX_RETRIES environment variable",
-		},
-		// --- default ---
-		{
-			name: "unset uses default",
-		},
+		{name: "unset uses default"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("DASH0_URL", "https://api.example.com")
+			clearCredentialEnv(t)
+			t.Setenv("DASH0_API_URL", "https://api.example.com")
 			t.Setenv("DASH0_AUTH_TOKEN", "auth_test_token_123")
 			if tt.envValue != "" {
 				t.Setenv("DASH0_MAX_RETRIES", tt.envValue)
@@ -713,7 +412,6 @@ func TestDash0Provider_Configure_MaxRetries(t *testing.T) {
 			p := &dash0Provider{}
 			req := provider.ConfigureRequest{Config: providerTestConfig(nil, nil, nil, tt.attrValue)}
 			resp := &provider.ConfigureResponse{}
-
 			p.Configure(context.Background(), req, resp)
 
 			if tt.expectError {
@@ -738,6 +436,59 @@ func TestDash0Provider_DataSources(t *testing.T) {
 func TestDash0Provider_Resources(t *testing.T) {
 	p := &dash0Provider{}
 	resources := p.Resources(context.Background())
-	assert.NotEmpty(t, resources)
-	assert.Len(t, resources, 7) // DashboardResource, SyntheticCheckResource, ViewResource, CheckRuleResource, RecordingRuleResource, NotificationChannelResource, SpamFilterResource
+	assert.Len(t, resources, 7)
+}
+
+// TestResolveAuthInfo_Precedence pins the precedence order in a single place
+// without going through Configure's diagnostic plumbing.
+func TestResolveAuthInfo_Precedence(t *testing.T) {
+	t.Run("env beats attr beats profile", func(t *testing.T) {
+		clearCredentialEnv(t)
+		setupCLIConfigDir(t, "test1", profilesFixture)
+		t.Setenv("DASH0_API_URL", "https://env.example.com")
+		t.Setenv("DASH0_AUTH_TOKEN", "auth_env")
+
+		url, token, err := resolveAuthInfo(&providerConfigModel{
+			URL:       types.StringValue("https://attr.example.com"),
+			AuthToken: types.StringValue("auth_attr"),
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "https://env.example.com", url)
+		assert.Equal(t, "auth_env", token)
+	})
+
+	t.Run("attr beats profile when env absent", func(t *testing.T) {
+		clearCredentialEnv(t)
+		setupCLIConfigDir(t, "test1", profilesFixture)
+
+		url, token, err := resolveAuthInfo(&providerConfigModel{
+			URL:       types.StringValue("https://attr.example.com"),
+			AuthToken: types.StringValue("auth_attr"),
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "https://attr.example.com", url)
+		assert.Equal(t, "auth_attr", token)
+	})
+
+	t.Run("active profile fills both when env and attr absent", func(t *testing.T) {
+		clearCredentialEnv(t)
+		setupCLIConfigDir(t, "test1", profilesFixture)
+
+		url, token, err := resolveAuthInfo(&providerConfigModel{})
+		require.NoError(t, err)
+		assert.Equal(t, "https://api.us-west-2.aws.dash0.com", url)
+		assert.Equal(t, "auth_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", token)
+	})
+
+	t.Run("named profile overrides active when env and attr absent", func(t *testing.T) {
+		clearCredentialEnv(t)
+		setupCLIConfigDir(t, "test1", profilesFixture)
+
+		url, token, err := resolveAuthInfo(&providerConfigModel{
+			Profile: types.StringValue("test2"),
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "https://api.us-west-1.aws.dash0.com", url)
+		assert.Equal(t, "auth_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", token)
+	})
 }

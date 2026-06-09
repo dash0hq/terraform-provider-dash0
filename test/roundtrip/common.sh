@@ -8,9 +8,9 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 : "${DASH0_API_URL:?Environment variable DASH0_API_URL must be set}"
 : "${DASH0_AUTH_TOKEN:?Environment variable DASH0_AUTH_TOKEN must be set}"
-: "${DASH0_PROVIDER_PROFILE:=default}"
 : "${DASH0_DATASET:=default}"
-export DASH0_API_URL DASH0_AUTH_TOKEN DASH0_DATASET
+: "${DASH0_PROVIDER_PROFILE:=}"
+export DASH0_API_URL DASH0_AUTH_TOKEN DASH0_DATASET DASH0_PROVIDER_PROFILE
 
 # Use OpenTofu (tofu) as Terraform CLI.
 TF="tofu"
@@ -36,9 +36,15 @@ fail()  { echo -e "${RED}[FAIL]${NC}  $*"; exit 1; }
 
 # Write the provider configuration into the given working directory.
 # Usage: write_provider_tf <dir>
+#
+# Empty values for DASH0_API_URL, DASH0_AUTH_TOKEN, or DASH0_PROVIDER_PROFILE
+# omit the corresponding attribute from the generated provider block, so
+# callers can compose configurations that exercise the env-vars-only or
+# profile-only code paths.
 write_provider_tf() {
   local dir="$1"
-  cat > "${dir}/provider.tf" <<EOF
+  {
+    cat <<EOF
 terraform {
   required_providers {
     dash0 = {
@@ -49,11 +55,12 @@ terraform {
 }
 
 provider "dash0" {
-  profile    = "${DASH0_PROVIDER_PROFILE}"
-  url        = "${DASH0_API_URL}"
-  auth_token = "${DASH0_AUTH_TOKEN}"
-}
 EOF
+    if [[ -n "${DASH0_API_URL}" ]];          then printf '  url        = "%s"\n' "${DASH0_API_URL}";          fi
+    if [[ -n "${DASH0_AUTH_TOKEN}" ]];       then printf '  auth_token = "%s"\n' "${DASH0_AUTH_TOKEN}";       fi
+    if [[ -n "${DASH0_PROVIDER_PROFILE}" ]]; then printf '  profile    = "%s"\n' "${DASH0_PROVIDER_PROFILE}"; fi
+    echo "}"
+  } > "${dir}/provider.tf"
 }
 
 # Run tofu init with the local mirror.

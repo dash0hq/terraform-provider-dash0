@@ -28,7 +28,7 @@ test-unit:
 
 .PHONY: testacc
 testacc:
-	TF_ACC=1 go test ./... -v $(TESTARGS) -timeout 20m;
+	TF_ACC=1 go test ./... -v $(TESTARGS) -timeout 20m
 
 .PHONY: test-roundtrip
 test-roundtrip:
