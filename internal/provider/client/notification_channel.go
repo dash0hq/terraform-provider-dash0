@@ -66,6 +66,43 @@ func (c *dash0Client) DeleteNotificationChannel(ctx context.Context, origin stri
 	return nil
 }
 
+// ResolveNotificationChannel looks up the server-assigned id and deep-link URL
+// for the notification channel with the given origin by matching against the
+// list endpoint.
+//
+// Notification channels are organization-level (not dataset-scoped), so the
+// resulting URL has no dataset query parameter.
+//
+// It returns empty strings (and no error) when the channel is not present in
+// the list, so that callers can treat both fields as best-effort metadata
+// rather than failing the operation. The URL is additionally empty when the
+// app base URL cannot be derived from the API URL.
+func (c *dash0Client) ResolveNotificationChannel(ctx context.Context, origin string) (string, string, error) {
+	channels, err := c.inner.ListNotificationChannels(ctx)
+	if err != nil {
+		return "", "", err
+	}
+
+	var id string
+	for _, channel := range channels {
+		if channel == nil {
+			continue
+		}
+		if dash0.GetNotificationChannelOrigin(channel) == origin {
+			id = dash0.GetNotificationChannelID(channel)
+			break
+		}
+	}
+	if id == "" {
+		tflog.Warn(ctx, fmt.Sprintf("Notification channel with origin %q not found; id and URL will be empty", origin))
+		return "", "", nil
+	}
+
+	url := dash0.DeeplinkURL(c.apiURL, dash0.DeeplinkAssetTypeNotificationChannel, id, nil)
+	logResolvedURL(ctx, "notification channel", origin, url)
+	return id, url, nil
+}
+
 // unmarshalNotificationChannel parses a JSON string into a NotificationChannelDefinition.
 func unmarshalNotificationChannel(jsonStr string) (*dash0.NotificationChannelDefinition, error) {
 	var def dash0.NotificationChannelDefinition

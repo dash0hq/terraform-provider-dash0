@@ -9,6 +9,9 @@ import (
 // dash0Client wraps the dash0-api-client-go library client.
 type dash0Client struct {
 	inner dash0.Client
+	// apiURL is the configured Dash0 API base URL. It is retained so the
+	// provider can derive the Dash0 web app base URL for dashboard deep links.
+	apiURL string
 }
 
 // NewDash0Client creates a new Dash0 API client backed by the shared library.
@@ -22,5 +25,5 @@ func NewDash0Client(url, authToken, version string, maxRetries int) (*dash0Clien
 	if err != nil {
 		return nil, err
 	}
-	return &dash0Client{inner: c}, nil
+	return &dash0Client{inner: c, apiURL: url}, nil
 }

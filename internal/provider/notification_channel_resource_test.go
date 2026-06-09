@@ -140,12 +140,16 @@ func TestNotificationChannelResource_Create_InvalidYAML(t *testing.T) {
 			tftypes.Object{
 				AttributeTypes: map[string]tftypes.Type{
 					"origin":                    tftypes.String,
+					"id":                        tftypes.String,
 					"notification_channel_yaml": tftypes.String,
+					"url":                       tftypes.String,
 				},
 			},
 			map[string]tftypes.Value{
 				"origin":                    tftypes.NewValue(tftypes.String, "test-origin"),
+				"id":                        tftypes.NewValue(tftypes.String, nil),
 				"notification_channel_yaml": tftypes.NewValue(tftypes.String, "invalid: yaml: content: ["),
+				"url":                       tftypes.NewValue(tftypes.String, nil),
 			},
 		),
 		Schema: schema.Schema{
@@ -153,8 +157,14 @@ func TestNotificationChannelResource_Create_InvalidYAML(t *testing.T) {
 				"origin": schema.StringAttribute{
 					Computed: true,
 				},
+				"id": schema.StringAttribute{
+					Computed: true,
+				},
 				"notification_channel_yaml": schema.StringAttribute{
 					Required: true,
+				},
+				"url": schema.StringAttribute{
+					Computed: true,
 				},
 			},
 		},
@@ -184,12 +194,16 @@ func TestNotificationChannelResource_ReadError(t *testing.T) {
 			tftypes.Object{
 				AttributeTypes: map[string]tftypes.Type{
 					"origin":                    tftypes.String,
+					"id":                        tftypes.String,
 					"notification_channel_yaml": tftypes.String,
+					"url":                       tftypes.String,
 				},
 			},
 			map[string]tftypes.Value{
 				"origin":                    tftypes.NewValue(tftypes.String, "test-origin"),
+				"id":                        tftypes.NewValue(tftypes.String, nil),
 				"notification_channel_yaml": tftypes.NewValue(tftypes.String, "test-yaml"),
+				"url":                       tftypes.NewValue(tftypes.String, nil),
 			},
 		),
 		Schema: schema.Schema{
@@ -197,8 +211,14 @@ func TestNotificationChannelResource_ReadError(t *testing.T) {
 				"origin": schema.StringAttribute{
 					Computed: true,
 				},
+				"id": schema.StringAttribute{
+					Computed: true,
+				},
 				"notification_channel_yaml": schema.StringAttribute{
 					Required: true,
+				},
+				"url": schema.StringAttribute{
+					Computed: true,
 				},
 			},
 		},

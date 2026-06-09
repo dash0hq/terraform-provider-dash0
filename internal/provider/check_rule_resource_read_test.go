@@ -118,11 +118,17 @@ spec:
 					"origin": schema.StringAttribute{
 						Computed: true,
 					},
+					"id": schema.StringAttribute{
+						Computed: true,
+					},
 					"dataset": schema.StringAttribute{
 						Required: true,
 					},
 					"check_rule_yaml": schema.StringAttribute{
 						Required: true,
+					},
+					"url": schema.StringAttribute{
+						Computed: true,
 					},
 				},
 			}
@@ -133,18 +139,24 @@ spec:
 
 			r := &CheckRuleResource{client: testClient}
 
+			testURL := "https://app.dash0.com/goto/alerting/check-rules?check_rule_id=internal-uuid"
+
 			raw := tftypes.NewValue(
 				tftypes.Object{
 					AttributeTypes: map[string]tftypes.Type{
 						"origin":          tftypes.String,
+						"id":              tftypes.String,
 						"dataset":         tftypes.String,
 						"check_rule_yaml": tftypes.String,
+						"url":             tftypes.String,
 					},
 				},
 				map[string]tftypes.Value{
 					"origin":          tftypes.NewValue(tftypes.String, testOrigin),
+					"id":              tftypes.NewValue(tftypes.String, nil),
 					"dataset":         tftypes.NewValue(tftypes.String, testDataset),
 					"check_rule_yaml": tftypes.NewValue(tftypes.String, originalYaml),
+					"url":             tftypes.NewValue(tftypes.String, testURL),
 				},
 			)
 
@@ -172,6 +184,9 @@ spec:
 			} else {
 				assert.Equal(t, originalYaml, resultState.CheckRuleYaml.ValueString())
 			}
+
+			// URL is carried over from prior state (Read does not re-resolve it).
+			assert.Equal(t, testURL, resultState.URL.ValueString())
 
 			hasWarnings := resp.Diagnostics.WarningsCount() > 0
 			assert.Equal(t, tc.expectWarning, hasWarnings)

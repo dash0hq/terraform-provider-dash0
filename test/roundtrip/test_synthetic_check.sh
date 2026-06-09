@@ -77,6 +77,10 @@ variable "dataset" {
 output "origin" {
   value = dash0_synthetic_check.test.origin
 }
+
+output "url" {
+  value = dash0_synthetic_check.test.url
+}
 EOF
 
 tf_init "$WORK_DIR"
@@ -84,6 +88,13 @@ TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
 
 ORIGIN="$(TF_VAR_dataset="$DATASET" tf_output "$WORK_DIR" origin)"
 info "Created synthetic check with origin: ${ORIGIN}"
+
+# Verify the computed url attribute is a Dash0 web app deep link.
+URL="$(TF_VAR_dataset="$DATASET" tf_output "$WORK_DIR" url)"
+info "Synthetic check url: ${URL}"
+echo "$URL" | grep -Eq '^https://app\..+/goto/.+' \
+  || fail "synthetic check url output '${URL}' is not a valid deep link"
+info "Synthetic check url check PASSED."
 
 # ---------------------------------------------------------------------------
 # Step 2: Verify via dash0 CLI

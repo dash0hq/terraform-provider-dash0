@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.13.0
+
+
+### Enhancements
+
+
+- `provider`: Expose `id` as a computed attribute on every resource (#119)
+  All provider resources — dashboards, views, check rules, synthetic checks,
+  recording rules, spam filters, and notification channels — now expose a
+  computed `id` attribute holding the server-assigned UUID. Reference it (e.g.
+  as `${dash0_notification_channel.example.id}`) when wiring one resource's
+  identifier into another resource's YAML, where the Dash0 API expects raw
+  UUIDs rather than provider-generated origins.
+  
+
+## 1.12.0
+
+
+### Enhancements
+
+
+- `resources`: Add a computed `url` attribute to the `dash0_dashboard`, `dash0_check_rule`, `dash0_synthetic_check`, `dash0_view` and `dash0_notification_channel` resources that links to the resource in the Dash0 web app (#115)
+  The URL is derived from the configured Dash0 API URL and the resource's server-assigned
+  identifier. For views, the page is selected based on the view's type. It may be empty for
+  self-hosted deployments whose web app uses a custom domain that cannot be derived from the
+  API URL.
+  
+
 ## 1.11.0
 
 

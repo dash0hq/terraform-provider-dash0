@@ -3,12 +3,15 @@
 page_title: "dash0_recording_rule Resource - Dash0"
 subcategory: ""
 description: |-
-  Manages a Dash0 Recording Rule. Recording rules pre-compute frequently needed or computationally expensive PromQL expressions and save the results as new time series. The recording rule definition uses the Prometheus Rule format.
+  Manages a Dash0 Recording Rule. Recording rules pre-compute frequently needed or computationally expensive PromQL expressions and save the results as new time series. See Manage Check Rules as Code https://dash0.com/docs/dash0/monitoring/alerting/manage-check-rules-as-code for more details — recording rules share the same Prometheus rule format and management surface as alert check rules. The recording rule definition uses the Prometheus Rule format https://prometheus-operator.dev/docs/api-reference/api/#monitoring.coreos.com/v1.PrometheusRule.
+  More information on how Prometheus rules are mapped to Dash0 recording rules can be found in the Dash0 Operator documentation https://dash0.com/docs/dash0/monitoring/kubernetes/about-kubernetes#managing-dash0-recording-rules.
 ---
 
 # dash0_recording_rule (Resource)
 
-Manages a Dash0 Recording Rule. Recording rules pre-compute frequently needed or computationally expensive PromQL expressions and save the results as new time series. The recording rule definition uses the [Prometheus Rule format](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/).
+Manages a Dash0 Recording Rule. Recording rules pre-compute frequently needed or computationally expensive PromQL expressions and save the results as new time series. See [Manage Check Rules as Code](https://dash0.com/docs/dash0/monitoring/alerting/manage-check-rules-as-code) for more details — recording rules share the same Prometheus rule format and management surface as alert check rules. The recording rule definition uses the [Prometheus Rule format](https://prometheus-operator.dev/docs/api-reference/api/#monitoring.coreos.com/v1.PrometheusRule).
+
+More information on how Prometheus rules are mapped to Dash0 recording rules can be found in the [Dash0 Operator documentation](https://dash0.com/docs/dash0/monitoring/kubernetes/about-kubernetes#managing-dash0-recording-rules).
 
 ## Example Usage
 
@@ -39,11 +42,12 @@ EOF
 
 ### Required
 
-- `dataset` (String) The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the recording rule belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
+- `dataset` (String) The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the recording rule belongs to. Provide the dataset's identifier, which is immutable, not the 'name'. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
 - `recording_rule_yaml` (String) The recording rule definition in YAML format, following the [Prometheus recording rule specification](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/).
 
 ### Read-Only
 
+- `id` (String) The server-assigned identifier of the recording rule group, resolved by the provider after creation. The value has the form `recording_rule_group_<ulid>` (a ULID, not a UUID) because recording rules live inside groups and the API addresses the whole group. Recording rules are not addressable in the Dash0 web app, so no `url` is exposed.
 - `origin` (String) A unique identifier for the recording rule, automatically generated on creation. Used to reference the recording rule for updates, reads, deletes, and imports.
 
 ## Import

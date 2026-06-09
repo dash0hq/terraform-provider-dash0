@@ -24,12 +24,14 @@ resource "dash0_view" "my_check" {
 
 ### Required
 
-- `dataset` (String) The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the view belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
+- `dataset` (String) The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the view belongs to. Provide the dataset's identifier, which is immutable, not the 'name'. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
 - `view_yaml` (String) The view definition in YAML format, specifying the filters, queries, and display settings for the view. The following `metadata.annotations` are supported: `dash0.com/sharing` (sharing settings) and `dash0.com/folder-path` (folder location). Changes to these annotations trigger a resource update; all other metadata annotations are managed by the server and ignored during drift detection.
 
 ### Read-Only
 
+- `id` (String) The server-assigned UUID of the view, resolved by the provider after creation. Reference this value when wiring the view's identifier into another resource.
 - `origin` (String) A unique identifier for the view, automatically generated on creation. Used to reference the view for updates, reads, deletes, and imports.
+- `url` (String) The URL to open this view in the Dash0 web app, derived from the Dash0 API URL and the view's server-assigned identifier. The page is selected based on the view's type (for example the traces explorer for span views). Computed by the provider after creation. May be empty if the app URL cannot be derived (e.g. for self-hosted deployments with a custom web app domain) or the view type has no associated page.
 
 ## Import
 

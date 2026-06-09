@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
@@ -41,6 +42,7 @@ type SpamFilterResource struct {
 // spamFilterModel is the Terraform state model for a spam filter resource.
 type spamFilterModel struct {
 	Origin         types.String `tfsdk:"origin"`
+	ID             types.String `tfsdk:"id"`
 	Dataset        types.String `tfsdk:"dataset"`
 	SpamFilterYaml types.String `tfsdk:"spam_filter_yaml"`
 }
@@ -72,7 +74,7 @@ func (r *SpamFilterResource) Schema(_ context.Context, _ resource.SchemaRequest,
 		Description: "Manages a Dash0 Spam Filter. Spam filters allow you to drop noisy or unwanted telemetry data " +
 			"before it is stored, reducing costs and improving signal-to-noise ratio. " +
 			"Filters are scoped to a dataset and can target logs, spans, or metrics.\n\n" +
-			"See [About Spam Filters](https://dash0.com/docs/dash0/data-management/spam-filters) for more details.",
+			"See [Set Spam Filters](https://dash0.com/docs/dash0/cost-control/spam-filters) for more details.",
 
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
@@ -82,8 +84,15 @@ func (r *SpamFilterResource) Schema(_ context.Context, _ resource.SchemaRequest,
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"id": schema.StringAttribute{
+				Description: "The server-assigned UUID of the spam filter, resolved by the provider after creation. Useful for cross-referencing the filter from other resources or external systems. Spam filters are not addressable in the Dash0 web app, so no `url` is exposed.",
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"dataset": schema.StringAttribute{
-				Description: "The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the spam filter belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
+				Description: "The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the spam filter belongs to. Provide the dataset's identifier, which is immutable, not the 'name'. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -102,6 +111,23 @@ func (r *SpamFilterResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			},
 		},
 	}
+}
+
+// resolveSpamFilter populates the spam filter's server-assigned id on the
+// model by looking it up via the list endpoint. The id is best-effort
+// metadata: failures are surfaced as warnings and leave the attribute null
+// rather than failing the operation.
+func (r *SpamFilterResource) resolveSpamFilter(ctx context.Context, model *spamFilterModel, diags *diag.Diagnostics) {
+	id, err := r.client.ResolveSpamFilter(ctx, model.Origin.ValueString(), model.Dataset.ValueString())
+	if err != nil {
+		diags.AddWarning(
+			"Unable to resolve spam filter metadata",
+			fmt.Sprintf("The spam filter was saved successfully, but its id could not be determined: %s", err),
+		)
+		model.ID = types.StringNull()
+		return
+	}
+	model.ID = stringOrNull(id)
 }
 
 func (r *SpamFilterResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -137,6 +163,9 @@ func (r *SpamFilterResource) Create(ctx context.Context, req resource.CreateRequ
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create spam filter, got error: %s", err))
 		return
 	}
+
+	// Resolve the id for the newly created spam filter (best-effort).
+	r.resolveSpamFilter(ctx, &model, &resp.Diagnostics)
 
 	tflog.Trace(ctx, "created a spam filter resource")
 
@@ -225,6 +254,9 @@ func (r *SpamFilterResource) Update(ctx context.Context, req resource.UpdateRequ
 
 	// Update the existing spam filter (dataset changes force recreation via RequiresReplace)
 	plan.Origin = state.Origin
+	// The spam filter's identifier is immutable, so the id never changes on
+	// update; carry it from state instead of re-resolving it via the API.
+	plan.ID = state.ID
 	err = r.client.UpdateSpamFilter(ctx, plan.Origin.ValueString(), jsonBody, plan.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update spam filter, got error: %s", err))
@@ -281,4 +313,9 @@ func (r *SpamFilterResource) ImportState(ctx context.Context, req resource.Impor
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("spam_filter_yaml"), apiResponseJSON)...)
+
+	// Resolve the id (best-effort).
+	model := spamFilterModel{Origin: types.StringValue(origin), Dataset: types.StringValue(dataset)}
+	r.resolveSpamFilter(ctx, &model, &resp.Diagnostics)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), model.ID)...)
 }

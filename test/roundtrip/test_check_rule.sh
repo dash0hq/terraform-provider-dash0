@@ -65,6 +65,10 @@ variable "dataset" {
 output "origin" {
   value = dash0_check_rule.test.origin
 }
+
+output "url" {
+  value = dash0_check_rule.test.url
+}
 EOF
 
 tf_init "$WORK_DIR"
@@ -72,6 +76,13 @@ TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
 
 ORIGIN="$(TF_VAR_dataset="$DATASET" tf_output "$WORK_DIR" origin)"
 info "Created check rule with origin: ${ORIGIN}"
+
+# Verify the computed url attribute is a Dash0 web app deep link.
+URL="$(TF_VAR_dataset="$DATASET" tf_output "$WORK_DIR" url)"
+info "Check rule url: ${URL}"
+echo "$URL" | grep -Eq '^https://app\..+/goto/.+' \
+  || fail "check rule url output '${URL}' is not a valid deep link"
+info "Check rule url check PASSED."
 
 # ---------------------------------------------------------------------------
 # Step 2: Verify via dash0 CLI

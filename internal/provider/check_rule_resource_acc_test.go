@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -81,6 +82,9 @@ func TestAccCheckRuleResource(t *testing.T) {
 					resource.TestCheckResourceAttr(checkRuleResourceName, "dataset", "terraform-test"),
 					resource.TestCheckResourceAttr(checkRuleResourceName, "check_rule_yaml", basicCheckRuleYaml),
 					resource.TestCheckResourceAttrSet(checkRuleResourceName, "origin"),
+					// Verify the computed URL is set and points at the web app deep link
+					resource.TestMatchResourceAttr(checkRuleResourceName, "url",
+						regexp.MustCompile(`^https://app\..+/goto/.+`)),
 				),
 			},
 			// ImportState testing
@@ -109,6 +113,12 @@ func TestAccCheckRuleResource(t *testing.T) {
 					// Verify the check_rule_yaml attribute
 					if yaml := states[0].Attributes["check_rule_yaml"]; yaml == "" {
 						return fmt.Errorf("check_rule_yaml attribute is missing or empty")
+					}
+
+					// Verify the computed url is resolved on import
+					urlPattern := regexp.MustCompile(`^https://app\..+/goto/.+`)
+					if u := states[0].Attributes["url"]; !urlPattern.MatchString(u) {
+						return fmt.Errorf("url attribute %q does not match expected check rule deep link pattern", u)
 					}
 
 					return nil

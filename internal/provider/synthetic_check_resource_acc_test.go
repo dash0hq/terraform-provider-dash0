@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -152,6 +153,9 @@ func TestAccSyntheticCheckResource(t *testing.T) {
 					resource.TestCheckResourceAttr(syntheticCheckResourceName, "dataset", "terraform-test"),
 					resource.TestCheckResourceAttr(syntheticCheckResourceName, "synthetic_check_yaml", basicSyntheticCheckYaml),
 					resource.TestCheckResourceAttrSet(syntheticCheckResourceName, "origin"),
+					// Verify the computed URL is set and points at the web app deep link
+					resource.TestMatchResourceAttr(syntheticCheckResourceName, "url",
+						regexp.MustCompile(`^https://app\..+/goto/.+`)),
 				),
 			},
 			// ImportState testing
@@ -180,6 +184,12 @@ func TestAccSyntheticCheckResource(t *testing.T) {
 					// Verify the synthetic_check_yaml attribute
 					if yaml := states[0].Attributes["synthetic_check_yaml"]; yaml == "" {
 						return fmt.Errorf("synthetic_check_yaml attribute is missing or empty")
+					}
+
+					// Verify the computed url is resolved on import
+					urlPattern := regexp.MustCompile(`^https://app\..+/goto/.+`)
+					if u := states[0].Attributes["url"]; !urlPattern.MatchString(u) {
+						return fmt.Errorf("url attribute %q does not match expected synthetic check deep link pattern", u)
 					}
 
 					return nil

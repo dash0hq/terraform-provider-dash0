@@ -98,11 +98,17 @@ spec:
 					"origin": schema.StringAttribute{
 						Computed: true,
 					},
+					"id": schema.StringAttribute{
+						Computed: true,
+					},
 					"dataset": schema.StringAttribute{
 						Required: true,
 					},
 					"view_yaml": schema.StringAttribute{
 						Required: true,
+					},
+					"url": schema.StringAttribute{
+						Computed: true,
 					},
 				},
 			}
@@ -115,19 +121,25 @@ spec:
 			// Create the resource with the test client
 			r := &ViewResource{client: testClient}
 
+			testURL := "https://app.dash0.com/goto/traces/explorer?view_id=internal-uuid"
+
 			// Create the state object
 			raw := tftypes.NewValue(
 				tftypes.Object{
 					AttributeTypes: map[string]tftypes.Type{
 						"origin":    tftypes.String,
+						"id":        tftypes.String,
 						"dataset":   tftypes.String,
 						"view_yaml": tftypes.String,
+						"url":       tftypes.String,
 					},
 				},
 				map[string]tftypes.Value{
 					"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+					"id":        tftypes.NewValue(tftypes.String, nil),
 					"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 					"view_yaml": tftypes.NewValue(tftypes.String, originalYaml),
+					"url":       tftypes.NewValue(tftypes.String, testURL),
 				},
 			)
 
@@ -161,6 +173,9 @@ spec:
 			} else {
 				assert.Equal(t, originalYaml, resultState.ViewYaml.ValueString())
 			}
+
+			// URL is carried over from prior state (Read does not re-resolve it).
+			assert.Equal(t, testURL, resultState.URL.ValueString())
 
 			// Check for warnings
 			hasWarnings := resp.Diagnostics.WarningsCount() > 0

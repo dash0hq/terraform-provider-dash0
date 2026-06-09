@@ -113,6 +113,51 @@ func (c *dash0Client) DeleteSpamFilter(ctx context.Context, origin string, datas
 	return nil
 }
 
+// ResolveSpamFilter looks up the server-assigned id of the spam filter with
+// the given origin by matching against the list endpoint. Both v1alpha1 and
+// v1alpha2 are handled — origin and id labels live on the shared metadata
+// shape.
+//
+// Spam filters are not addressable in the Dash0 web app, so this function
+// returns only an id (no deep-link URL). It returns an empty string (and no
+// error) when the spam filter is not present in the list, so that callers can
+// treat the id as best-effort metadata rather than failing the operation.
+func (c *dash0Client) ResolveSpamFilter(ctx context.Context, origin string, dataset string) (string, error) {
+	items, err := c.inner.ListSpamFilterObjects(ctx, &dataset)
+	if err != nil {
+		return "", err
+	}
+
+	for _, obj := range items {
+		var meta *dash0.SpamFilterMetadata
+		switch f := obj.(type) {
+		case *dash0.SpamFilter:
+			if f != nil {
+				meta = &f.Metadata
+			}
+		case *dash0.SpamFilterV1Alpha2:
+			if f != nil {
+				meta = &f.Metadata
+			}
+		}
+		if meta == nil || meta.Labels == nil || meta.Labels.Dash0Comorigin == nil {
+			continue
+		}
+		if *meta.Labels.Dash0Comorigin != origin {
+			continue
+		}
+		var id string
+		if meta.Labels.Dash0Comid != nil {
+			id = *meta.Labels.Dash0Comid
+		}
+		tflog.Debug(ctx, fmt.Sprintf("Resolved spam filter id for origin %s: %s", origin, id))
+		return id, nil
+	}
+
+	tflog.Warn(ctx, fmt.Sprintf("Spam filter with origin %q not found in dataset %q; id will be empty", origin, dataset))
+	return "", nil
+}
+
 // spamFilterIsV1Alpha2 reports whether the JSON document declares apiVersion
 // v1alpha2. The apiVersion may be either the bare form ("v1alpha2") or the
 // operator-style prefixed form ("operator.dash0.com/v1alpha2"); both are
