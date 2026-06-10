@@ -1,0 +1,6 @@
+# Copy this file to terraform.tfvars and fill in your values.
+# Do NOT commit terraform.tfvars — it contains sensitive credentials.
+
+api_key      = "your-dash0-auth-token"
+dataset      = "default"
+technical_id = "your-organization-technical-id"
