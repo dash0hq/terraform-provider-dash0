@@ -72,6 +72,8 @@ if [[ $# -gt 0 ]]; then
   TESTS=("$@")
 else
   TESTS=(
+    test_provider_empty_attributes.sh
+    test_provider_with_profile_attribute_and_env_overrides.sh
     test_check_rule.sh
     test_dashboard.sh
     test_recording_rule.sh
