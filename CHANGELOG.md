@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.14.0
+
+
+### Enhancements
+
+
+- `provider`: Support OAuth-enabled dash0 CLI profiles (#123)
+  The provider now accepts profiles authenticated via `dash0 auth login` (OAuth).
+  Access tokens are transparently refreshed when close to expiry.
+  If the refresh token is expired, a clear error directs the user to re-authenticate.
+  
+
+- `provider`: Load Dash0 credentials from a dash0 CLI profile when they are not supplied via attributes or environment variables. (#65)
+  Adds an optional `profile` attribute on the provider block and reads from
+  the dash0 CLI configuration directory (`~/.dash0` by default, overridable
+  via `DASH0_CONFIG_DIR`). Credentials are resolved in this order:
+  
+    1. `DASH0_API_URL` / `DASH0_AUTH_TOKEN` environment variables (`DASH0_URL`
+       remains accepted as a deprecated fallback for the URL).
+    2. The `url` / `auth_token` provider attributes.
+    3. The CLI profile named by the `profile` attribute; if `profile` is not
+       set, the active profile in the dash0 CLI configuration directory.
+  
+
 ## 1.13.0
 
 
