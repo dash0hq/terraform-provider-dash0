@@ -442,53 +442,176 @@ func TestDash0Provider_Resources(t *testing.T) {
 // TestResolveAuthInfo_Precedence pins the precedence order in a single place
 // without going through Configure's diagnostic plumbing.
 func TestResolveAuthInfo_Precedence(t *testing.T) {
+	ctx := context.Background()
+
 	t.Run("env beats attr beats profile", func(t *testing.T) {
 		clearCredentialEnv(t)
 		setupCLIConfigDir(t, "test1", profilesFixture)
 		t.Setenv("DASH0_API_URL", "https://env.example.com")
 		t.Setenv("DASH0_AUTH_TOKEN", "auth_env")
 
-		url, token, err := resolveAuthInfo(&providerConfigModel{
+		auth, err := resolveAuthInfo(ctx, &providerConfigModel{
 			URL:       types.StringValue("https://attr.example.com"),
 			AuthToken: types.StringValue("auth_attr"),
 		})
 		require.NoError(t, err)
-		assert.Equal(t, "https://env.example.com", url)
-		assert.Equal(t, "auth_env", token)
+		assert.Equal(t, "https://env.example.com", auth.url)
+		assert.Equal(t, "auth_env", auth.token)
+		assert.False(t, auth.isOAuth)
 	})
 
 	t.Run("attr beats profile when env absent", func(t *testing.T) {
 		clearCredentialEnv(t)
 		setupCLIConfigDir(t, "test1", profilesFixture)
 
-		url, token, err := resolveAuthInfo(&providerConfigModel{
+		auth, err := resolveAuthInfo(ctx, &providerConfigModel{
 			URL:       types.StringValue("https://attr.example.com"),
 			AuthToken: types.StringValue("auth_attr"),
 		})
 		require.NoError(t, err)
-		assert.Equal(t, "https://attr.example.com", url)
-		assert.Equal(t, "auth_attr", token)
+		assert.Equal(t, "https://attr.example.com", auth.url)
+		assert.Equal(t, "auth_attr", auth.token)
+		assert.False(t, auth.isOAuth)
 	})
 
 	t.Run("active profile fills both when env and attr absent", func(t *testing.T) {
 		clearCredentialEnv(t)
 		setupCLIConfigDir(t, "test1", profilesFixture)
 
-		url, token, err := resolveAuthInfo(&providerConfigModel{})
+		auth, err := resolveAuthInfo(ctx, &providerConfigModel{})
 		require.NoError(t, err)
-		assert.Equal(t, "https://api.us-west-2.aws.dash0.com", url)
-		assert.Equal(t, "auth_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", token)
+		assert.Equal(t, "https://api.us-west-2.aws.dash0.com", auth.url)
+		assert.Equal(t, "auth_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", auth.token)
+		assert.False(t, auth.isOAuth)
 	})
 
 	t.Run("named profile overrides active when env and attr absent", func(t *testing.T) {
 		clearCredentialEnv(t)
 		setupCLIConfigDir(t, "test1", profilesFixture)
 
-		url, token, err := resolveAuthInfo(&providerConfigModel{
+		auth, err := resolveAuthInfo(ctx, &providerConfigModel{
 			Profile: types.StringValue("test2"),
 		})
 		require.NoError(t, err)
-		assert.Equal(t, "https://api.us-west-1.aws.dash0.com", url)
-		assert.Equal(t, "auth_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", token)
+		assert.Equal(t, "https://api.us-west-1.aws.dash0.com", auth.url)
+		assert.Equal(t, "auth_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", auth.token)
+		assert.False(t, auth.isOAuth)
 	})
+}
+
+// TestResolveAuthInfo_OAuth tests OAuth-specific behavior.
+func TestResolveAuthInfo_OAuth(t *testing.T) {
+	ctx := context.Background()
+
+	oauthProfilesFixture := `{
+  "profiles": [
+    {
+      "name": "oauth-profile",
+      "configuration": {
+        "apiUrl": "https://api.us-west-2.aws.dash0.com",
+        "authToken": "dash0_at_oauth-access-token",
+        "oauth": {
+          "clientId": "client-id-123",
+          "refreshToken": "refresh-token-456",
+          "expiresAt": "2099-12-31T23:59:59Z"
+        }
+      }
+    },
+    {
+      "name": "static-profile",
+      "configuration": {
+        "apiUrl": "https://api.us-west-1.aws.dash0.com",
+        "authToken": "auth_static_token"
+      }
+    }
+  ]
+}`
+
+	t.Run("active OAuth profile sets isOAuth flag", func(t *testing.T) {
+		clearCredentialEnv(t)
+		setupCLIConfigDir(t, "oauth-profile", oauthProfilesFixture)
+
+		auth, err := resolveAuthInfo(ctx, &providerConfigModel{})
+		require.NoError(t, err)
+		assert.Equal(t, "https://api.us-west-2.aws.dash0.com", auth.url)
+		assert.Equal(t, "dash0_at_oauth-access-token", auth.token)
+		assert.True(t, auth.isOAuth)
+	})
+
+	t.Run("named OAuth profile sets isOAuth flag", func(t *testing.T) {
+		clearCredentialEnv(t)
+		setupCLIConfigDir(t, "static-profile", oauthProfilesFixture)
+
+		auth, err := resolveAuthInfo(ctx, &providerConfigModel{
+			Profile: types.StringValue("oauth-profile"),
+		})
+		require.NoError(t, err)
+		assert.True(t, auth.isOAuth)
+	})
+
+	t.Run("env auth token overrides OAuth profile and clears isOAuth", func(t *testing.T) {
+		clearCredentialEnv(t)
+		setupCLIConfigDir(t, "oauth-profile", oauthProfilesFixture)
+		t.Setenv("DASH0_AUTH_TOKEN", "auth_env_override")
+
+		auth, err := resolveAuthInfo(ctx, &providerConfigModel{})
+		require.NoError(t, err)
+		assert.Equal(t, "auth_env_override", auth.token)
+		assert.False(t, auth.isOAuth)
+	})
+
+	t.Run("attr auth token overrides OAuth profile and clears isOAuth", func(t *testing.T) {
+		clearCredentialEnv(t)
+		setupCLIConfigDir(t, "oauth-profile", oauthProfilesFixture)
+
+		auth, err := resolveAuthInfo(ctx, &providerConfigModel{
+			AuthToken: types.StringValue("auth_attr_override"),
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "auth_attr_override", auth.token)
+		assert.False(t, auth.isOAuth)
+	})
+
+	t.Run("static named profile does not set isOAuth", func(t *testing.T) {
+		clearCredentialEnv(t)
+		setupCLIConfigDir(t, "oauth-profile", oauthProfilesFixture)
+
+		auth, err := resolveAuthInfo(ctx, &providerConfigModel{
+			Profile: types.StringValue("static-profile"),
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "auth_static_token", auth.token)
+		assert.False(t, auth.isOAuth)
+	})
+}
+
+// TestDash0Provider_Configure_OAuthProfile verifies that an OAuth-enabled CLI
+// profile is accepted by Configure (JWT tokens do not start with "auth_").
+func TestDash0Provider_Configure_OAuthProfile(t *testing.T) {
+	clearCredentialEnv(t)
+	oauthProfilesFixture := `{
+  "profiles": [
+    {
+      "name": "oauth",
+      "configuration": {
+        "apiUrl": "https://api.us-west-2.aws.dash0.com",
+        "authToken": "dash0_at_oauth-access-token",
+        "oauth": {
+          "clientId": "cid",
+          "refreshToken": "rt",
+          "expiresAt": "2099-12-31T23:59:59Z"
+        }
+      }
+    }
+  ]
+}`
+	setupCLIConfigDir(t, "oauth", oauthProfilesFixture)
+
+	p := &dash0Provider{}
+	req := provider.ConfigureRequest{Config: providerTestConfig(nil, nil, nil, nil)}
+	resp := &provider.ConfigureResponse{}
+	p.Configure(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError(), "diagnostics: %v", resp.Diagnostics.Errors())
+	assert.NotNil(t, resp.ResourceData)
 }

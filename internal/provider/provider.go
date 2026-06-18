@@ -64,7 +64,7 @@ func providerSchema() schema.Schema {
 			"auth_token": schema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,
-				Description: "The API auth token for Dash0. Tokens can be created in [Dash0 Settings > Auth Tokens](https://app.dash0.com/settings/auth-tokens). If omitted, the DASH0_AUTH_TOKEN environment variable is used.",
+				Description: "The API auth token for Dash0. Static tokens (prefixed `auth_`) can be created in [Dash0 Settings > Auth Tokens](https://app.dash0.com/settings/auth-tokens). OAuth access tokens (prefixed `dash0_at_`) are obtained via `dash0 auth login`. If omitted, the DASH0_AUTH_TOKEN environment variable is used.",
 			},
 			"profile": schema.StringAttribute{
 				Optional:    true,
@@ -97,17 +97,23 @@ func getEnvURL() string {
 // used. Profile lookup is delegated to dash0-api-client-go's profiles package,
 // which honors the DASH0_CONFIG_DIR environment variable and falls back to
 // `~/.dash0`.
-func loadProfileConfiguration(profileName string) (*dash0Profiles.Configuration, error) {
+//
+// When the resolved profile uses OAuth, the access token is transparently
+// refreshed (if close to expiry) for the active-profile path. Named profiles
+// that are not active cannot be refreshed because the library does not expose a
+// public per-name refresh API; the provider will use whatever token is on disk.
+func loadProfileConfiguration(ctx context.Context, profileName string) (*dash0Profiles.Configuration, error) {
 	store, err := dash0Profiles.NewStore()
 	if err != nil {
 		return nil, err
 	}
 	if profileName == "" {
-		active, err := store.GetActiveProfile()
+		// GetActiveConfigurationContext handles OAuth token refresh internally.
+		cfg, err := store.GetActiveConfigurationContext(ctx)
 		if err != nil {
 			return nil, err
 		}
-		return &active.Configuration, nil
+		return cfg, nil
 	}
 	profiles, err := store.GetProfiles()
 	if err != nil {
@@ -119,6 +125,15 @@ func loadProfileConfiguration(profileName string) (*dash0Profiles.Configuration,
 		}
 	}
 	return nil, fmt.Errorf("profile %q not found in dash0 CLI configuration", profileName)
+}
+
+// authInfo holds the resolved Dash0 URL, auth token, and whether the token
+// originated from an OAuth-enabled CLI profile (in which case the auth_
+// prefix validation is skipped).
+type authInfo struct {
+	url     string
+	token   string
+	isOAuth bool
 }
 
 // resolveAuthInfo computes the Dash0 URL and auth token according to the
@@ -135,7 +150,7 @@ func loadProfileConfiguration(profileName string) (*dash0Profiles.Configuration,
 // occurs. ErrNoActiveProfile with no explicit profile is treated as "no CLI
 // profile configured" and silently ignored — the caller is then expected to
 // emit a "missing credentials" diagnostic.
-func resolveAuthInfo(cfg *providerConfigModel) (string, string, error) {
+func resolveAuthInfo(ctx context.Context, cfg *providerConfigModel) (authInfo, error) {
 	var attrURL, attrAuthToken string
 	if !cfg.URL.IsNull() && !cfg.URL.IsUnknown() {
 		attrURL = cfg.URL.ValueString()
@@ -148,7 +163,7 @@ func resolveAuthInfo(cfg *providerConfigModel) (string, string, error) {
 	authToken := cmp.Or(os.Getenv("DASH0_AUTH_TOKEN"), attrAuthToken)
 
 	if url != "" && authToken != "" {
-		return url, authToken, nil
+		return authInfo{url: url, token: authToken}, nil
 	}
 
 	var profileName string
@@ -158,21 +173,23 @@ func resolveAuthInfo(cfg *providerConfigModel) (string, string, error) {
 		profileExplicit = profileName != ""
 	}
 
-	profileCfg, err := loadProfileConfiguration(profileName)
+	profileCfg, err := loadProfileConfiguration(ctx, profileName)
 	if err != nil {
 		if !profileExplicit && errors.Is(err, dash0Profiles.ErrNoActiveProfile) {
-			return url, authToken, nil
+			return authInfo{url: url, token: authToken}, nil
 		}
-		return url, authToken, err
+		return authInfo{url: url, token: authToken}, err
 	}
 
+	isOAuth := false
 	if url == "" {
 		url = profileCfg.ApiUrl
 	}
 	if authToken == "" {
 		authToken = profileCfg.AuthToken
+		isOAuth = profileCfg.OAuth != nil
 	}
-	return url, authToken, nil
+	return authInfo{url: url, token: authToken, isOAuth: isOAuth}, nil
 }
 
 // Configure prepares a Dash0 API client for data sources and resources.
@@ -189,15 +206,23 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 		tflog.Warn(ctx, "DASH0_URL is deprecated; please switch to DASH0_API_URL")
 	}
 
-	url, authToken, err := resolveAuthInfo(&cfg)
+	auth, err := resolveAuthInfo(ctx, &cfg)
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to load credentials from dash0 CLI profile",
-			err.Error(),
-		)
+		if errors.Is(err, dash0Profiles.ErrReauthenticationRequired) {
+			resp.Diagnostics.AddError(
+				"OAuth re-authentication required",
+				"The OAuth session for your dash0 CLI profile has expired. "+
+					"Run `dash0 auth login` to re-authenticate, then re-run your Terraform command.",
+			)
+		} else {
+			resp.Diagnostics.AddError(
+				"Unable to load credentials from dash0 CLI profile",
+				err.Error(),
+			)
+		}
 	}
 
-	if url == "" {
+	if auth.url == "" {
 		resp.Diagnostics.AddError(
 			"Missing Dash0 URL",
 			"The provider cannot create the Dash0 API client because no Dash0 URL was provided. "+
@@ -206,7 +231,7 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 				"or as the active profile in `~/.dash0`).",
 		)
 	}
-	if authToken == "" {
+	if auth.token == "" {
 		resp.Diagnostics.AddError(
 			"Missing Dash0 Auth Token",
 			"The provider cannot create the Dash0 API client because no Dash0 auth token was provided. "+
@@ -215,10 +240,10 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 				"attribute, or as the active profile in `~/.dash0`).",
 		)
 	}
-	if authToken != "" && !strings.HasPrefix(authToken, "auth_") {
+	if auth.token != "" && !strings.HasPrefix(auth.token, "auth_") && !strings.HasPrefix(auth.token, "dash0_at_") {
 		resp.Diagnostics.AddError(
 			"Invalid Dash0 Auth Token",
-			"The auth token must start with 'auth_'. Check your DASH0_AUTH_TOKEN environment variable or provider configuration.",
+			"The auth token must start with 'auth_' or 'dash0_at_'. Check your DASH0_AUTH_TOKEN environment variable or provider configuration.",
 		)
 	}
 
@@ -253,14 +278,14 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 		return
 	}
 
-	ctx = tflog.SetField(ctx, "dash0_url", url)
-	ctx = tflog.SetField(ctx, "dash0_auth_token", authToken)
+	ctx = tflog.SetField(ctx, "dash0_url", auth.url)
+	ctx = tflog.SetField(ctx, "dash0_auth_token", auth.token)
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "dash0_auth_token")
 
 	tflog.Debug(ctx, "Creating Dash0 client")
 
 	// Create dash0Client configuration for data sources and resources
-	dash0Client, err := client.NewDash0Client(url, authToken, p.version, maxRetries)
+	dash0Client, err := client.NewDash0Client(auth.url, auth.token, p.version, maxRetries)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create Dash0 API Client",
