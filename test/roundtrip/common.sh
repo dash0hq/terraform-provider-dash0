@@ -5,9 +5,11 @@ set -euo pipefail
 
 # ---------------------------------------------------------------------------
 # Credentials are passed as environment variables by run_all.sh / Docker.
+# For OAuth-enabled profiles DASH0_AUTH_TOKEN may be empty; the provider
+# loads the token from the mounted CLI config directory instead.
 # ---------------------------------------------------------------------------
 : "${DASH0_API_URL:?Environment variable DASH0_API_URL must be set}"
-: "${DASH0_AUTH_TOKEN:?Environment variable DASH0_AUTH_TOKEN must be set}"
+: "${DASH0_AUTH_TOKEN:=}"
 : "${DASH0_DATASET:=default}"
 : "${DASH0_PROVIDER_PROFILE:=}"
 export DASH0_API_URL DASH0_AUTH_TOKEN DASH0_DATASET DASH0_PROVIDER_PROFILE

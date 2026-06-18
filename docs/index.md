@@ -35,7 +35,7 @@ The following environment variables are supported:
 |----------|----------|-------------|---------|
 | `DASH0_API_URL` | Yes | The base URL of the Dash0 API (e.g. `https://api.us-west-2.aws.dash0.com`). Overrides the `url` provider attribute. | — |
 | `DASH0_URL` | No | Deprecated alias for `DASH0_API_URL`. Used only when `DASH0_API_URL` is not set. | — |
-| `DASH0_AUTH_TOKEN` | Yes | The API auth token for Dash0. Must start with `auth_`. Overrides the `auth_token` provider attribute. | — |
+| `DASH0_AUTH_TOKEN` | Yes | The API auth token for Dash0. Must start with `auth_` or `dash0_at_`. Overrides the `auth_token` provider attribute. | — |
 | `DASH0_CONFIG_DIR` | No | Directory containing the dash0 CLI configuration files (`activeProfile`, `profiles.json`). Used when loading credentials from a CLI profile. | `~/.dash0` |
 | `DASH0_MAX_RETRIES` | No | Maximum number of retries for failed API requests (0–5). Overrides the `max_retries` provider attribute. | `3` |
 
@@ -77,6 +77,19 @@ provider "dash0" {
 
 The CLI configuration directory defaults to `~/.dash0`; set `DASH0_CONFIG_DIR` to point at a different location (useful for tests or for sandboxed environments).
 
+#### OAuth-enabled profiles
+
+Profiles authenticated via `dash0 auth login` (OAuth) are fully supported. The provider transparently refreshes the access token when it is close to expiry. If the refresh token itself has expired or been revoked, the provider emits a clear error asking you to re-authenticate:
+
+```
+Error: OAuth re-authentication required
+
+The OAuth session for your dash0 CLI profile has expired.
+Run `dash0 auth login` to re-authenticate, then re-run your Terraform command.
+```
+
+**Note:** Provider versions before this feature was added reject OAuth-enabled profiles with an `Invalid Dash0 Auth Token` error because they require auth tokens to start with the `auth_` prefix. OAuth access tokens use the `dash0_at_` prefix instead. If you see this error, upgrade the provider to the latest version.
+
 ## Examples
 
 ### Creating a Dash0 provider
@@ -95,7 +108,7 @@ terraform {
 
 provider "dash0" {
   # Configuration will be read from environment variables:
-  # DASH0_API_URL and DASH0_AUTH_TOKEN
+  # DASH0_API_URL (or DASH0_URL as fallback) and DASH0_AUTH_TOKEN
 }
 ```
 
