@@ -1,0 +1,10 @@
+# CODEOWNERS
+#
+# This file defines who is requested for review and whose approval is
+# required before changes can be merged. Order matters: the last matching
+# pattern for a given path takes precedence.
+#
+# See: https://docs.github.com/en/repositories/managing-your-repos-settings-and-features/customizing-your-repository/about-code-owners
+
+# Michele Mancioppi owns everything in this repository.
+* @mmanciop
