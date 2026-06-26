@@ -173,3 +173,95 @@ spec:
 		})
 	}
 }
+
+// Regression for https://github.com/dash0hq/terraform-provider-dash0/issues/128.
+// The user's state declares spec.routing.filters (so the conditional ignore on
+// spec.routing does not fire) along with an empty spec.routing.assets list.
+// A bound synthetic check (or check rule) then causes the server to populate
+// spec.routing.assets on retrieval. Read must treat this as no drift so plans
+// do not flap and reapplying does not strip the server-written entry.
+func TestNotificationChannelResource_ReadIgnoresServerWrittenRoutingAssets(t *testing.T) {
+	testOrigin := "test-notification-channel"
+
+	stateYaml := `
+kind: Dash0NotificationChannel
+metadata:
+  name: team-platform-critical
+spec:
+  type: slack_bot
+  frequency: 6h0m0s
+  config:
+    teamId: "T012345"
+    channel: "#alerts-platform-critical"
+  routing:
+    assets: []
+    filters:
+      - - key: team
+          operator: is
+          value: platform
+`
+
+	apiResponseYaml := `
+kind: Dash0NotificationChannel
+metadata:
+  name: team-platform-critical
+spec:
+  type: slack_bot
+  frequency: 6h0m0s
+  config:
+    teamId: "T012345"
+    channel: "#alerts-platform-critical"
+  routing:
+    assets:
+      - kind: synthetic_check
+        id: "11111111-2222-3333-4444-555555555555"
+        name: "auto-attached check"
+        dataset: "default"
+    filters:
+      - - key: team
+          operator: is
+          value: platform
+`
+
+	testSchema := schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"origin":                    schema.StringAttribute{Computed: true},
+			"id":                        schema.StringAttribute{Computed: true},
+			"notification_channel_yaml": schema.StringAttribute{Required: true},
+			"url":                       schema.StringAttribute{Computed: true},
+		},
+	}
+
+	testClient := &testNotificationChannelClient{getResponse: apiResponseYaml}
+	r := &NotificationChannelResource{client: testClient}
+
+	raw := tftypes.NewValue(
+		tftypes.Object{
+			AttributeTypes: map[string]tftypes.Type{
+				"origin":                    tftypes.String,
+				"id":                        tftypes.String,
+				"notification_channel_yaml": tftypes.String,
+				"url":                       tftypes.String,
+			},
+		},
+		map[string]tftypes.Value{
+			"origin":                    tftypes.NewValue(tftypes.String, testOrigin),
+			"id":                        tftypes.NewValue(tftypes.String, nil),
+			"notification_channel_yaml": tftypes.NewValue(tftypes.String, stateYaml),
+			"url":                       tftypes.NewValue(tftypes.String, nil),
+		},
+	)
+
+	state := tfsdk.State{Raw: raw, Schema: testSchema}
+	req := resource.ReadRequest{State: state}
+	resp := resource.ReadResponse{State: state}
+
+	r.Read(context.Background(), req, &resp)
+
+	var resultState notificationChannelModel
+	resp.State.Get(context.Background(), &resultState)
+
+	assert.Equal(t, stateYaml, resultState.NotificationChannelYaml.ValueString(),
+		"server-written spec.routing.assets must not trigger a state update")
+	assert.Equal(t, 0, resp.Diagnostics.WarningsCount())
+}

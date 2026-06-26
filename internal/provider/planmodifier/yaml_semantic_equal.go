@@ -21,8 +21,21 @@ func YAMLSemanticEqual(preservedAnnotationKeys ...string) planmodifier.String {
 	}
 }
 
+// YAMLSemanticEqualWith returns a plan modifier like YAMLSemanticEqual, but
+// also strips alwaysIgnoredFields from both YAMLs before comparison. Use this
+// when a resource has fields that are fully API-managed (e.g. back-references
+// populated by other resources) so the user's config and the API response
+// stay equivalent regardless of what the server writes there.
+func YAMLSemanticEqualWith(alwaysIgnoredFields []string, preservedAnnotationKeys ...string) planmodifier.String {
+	return yamlSemanticEqualModifier{
+		preservedAnnotationKeys: preservedAnnotationKeys,
+		alwaysIgnoredFields:     alwaysIgnoredFields,
+	}
+}
+
 type yamlSemanticEqualModifier struct {
 	preservedAnnotationKeys []string
+	alwaysIgnoredFields     []string
 }
 
 func (m yamlSemanticEqualModifier) Description(_ context.Context) string {
@@ -51,6 +64,7 @@ func (m yamlSemanticEqualModifier) PlanModifyString(_ context.Context, req planm
 	// Conditionally ignore API-managed fields that the user didn't include in their config.
 	// e.g., spec.permissions is enriched by the API on retrieval but users may optionally manage it.
 	additionalIgnored := converter.FieldsAbsentFromYAML(configYAML, converter.ConditionallyIgnoredFields)
+	additionalIgnored = append(additionalIgnored, m.alwaysIgnoredFields...)
 	equivalent, err := converter.ResourceYAMLEquivalent(configYAML, stateYAML, additionalIgnored, m.preservedAnnotationKeys)
 	if err != nil {
 		// On error, let Terraform use normal comparison

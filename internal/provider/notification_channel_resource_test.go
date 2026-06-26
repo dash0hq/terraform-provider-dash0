@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -231,4 +232,75 @@ func TestNotificationChannelResource_ReadError(t *testing.T) {
 	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Client Error")
 
 	mockClient.AssertExpectations(t)
+}
+
+func TestWarnIfRoutingAssetsSet(t *testing.T) {
+	cases := []struct {
+		name       string
+		yaml       string
+		expectWarn bool
+	}{
+		{
+			name: "no routing",
+			yaml: `
+kind: Dash0NotificationChannel
+spec:
+  type: webhook
+`,
+			expectWarn: false,
+		},
+		{
+			name: "routing without assets",
+			yaml: `
+kind: Dash0NotificationChannel
+spec:
+  type: webhook
+  routing:
+    filters:
+      - - key: team
+          operator: is
+          value: platform
+`,
+			expectWarn: false,
+		},
+		{
+			name: "empty assets list",
+			yaml: `
+kind: Dash0NotificationChannel
+spec:
+  type: webhook
+  routing:
+    assets: []
+`,
+			expectWarn: false,
+		},
+		{
+			name: "non-empty assets list",
+			yaml: `
+kind: Dash0NotificationChannel
+spec:
+  type: webhook
+  routing:
+    assets:
+      - kind: check_rule
+        id: "00000000-0000-0000-0000-000000000000"
+        name: "rule"
+        dataset: "default"
+`,
+			expectWarn: true,
+		},
+		{
+			name:       "invalid yaml is silently ignored (validated elsewhere)",
+			yaml:       "not valid {",
+			expectWarn: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var diags diag.Diagnostics
+			warnIfRoutingAssetsSet(tc.yaml, &diags)
+			assert.Equal(t, tc.expectWarn, diags.WarningsCount() > 0)
+		})
+	}
 }

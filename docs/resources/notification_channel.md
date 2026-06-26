@@ -204,7 +204,7 @@ YAML
 
 ### Required
 
-- `notification_channel_yaml` (String) The notification channel definition in YAML format. The YAML must include `kind: Dash0NotificationChannel`, a `metadata.name` field, and a `spec` with `type` and type-specific `config`. Optional fields include `frequency` (default `10m`) and `routing` for filtering which alerts are delivered. See [Send Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/send-alert-check-notifications) for the available options.
+- `notification_channel_yaml` (String) The notification channel definition in YAML format. The YAML must include `kind: Dash0NotificationChannel`, a `metadata.name` field, and a `spec` with `type` and type-specific `config`. Optional fields include `frequency` (default `10m`) and `routing` for filtering which alerts are delivered. Note that `spec.routing.assets` is populated by the Dash0 API as a back-reference when a check rule or synthetic check binds to this channel by id, and is discarded if supplied on write; bind a check rule by setting the `dash0.com/notification-channel-ids` annotation on the rule, or a synthetic check by setting `spec.notifications.channels` on the synthetic check. See [Send Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/send-alert-check-notifications) for the available options.
 
 ### Read-Only
 
