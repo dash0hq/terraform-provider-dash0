@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.14.1
+
+
+### Bug Fixes
+
+
+- `notification_channels`: Resolve perpetual drift on dash0_notification_channel when a check rule or synthetic check binds to the channel by id. (#128)
+  The Dash0 API populates `spec.routing.assets` on a notification channel as a
+  back-reference whenever a check rule (via the
+  `dash0.com/notification-channel-ids` annotation) or a synthetic check (via
+  `spec.notifications.channels`) binds to the channel by id. The field is
+  discarded on write, so previous releases produced a perpetual diff that
+  attempted to wipe the back-reference on every plan. The provider now treats
+  `spec.routing.assets` as API-managed and ignores it during comparison.
+  
+  If a user supplies `spec.routing.assets` on the channel YAML, the provider
+  emits a warning on create and update, since the Dash0 API will discard the
+  value. Bind a check rule or synthetic check to a channel from the check
+  resource instead.
+  
+
 ## 1.14.0
 
 
