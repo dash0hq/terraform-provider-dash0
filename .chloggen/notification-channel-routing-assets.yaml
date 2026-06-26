@@ -1,0 +1,39 @@
+# Use this changelog template to create an entry for release notes.
+
+# One of 'breaking', 'deprecation', 'new_component', 'enhancement', 'bug_fix'
+change_type: bug_fix
+
+# The name of the component, or a single word describing the area of concern (e.g. dashboards, check_rules, views)
+component: notification_channels
+
+# A brief description of the change. Surround your text with quotes ("") if it needs to start with a backtick (`).
+note: Resolve perpetual drift on dash0_notification_channel when a check rule or synthetic check binds to the channel by id.
+
+# Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
+issues:
+  - 128
+
+# (Optional) One or more lines of additional information to render under the primary note.
+# These lines will be padded with 2 spaces and then inserted directly into the document.
+# Use pipe (|) for multiline entries.
+subtext: |
+  The Dash0 API populates `spec.routing.assets` on a notification channel as a
+  back-reference whenever a check rule (via the
+  `dash0.com/notification-channel-ids` annotation) or a synthetic check (via
+  `spec.notifications.channels`) binds to the channel by id. The field is
+  discarded on write, so previous releases produced a perpetual diff that
+  attempted to wipe the back-reference on every plan. The provider now treats
+  `spec.routing.assets` as API-managed and ignores it during comparison.
+
+  If a user supplies `spec.routing.assets` on the channel YAML, the provider
+  emits a warning on create and update, since the Dash0 API will discard the
+  value. Bind a check rule or synthetic check to a channel from the check
+  resource instead.
+
+# If your change doesn't affect end users or the exported elements of any package,
+# you should instead start your pull request title with "chore" or use the "Skip Changelog" label.
+# Optional: The change log or logs in which this entry should be included.
+# e.g. '[user]' or '[user, api]'
+# Include 'user' if the change is relevant to end users.
+# Default: '[user]'
+change_logs: [user]

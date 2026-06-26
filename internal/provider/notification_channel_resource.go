@@ -30,11 +30,56 @@ var notificationChannelConditionallyIgnoredFields = append(
 	"spec.routing",   // server default (empty assets/filters)
 )
 
+// notificationChannelAlwaysIgnoredFields are fields the API maintains on the
+// channel even when the user includes other siblings in routing. The Dash0
+// API discards spec.routing.assets on write and instead populates it as a
+// back-reference whenever a check rule or synthetic check binds itself to the
+// channel by id. Comparing the field during drift detection would therefore
+// produce a perpetual diff whenever any check rule or synthetic check is
+// bound to the channel.
+var notificationChannelAlwaysIgnoredFields = []string{
+	"spec.routing.assets",
+}
+
+// warnIfRoutingAssetsSet emits a Warning when the user's YAML declares a
+// non-empty spec.routing.assets list. The Dash0 API discards this field on
+// write, so the value will not take effect; binding a check rule or synthetic
+// check to a notification channel must be expressed on the check resource.
+func warnIfRoutingAssetsSet(channelYaml string, diags *diag.Diagnostics) {
+	var parsed map[string]interface{}
+	if err := yaml.Unmarshal([]byte(channelYaml), &parsed); err != nil {
+		return
+	}
+	spec, ok := parsed["spec"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	routing, ok := spec["routing"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	assets, ok := routing["assets"].([]interface{})
+	if !ok || len(assets) == 0 {
+		return
+	}
+	diags.AddWarning(
+		"spec.routing.assets is API-managed and ignored on write",
+		"The Dash0 API populates spec.routing.assets as a back-reference when "+
+			"other resources bind to this notification channel by id, and "+
+			"discards any value supplied on write. The entries you provided "+
+			"will not take effect. To bind a check rule, set the annotation "+
+			"dash0.com/notification-channel-ids on the check rule; to bind a "+
+			"synthetic check, set spec.notifications.channels on the "+
+			"synthetic check.",
+	)
+}
+
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &NotificationChannelResource{}
-	_ resource.ResourceWithConfigure   = &NotificationChannelResource{}
-	_ resource.ResourceWithImportState = &NotificationChannelResource{}
+	_ resource.Resource                   = &NotificationChannelResource{}
+	_ resource.ResourceWithConfigure      = &NotificationChannelResource{}
+	_ resource.ResourceWithImportState    = &NotificationChannelResource{}
+	_ resource.ResourceWithValidateConfig = &NotificationChannelResource{}
 )
 
 // NewNotificationChannelResource is a helper function to simplify the provider implementation.
@@ -77,6 +122,22 @@ func (r *NotificationChannelResource) Metadata(_ context.Context, req resource.M
 	resp.TypeName = req.ProviderTypeName + "_notification_channel"
 }
 
+// ValidateConfig surfaces warnings about config that the Dash0 API will not
+// honor. Currently this is limited to spec.routing.assets, which is discarded
+// on write and reflects only server-maintained back-references on read.
+func (r *NotificationChannelResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var model notificationChannelModel
+	diags := req.Config.Get(ctx, &model)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if model.NotificationChannelYaml.IsNull() || model.NotificationChannelYaml.IsUnknown() {
+		return
+	}
+	warnIfRoutingAssetsSet(model.NotificationChannelYaml.ValueString(), &resp.Diagnostics)
+}
+
 func (r *NotificationChannelResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a Dash0 Notification Channel. Notification channels define how alerts are delivered to " +
@@ -108,10 +169,14 @@ func (r *NotificationChannelResource) Schema(_ context.Context, _ resource.Schem
 					"The YAML must include `kind: Dash0NotificationChannel`, a `metadata.name` field, " +
 					"and a `spec` with `type` and type-specific `config`. " +
 					"Optional fields include `frequency` (default `10m`) and `routing` for filtering which alerts are delivered. " +
+					"Note that `spec.routing.assets` is populated by the Dash0 API as a back-reference when a check rule or " +
+					"synthetic check binds to this channel by id, and is discarded if supplied on write; bind a check rule by " +
+					"setting the `dash0.com/notification-channel-ids` annotation on the rule, or a synthetic check by setting " +
+					"`spec.notifications.channels` on the synthetic check. " +
 					"See [Send Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/send-alert-check-notifications) for the available options.",
 				Required: true,
 				PlanModifiers: []planmodifier.String{
-					customplanmodifier.YAMLSemanticEqual(),
+					customplanmodifier.YAMLSemanticEqualWith(notificationChannelAlwaysIgnoredFields),
 				},
 			},
 			"url": schema.StringAttribute{
@@ -209,6 +274,7 @@ func (r *NotificationChannelResource) Read(ctx context.Context, req resource.Rea
 	if state.NotificationChannelYaml.ValueString() != "" {
 		stateYAML := state.NotificationChannelYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, notificationChannelConditionallyIgnoredFields)
+		additionalIgnored = append(additionalIgnored, notificationChannelAlwaysIgnoredFields...)
 		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored, nil)
 		if err != nil {
 			resp.Diagnostics.AddWarning(
