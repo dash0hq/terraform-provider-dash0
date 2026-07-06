@@ -11,7 +11,7 @@ This guide shows how to deploy the Dash0 AWS integration using Terraform's [`aws
 
 ~> **Note:** This is not a native Dash0 provider resource. It uses the AWS provider to deploy a CloudFormation stack with the official Dash0 integration template.
 
-The integration provisions the required IAM roles and configuration for collecting telemetry from your AWS account. The v2 template additionally provisions, via a CloudFormation StackSet, per-region resources for the `AWS/Lambda` namespace — a Kinesis Firehose delivery stream, a CloudWatch metric stream and an S3 backup bucket — and, optionally, an EventBridge rule, ApiDestination, and Connection that forward Lambda lifecycle events (`UpdateFunctionConfiguration`, `DeleteFunction`) to Dash0 in near real-time.
+The integration provisions the required IAM roles and configuration for collecting telemetry from your AWS account. The template additionally provisions, via a CloudFormation StackSet, per-region resources for the `AWS/Lambda` namespace — a Kinesis Firehose delivery stream, a CloudWatch metric stream and an S3 backup bucket — and, optionally, an EventBridge rule, ApiDestination, and Connection that forward Lambda lifecycle events (`UpdateFunctionConfiguration`, `DeleteFunction`) to Dash0 in near real-time.
 
 ## Prerequisites
 
