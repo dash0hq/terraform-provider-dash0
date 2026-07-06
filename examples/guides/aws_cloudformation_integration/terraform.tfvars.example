@@ -1,6 +1,12 @@
 # Copy this file to terraform.tfvars and fill in your values.
 # Do NOT commit terraform.tfvars — it contains sensitive credentials.
 
-api_key      = "your-dash0-auth-token"
-dataset      = "default"
-technical_id = "your-organization-technical-id"
+api_key                 = "your-dash0-auth-token"
+dataset                 = "default"
+technical_id            = "your-organization-technical-id"
+regions                 = ["eu-west-1"]
+dash0_regional_endpoint = "https://ingress.eu-west-1.aws.dash0.com"
+
+# Optional: forward Lambda lifecycle events (UpdateFunctionConfiguration, DeleteFunction).
+# Requires a CloudTrail trail logging management events in the selected regions.
+# collect_lambda_lifecycle_events = "true"
