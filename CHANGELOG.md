@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.14.2
+
+
+### Enhancements
+
+
+- `provider`: Add AWS CloudFormation integration guide and Terraform example for IaC onboarding. (#76)
+  Documents deploying the Dash0 AWS integration via the AWS provider's
+  `aws_cloudformation_stack` resource and the hosted v2 CloudFormation template.
+  `TechnicalId` is optional for Terraform onboarding — when omitted, the template
+  derives the IAM external ID from the CloudFormation stack ID (template 2.2 / CLO-906).
+  
+
 ## 1.14.1
 
 
