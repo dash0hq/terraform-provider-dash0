@@ -6,6 +6,166 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.14.1
+
+
+### Bug Fixes
+
+
+- `notification_channels`: Resolve perpetual drift on dash0_notification_channel when a check rule or synthetic check binds to the channel by id. (#128)
+  The Dash0 API populates `spec.routing.assets` on a notification channel as a
+  back-reference whenever a check rule (via the
+  `dash0.com/notification-channel-ids` annotation) or a synthetic check (via
+  `spec.notifications.channels`) binds to the channel by id. The field is
+  discarded on write, so previous releases produced a perpetual diff that
+  attempted to wipe the back-reference on every plan. The provider now treats
+  `spec.routing.assets` as API-managed and ignores it during comparison.
+  
+  If a user supplies `spec.routing.assets` on the channel YAML, the provider
+  emits a warning on create and update, since the Dash0 API will discard the
+  value. Bind a check rule or synthetic check to a channel from the check
+  resource instead.
+  
+
+## 1.14.0
+
+
+### Enhancements
+
+
+- `provider`: Support OAuth-enabled dash0 CLI profiles (#123)
+  The provider now accepts profiles authenticated via `dash0 auth login` (OAuth).
+  Access tokens are transparently refreshed when close to expiry.
+  If the refresh token is expired, a clear error directs the user to re-authenticate.
+  
+
+- `provider`: Load Dash0 credentials from a dash0 CLI profile when they are not supplied via attributes or environment variables. (#65)
+  Adds an optional `profile` attribute on the provider block and reads from
+  the dash0 CLI configuration directory (`~/.dash0` by default, overridable
+  via `DASH0_CONFIG_DIR`). Credentials are resolved in this order:
+  
+    1. `DASH0_API_URL` / `DASH0_AUTH_TOKEN` environment variables (`DASH0_URL`
+       remains accepted as a deprecated fallback for the URL).
+    2. The `url` / `auth_token` provider attributes.
+    3. The CLI profile named by the `profile` attribute; if `profile` is not
+       set, the active profile in the dash0 CLI configuration directory.
+  
+
+## 1.13.0
+
+
+### Enhancements
+
+
+- `provider`: Expose `id` as a computed attribute on every resource (#119)
+  All provider resources — dashboards, views, check rules, synthetic checks,
+  recording rules, spam filters, and notification channels — now expose a
+  computed `id` attribute holding the server-assigned UUID. Reference it (e.g.
+  as `${dash0_notification_channel.example.id}`) when wiring one resource's
+  identifier into another resource's YAML, where the Dash0 API expects raw
+  UUIDs rather than provider-generated origins.
+  
+
+## 1.12.0
+
+
+### Enhancements
+
+
+- `resources`: Add a computed `url` attribute to the `dash0_dashboard`, `dash0_check_rule`, `dash0_synthetic_check`, `dash0_view` and `dash0_notification_channel` resources that links to the resource in the Dash0 web app (#115)
+  The URL is derived from the configured Dash0 API URL and the resource's server-assigned
+  identifier. For views, the page is selected based on the view's type. It may be empty for
+  self-hosted deployments whose web app uses a custom domain that cannot be derived from the
+  API URL.
+  
+
+## 1.11.0
+
+
+### Enhancements
+
+
+- `provider`: Add `DASH0_MAX_RETRIES` environment variable (#141)
+  Configures the maximum number of retries for failed API requests.
+  Accepted values: 0–5. Default: 3. Behavior before this change: 1 retry.
+  
+
+## 1.10.3
+
+
+### Enhancements
+
+
+- `provider`: Document presence on the OpenTofu registry and add Terraform/OpenTofu registry badges to the README. (#101)
+
+- `spam_filters`: Support the `v1alpha2` spam filter shape (`spec.context` scalar) in addition to the existing `v1alpha1` shape (`spec.contexts` list). (#105)
+  The provider now dispatches Create/Update against the matching API endpoint based on the
+  `apiVersion` declared in `spam_filter_yaml`, and decodes Read responses into either shape.
+  
+
+## 1.10.2
+
+
+### Enhancements
+
+
+- `dashboards, check_rules, synthetic_checks, views`: `dash0.com/sharing` and `dash0.com/folder-path` metadata annotations are now preserved during drift detection (#98)
+  The `dash0.com/sharing` annotation is supported on dashboards, check rules, synthetic checks, and views.
+  The `dash0.com/folder-path` annotation is supported on dashboards and views.
+  Changes to these annotations now trigger a Terraform plan update. All other metadata annotations remain server-managed and are ignored during drift detection.
+  
+
+## 1.10.1
+
+
+### Bug Fixes
+
+
+- `spam_filters`: Fix spam filter FilterCriteria format in fixtures, tests, and docs to match the Dash0 AttributeFilter API schema (#96)
+  The filter criteria now uses the correct flat format with `operator` and `value` fields
+  instead of the incorrect nested `stringValue` format.
+  
+
+## 1.10.0
+
+
+### New Components
+
+
+- `spam_filters`: Add new `dash0_spam_filter` resource for managing spam filters as code (#93)
+
+## 1.9.1
+
+
+### Bug Fixes
+
+
+- `recording_rule_groups`: Fix dataset query parameter not being sent for recording rule create/update API calls (#87)
+  Updated dash0-api-client-go to include the fix for passing the dataset query parameter on POST and PUT recording rule endpoints.
+
+## 1.9.0
+
+
+### New Components
+
+
+- `recording_rules`: Add `dash0_recording_rule` resource for managing recording rules using the PrometheusRule CRD format (#82)
+
+
+### Bug Fixes
+
+
+- `provider`: Detect `metadata.name` changes as drift (#84)
+  Previously `YAMLSemanticEqual` treated `metadata.name` as ignorable along with
+  server-managed fields (labels, annotations, timestamps). Because resources are
+  identified by the `origin` UUID (not the name), a rename in the user's config
+  was silently suppressed at plan time — the resource stayed in state under its
+  old name while the config asked for a new one. Rename operations via config
+  now surface as a plan diff and apply correctly, for every resource type
+  (`dash0_check_rule`, `dash0_dashboard`, `dash0_notification_channel`,
+  `dash0_synthetic_check`, `dash0_view`).
+  
+
 ## 1.8.0
 
 

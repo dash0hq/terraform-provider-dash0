@@ -73,6 +73,10 @@ variable "dataset" {
 output "origin" {
   value = dash0_view.test.origin
 }
+
+output "url" {
+  value = dash0_view.test.url
+}
 EOF
 
 tf_init "$WORK_DIR"
@@ -80,6 +84,13 @@ TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
 
 ORIGIN="$(TF_VAR_dataset="$DATASET" tf_output "$WORK_DIR" origin)"
 info "Created view with origin: ${ORIGIN}"
+
+# Verify the computed url attribute is a Dash0 web app deep link.
+URL="$(TF_VAR_dataset="$DATASET" tf_output "$WORK_DIR" url)"
+info "View url: ${URL}"
+echo "$URL" | grep -Eq '^https://app\..+/goto/.+' \
+  || fail "view url output '${URL}' is not a valid deep link"
+info "View url check PASSED."
 
 # ---------------------------------------------------------------------------
 # Step 2: Verify via dash0 CLI

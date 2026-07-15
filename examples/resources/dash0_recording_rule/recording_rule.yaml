@@ -1,0 +1,13 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: http-request-rates
+spec:
+  groups:
+    - name: HttpRequestRates
+      interval: 1m0s
+      rules:
+        - record: job:http_requests_total:rate5m
+          expr: sum by (job) (rate(http_requests_total[5m]))
+          labels:
+            aggregation: rate5m

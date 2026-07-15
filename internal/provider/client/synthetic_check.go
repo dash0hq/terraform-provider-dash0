@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 )
 
 func (c *dash0Client) CreateSyntheticCheck(ctx context.Context, origin string, checkJSON string, dataset string) error {
@@ -57,4 +59,31 @@ func (c *dash0Client) DeleteSyntheticCheck(ctx context.Context, origin string, d
 
 	tflog.Debug(ctx, fmt.Sprintf("Synthetic check deleted with origin: %s", origin))
 	return nil
+}
+
+// ResolveSyntheticCheck looks up the server-assigned id and deep-link URL for
+// the synthetic check with the given origin by matching against the list
+// endpoint (see matchOriginID).
+//
+// It returns empty strings (and no error) when the synthetic check is not
+// present in the list, so that callers can treat both fields as best-effort
+// metadata rather than failing the operation. The URL is additionally empty
+// when the app base URL cannot be derived from the API URL.
+func (c *dash0Client) ResolveSyntheticCheck(ctx context.Context, origin string, dataset string) (string, string, error) {
+	items, err := c.inner.ListSyntheticChecks(ctx, &dataset)
+	if err != nil {
+		return "", "", err
+	}
+
+	id := matchOriginID(items, origin, func(item *dash0.SyntheticChecksApiListItem) (string, *string) {
+		return item.Id, item.Origin
+	})
+	if id == "" {
+		tflog.Warn(ctx, fmt.Sprintf("Synthetic check with origin %q not found in dataset %q; id and URL will be empty", origin, dataset))
+		return "", "", nil
+	}
+
+	syntheticCheckURL := dash0.DeeplinkURL(c.apiURL, dash0.DeeplinkAssetTypeSyntheticCheck, id, &dataset)
+	logResolvedURL(ctx, "synthetic check", origin, syntheticCheckURL)
+	return id, syntheticCheckURL, nil
 }

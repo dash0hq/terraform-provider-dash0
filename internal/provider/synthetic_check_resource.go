@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
@@ -41,8 +42,10 @@ type SyntheticCheckResource struct {
 // syntheticCheckModel is the Terraform state model for a synthetic check resource.
 type syntheticCheckModel struct {
 	Origin             types.String `tfsdk:"origin"`
+	ID                 types.String `tfsdk:"id"`
 	Dataset            types.String `tfsdk:"dataset"`
 	SyntheticCheckYaml types.String `tfsdk:"synthetic_check_yaml"`
+	URL                types.String `tfsdk:"url"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -69,7 +72,7 @@ func (r *SyntheticCheckResource) Metadata(_ context.Context, req resource.Metada
 
 func (r *SyntheticCheckResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: `Manages a Dash0 Synthetic Check. Synthetic checks periodically probe endpoints or URLs from multiple locations to monitor availability, latency, and correctness of your services. See [Synthetic Monitoring](https://dash0.com/docs/dash0/monitoring/synthetics/synthetic-monitoring) and [Define Checks as Code](https://dash0.com/docs/dash0/monitoring/synthetics/define-checks-as-code) for more details.`,
+		Description: `Manages a Dash0 Synthetic Check. Synthetic checks periodically probe endpoints or URLs from multiple locations to monitor availability, latency, and correctness of your services. See [Synthetic Monitoring](https://dash0.com/docs/dash0/monitoring/synthetics/synthetic-monitoring) and [Manage Synthetic Checks as Code](https://dash0.com/docs/dash0/monitoring/synthetics/manage-synthetic-checks-as-code) for more details.`,
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
 				Description: "A unique identifier for the synthetic check, automatically generated on creation. Used to reference the synthetic check for updates, reads, deletes, and imports.",
@@ -78,22 +81,55 @@ func (r *SyntheticCheckResource) Schema(_ context.Context, _ resource.SchemaRequ
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"id": schema.StringAttribute{
+				Description: "The server-assigned UUID of the synthetic check, resolved by the provider after creation. Reference this value when wiring the check's identifier into another resource (for example, a check rule that gates on the synthetic check's outcome).",
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"dataset": schema.StringAttribute{
-				Description: "The [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the synthetic check belongs to. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
+				Description: "The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the synthetic check belongs to. Provide the dataset's identifier, which is immutable, not the 'name'. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"synthetic_check_yaml": schema.StringAttribute{
-				Description: "The synthetic check definition in YAML format, specifying the check type, target URL, schedule, and assertion criteria. See [Create Synthetic Checks](https://dash0.com/docs/dash0/monitoring/synthetics/create-synthetic-checks) for the available options.",
+				Description: "The synthetic check definition in YAML format, specifying the check type, target URL, schedule, and assertion criteria. See [Create Synthetic Checks](https://dash0.com/docs/dash0/monitoring/synthetics/create-synthetic-checks) for the available options. The `dash0.com/sharing` metadata annotation is supported to control sharing settings; changes to it trigger a resource update. All other metadata annotations are managed by the server and ignored during drift detection.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
-					customplanmodifier.YAMLSemanticEqual(),
+					customplanmodifier.YAMLSemanticEqual(converter.AnnotationSharing),
+				},
+			},
+			"url": schema.StringAttribute{
+				Description: "The URL to open this synthetic check in the Dash0 web app, derived from the Dash0 API URL and the synthetic check's server-assigned identifier. Computed by the provider after creation. May be empty if the app URL cannot be derived (e.g. for self-hosted deployments with a custom web app domain).",
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 		},
 	}
+}
+
+// resolveSyntheticCheck populates the synthetic check's server-assigned id and
+// web app URL on the model by looking them up via the list endpoint. Both are
+// best-effort metadata: failures are surfaced as warnings and leave the
+// attributes null rather than failing the operation.
+func (r *SyntheticCheckResource) resolveSyntheticCheck(ctx context.Context, model *syntheticCheckModel, diags *diag.Diagnostics) {
+	id, syntheticCheckURL, err := r.client.ResolveSyntheticCheck(ctx, model.Origin.ValueString(), model.Dataset.ValueString())
+	if err != nil {
+		diags.AddWarning(
+			"Unable to resolve synthetic check metadata",
+			fmt.Sprintf("The synthetic check was saved successfully, but its id and URL could not be determined: %s", err),
+		)
+		model.ID = types.StringNull()
+		model.URL = types.StringNull()
+		return
+	}
+	model.ID = stringOrNull(id)
+	model.URL = stringOrNull(syntheticCheckURL)
 }
 
 func (r *SyntheticCheckResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -130,6 +166,9 @@ func (r *SyntheticCheckResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
+	// Resolve the id and web app URL for the newly created synthetic check (best-effort).
+	r.resolveSyntheticCheck(ctx, &model, &resp.Diagnostics)
+
 	tflog.Trace(ctx, "created a synthetic check resource")
 
 	// Set state to fully populated data
@@ -158,7 +197,7 @@ func (r *SyntheticCheckResource) Read(ctx context.Context, req resource.ReadRequ
 	if state.SyntheticCheckYaml.ValueString() != "" {
 		stateYAML := state.SyntheticCheckYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored...)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored, []string{converter.AnnotationSharing})
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Synthetic Check Comparison Error",
@@ -217,6 +256,11 @@ func (r *SyntheticCheckResource) Update(ctx context.Context, req resource.Update
 
 	// Update the existing synthetic check (dataset changes force recreation via RequiresReplace)
 	plan.Origin = state.Origin
+	// The synthetic check's identifier is immutable, so neither the id nor the
+	// URL change on update; carry them from state instead of re-resolving them
+	// via the API.
+	plan.ID = state.ID
+	plan.URL = state.URL
 	err = r.client.UpdateSyntheticCheck(ctx, plan.Origin.ValueString(), jsonBody, plan.Dataset.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update synthetic check, got error: %s", err))
@@ -273,4 +317,10 @@ func (r *SyntheticCheckResource) ImportState(ctx context.Context, req resource.I
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("synthetic_check_yaml"), apiResponseJSON)...)
+
+	// Resolve the id and web app URL (best-effort).
+	model := syntheticCheckModel{Origin: types.StringValue(origin), Dataset: types.StringValue(dataset)}
+	r.resolveSyntheticCheck(ctx, &model, &resp.Diagnostics)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), model.ID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("url"), model.URL)...)
 }

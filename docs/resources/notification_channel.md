@@ -204,11 +204,13 @@ YAML
 
 ### Required
 
-- `notification_channel_yaml` (String) The notification channel definition in YAML format. The YAML must include `kind: Dash0NotificationChannel`, a `metadata.name` field, and a `spec` with `type` and type-specific `config`. Optional fields include `frequency` (default `10m`) and `routing` for filtering which alerts are delivered. See [Send Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/send-alert-check-notifications) for the available options.
+- `notification_channel_yaml` (String) The notification channel definition in YAML format. The YAML must include `kind: Dash0NotificationChannel`, a `metadata.name` field, and a `spec` with `type` and type-specific `config`. Optional fields include `frequency` (default `10m`) and `routing` for filtering which alerts are delivered. Note that `spec.routing.assets` is populated by the Dash0 API as a back-reference when a check rule or synthetic check binds to this channel by id, and is discarded if supplied on write; bind a check rule by setting the `dash0.com/notification-channel-ids` annotation on the rule, or a synthetic check by setting `spec.notifications.channels` on the synthetic check. See [Send Alert Check Notifications](https://www.dash0.com/docs/dash0/monitoring/alerting/send-alert-check-notifications) for the available options.
 
 ### Read-Only
 
+- `id` (String) The server-assigned UUID of the notification channel, resolved by the provider after creation. Reference this value when wiring the channel into another resource's YAML — for example, in a `dash0_synthetic_check`'s `spec.notifications.channels` list, which requires raw UUIDs rather than origins.
 - `origin` (String) A unique identifier for the notification channel, automatically generated on creation. Used to reference the notification channel for updates, reads, deletes, and imports.
+- `url` (String) The URL to open this notification channel in the Dash0 web app, derived from the Dash0 API URL and the channel's server-assigned identifier. Computed by the provider after creation. May be empty if the app URL cannot be derived (e.g. for self-hosted deployments with a custom web app domain).
 
 ## Import
 

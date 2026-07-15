@@ -107,7 +107,7 @@ If the API is documented in the [Dash0 API reference](https://api-docs.dash0.com
 4. Implement Terraform import support.
 5. Add example configurations in `examples/` for the new resource and data source.
 6. Add a roundtrip test in `test/roundtrip/test_<resource>.sh` (see "Adding a new roundtrip test" above).
-7. Run `make docs` to regenerate documentation.
+7. Run `make docs` to regenerate documentation. Verify that a new file `docs/resources/<resource>.md` was created and contains the schema, example usage, and import instructions. If the file is missing, check that the resource has example configurations in `examples/resources/dash0_<resource>/` (at minimum `resource.tf` and `import.sh`) and a doc template in `templates/resources/` if needed.
 8. Run `make test` to verify the build and all tests pass.
 
 ## Changelog
@@ -136,11 +136,24 @@ Do not edit `CHANGELOG.md` directly — it is generated automatically during the
 Before considering a change complete, run `make all` which executes all validation steps in order:
 
 1. `make build` — verify the project compiles.
-2. `make lint` — run Go and shell linters. Fix all issues before proceeding.
+2. `make lint` — run Go, shell, and link linters (`lint-go`, `lint-sh`, `lint-links`). Fix all issues before proceeding.
 3. `make test-unit` — run all unit tests.
 4. `make test-roundtrip` — run the Dockerized roundtrip tests against the real Dash0 API. These catch integration issues (serialization mismatches, server-side validation failures, idempotency regressions) that unit tests cannot.
 
 All four must pass. Do not skip any step.
+
+`make lint-links` runs [lychee](https://github.com/lycheeverse/lychee) against `docs/`, `templates/`, `internal/`, `examples/`, `README.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`, and `.chloggen/`. Configuration (skip patterns, accepted status codes, scanned extensions, cache settings) lives in `lychee.toml` at the repo root. Network access is required; 401/403/429 are accepted as success (auth-protected URLs). The lychee binary is installed on demand into `.tools/lychee` by `make lint-links-install` (uses an existing `lychee` on PATH if present, otherwise downloads the pinned `LYCHEE_VERSION` from GitHub releases). Successful checks are cached at `.lycheecache` (gitignored) for 1 day so consecutive runs only re-hit failed or stale URLs.
+
+## Referencing Dash0 documentation
+
+The Terraform provider's user-facing strings (resource `Description` fields, doc templates, README, CHANGELOG entries) routinely link into the Dash0 docs at `https://dash0.com/docs/...`. The docs site reorganizes occasionally, and **link paths must never be guessed or written from memory** — `make lint-links` exists specifically to catch this and will fail the build.
+
+Whenever you add or update a `https://dash0.com/docs/...`, `https://dash0.com/changelog/...`, `https://dash0.com/blog/...`, or `https://www.dash0.com/...` URL:
+
+1. Verify the canonical URL via the Dash0 Knowledge Base MCP server — call `mcp__dash0-prod__searchKnowledgeBase` (or one of the equivalent `dash0-dev` / `Dash0_Knowledge_Base` tools) with terms describing the destination page. The tool returns documents with their authoritative URLs.
+2. Use the URL returned by the MCP search verbatim. Do not infer category prefixes (e.g. `data-management` vs `cost-control`) or page slugs from sibling URLs in the codebase — both have changed in the past.
+3. If no MCP server is available, run `make lint-links` before committing so broken URLs surface early. Never rely on a URL just because it "looks plausible" or appears in another resource's description.
+4. After editing a resource `Description`, run `make docs` so the generated `docs/resources/*.md` mirrors the new URL.
 
 ## Code style
 

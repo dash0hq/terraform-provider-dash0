@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -140,12 +141,16 @@ func TestNotificationChannelResource_Create_InvalidYAML(t *testing.T) {
 			tftypes.Object{
 				AttributeTypes: map[string]tftypes.Type{
 					"origin":                    tftypes.String,
+					"id":                        tftypes.String,
 					"notification_channel_yaml": tftypes.String,
+					"url":                       tftypes.String,
 				},
 			},
 			map[string]tftypes.Value{
 				"origin":                    tftypes.NewValue(tftypes.String, "test-origin"),
+				"id":                        tftypes.NewValue(tftypes.String, nil),
 				"notification_channel_yaml": tftypes.NewValue(tftypes.String, "invalid: yaml: content: ["),
+				"url":                       tftypes.NewValue(tftypes.String, nil),
 			},
 		),
 		Schema: schema.Schema{
@@ -153,8 +158,14 @@ func TestNotificationChannelResource_Create_InvalidYAML(t *testing.T) {
 				"origin": schema.StringAttribute{
 					Computed: true,
 				},
+				"id": schema.StringAttribute{
+					Computed: true,
+				},
 				"notification_channel_yaml": schema.StringAttribute{
 					Required: true,
+				},
+				"url": schema.StringAttribute{
+					Computed: true,
 				},
 			},
 		},
@@ -184,12 +195,16 @@ func TestNotificationChannelResource_ReadError(t *testing.T) {
 			tftypes.Object{
 				AttributeTypes: map[string]tftypes.Type{
 					"origin":                    tftypes.String,
+					"id":                        tftypes.String,
 					"notification_channel_yaml": tftypes.String,
+					"url":                       tftypes.String,
 				},
 			},
 			map[string]tftypes.Value{
 				"origin":                    tftypes.NewValue(tftypes.String, "test-origin"),
+				"id":                        tftypes.NewValue(tftypes.String, nil),
 				"notification_channel_yaml": tftypes.NewValue(tftypes.String, "test-yaml"),
+				"url":                       tftypes.NewValue(tftypes.String, nil),
 			},
 		),
 		Schema: schema.Schema{
@@ -197,8 +212,14 @@ func TestNotificationChannelResource_ReadError(t *testing.T) {
 				"origin": schema.StringAttribute{
 					Computed: true,
 				},
+				"id": schema.StringAttribute{
+					Computed: true,
+				},
 				"notification_channel_yaml": schema.StringAttribute{
 					Required: true,
+				},
+				"url": schema.StringAttribute{
+					Computed: true,
 				},
 			},
 		},
@@ -211,4 +232,75 @@ func TestNotificationChannelResource_ReadError(t *testing.T) {
 	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Client Error")
 
 	mockClient.AssertExpectations(t)
+}
+
+func TestWarnIfRoutingAssetsSet(t *testing.T) {
+	cases := []struct {
+		name       string
+		yaml       string
+		expectWarn bool
+	}{
+		{
+			name: "no routing",
+			yaml: `
+kind: Dash0NotificationChannel
+spec:
+  type: webhook
+`,
+			expectWarn: false,
+		},
+		{
+			name: "routing without assets",
+			yaml: `
+kind: Dash0NotificationChannel
+spec:
+  type: webhook
+  routing:
+    filters:
+      - - key: team
+          operator: is
+          value: platform
+`,
+			expectWarn: false,
+		},
+		{
+			name: "empty assets list",
+			yaml: `
+kind: Dash0NotificationChannel
+spec:
+  type: webhook
+  routing:
+    assets: []
+`,
+			expectWarn: false,
+		},
+		{
+			name: "non-empty assets list",
+			yaml: `
+kind: Dash0NotificationChannel
+spec:
+  type: webhook
+  routing:
+    assets:
+      - kind: check_rule
+        id: "00000000-0000-0000-0000-000000000000"
+        name: "rule"
+        dataset: "default"
+`,
+			expectWarn: true,
+		},
+		{
+			name:       "invalid yaml is silently ignored (validated elsewhere)",
+			yaml:       "not valid {",
+			expectWarn: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var diags diag.Diagnostics
+			warnIfRoutingAssetsSet(tc.yaml, &diags)
+			assert.Equal(t, tc.expectWarn, diags.WarningsCount() > 0)
+		})
+	}
 }

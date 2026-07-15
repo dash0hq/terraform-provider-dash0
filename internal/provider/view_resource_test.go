@@ -7,11 +7,16 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
+	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
 )
 
 func TestViewResource_Metadata(t *testing.T) {
@@ -34,11 +39,13 @@ func TestViewResource_Schema(t *testing.T) {
 	assert.Contains(t, resp.Schema.Attributes, "origin")
 	assert.Contains(t, resp.Schema.Attributes, "dataset")
 	assert.Contains(t, resp.Schema.Attributes, "view_yaml")
+	assert.Contains(t, resp.Schema.Attributes, "url")
 
 	// Check specific attribute properties
 	assert.True(t, resp.Schema.Attributes["origin"].(schema.StringAttribute).Computed)
 	assert.True(t, resp.Schema.Attributes["dataset"].(schema.StringAttribute).Required)
 	assert.True(t, resp.Schema.Attributes["view_yaml"].(schema.StringAttribute).Required)
+	assert.True(t, resp.Schema.Attributes["url"].(schema.StringAttribute).Computed)
 }
 
 func TestViewResource_Configure(t *testing.T) {
@@ -70,17 +77,23 @@ func TestViewResource_Create(t *testing.T) {
 	// Setup test data
 	testYaml := "kind: View\nmetadata:\n  name: example-view\nspec:\n  title: Example View"
 	testDataset := "test-dataset"
+	testURL := "https://app.dash0.com/goto/traces/explorer?view_id=internal-uuid"
 
 	// Setup plan
 	plan := tfsdk.Plan{
 		Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 			"origin":    tftypes.NewValue(tftypes.String, ""),
+			"id":        tftypes.NewValue(tftypes.String, nil),
 			"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 			"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
+			"url":       tftypes.NewValue(tftypes.String, nil),
 		}),
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
 				"origin": schema.StringAttribute{
+					Computed: true,
+				},
+				"id": schema.StringAttribute{
 					Computed: true,
 				},
 				"dataset": schema.StringAttribute{
@@ -88,6 +101,9 @@ func TestViewResource_Create(t *testing.T) {
 				},
 				"view_yaml": schema.StringAttribute{
 					Required: true,
+				},
+				"url": schema.StringAttribute{
+					Computed: true,
 				},
 			},
 		},
@@ -108,6 +124,8 @@ func TestViewResource_Create(t *testing.T) {
 
 	// Setup mock expectations - CreateView(ctx, origin, jsonBody, dataset)
 	mockClient.On("CreateView", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	// After create, the URL is resolved by origin (generated tf_-prefixed value).
+	mockClient.On("ResolveView", mock.Anything, mock.Anything, testDataset).Return("test-id", testURL, nil)
 
 	// Execute the create operation
 	r.Create(context.Background(), req, &resp)
@@ -115,6 +133,12 @@ func TestViewResource_Create(t *testing.T) {
 	// Verify expectations
 	mockClient.AssertExpectations(t)
 	assert.False(t, resp.Diagnostics.HasError())
+
+	// Verify the resolved URL was written to state
+	var resultState viewModel
+	diags := resp.State.Get(context.Background(), &resultState)
+	require.False(t, diags.HasError(), "state cannot be unmarshalled")
+	assert.Equal(t, testURL, resultState.URL.ValueString())
 }
 
 func TestViewResource_Read(t *testing.T) {
@@ -126,10 +150,15 @@ func TestViewResource_Read(t *testing.T) {
 	testDataset := "test-dataset"
 	testYaml := "kind: View\nmetadata:\n  name: example-view\nspec:\n  title: Example View"
 
+	testURL := "https://app.dash0.com/goto/traces/explorer?view_id=internal-uuid"
+
 	// Create state schema
 	stateSchema := schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
+				Computed: true,
+			},
+			"id": schema.StringAttribute{
 				Computed: true,
 			},
 			"dataset": schema.StringAttribute{
@@ -138,6 +167,9 @@ func TestViewResource_Read(t *testing.T) {
 			"view_yaml": schema.StringAttribute{
 				Required: true,
 			},
+			"url": schema.StringAttribute{
+				Computed: true,
+			},
 		},
 	}
 
@@ -145,8 +177,10 @@ func TestViewResource_Read(t *testing.T) {
 	state := tfsdk.State{
 		Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 			"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+			"id":        tftypes.NewValue(tftypes.String, nil),
 			"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 			"view_yaml": tftypes.NewValue(tftypes.String, "old yaml"),
+			"url":       tftypes.NewValue(tftypes.String, testURL),
 		}),
 		Schema: stateSchema,
 	}
@@ -180,6 +214,8 @@ func TestViewResource_Read(t *testing.T) {
 	assert.Equal(t, testOrigin, resultState.Origin.ValueString())
 	assert.Equal(t, testDataset, resultState.Dataset.ValueString())
 	assert.Equal(t, testYaml, resultState.ViewYaml.ValueString())
+	// URL is carried over from prior state (Read does not re-resolve it).
+	assert.Equal(t, testURL, resultState.URL.ValueString())
 
 	// Test with API error
 	mockClient = new(MockClient)
@@ -197,6 +233,190 @@ func TestViewResource_Read(t *testing.T) {
 	mockClient.AssertExpectations(t)
 }
 
+func TestViewResource_SharingAnnotationTriggersReplan(t *testing.T) {
+	tests := []struct {
+		name         string
+		configValue  types.String
+		stateValue   types.String
+		expectedPlan types.String
+		description  string
+	}{
+		{
+			name: "dash0.com/sharing changed - should trigger replan",
+			configValue: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/sharing: all-users
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			stateValue: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/sharing: private
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			expectedPlan: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/sharing: all-users
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			description: "Should use config value when dash0.com/sharing annotation changed on view",
+		},
+		{
+			name: "dash0.com/sharing same - should suppress replan",
+			configValue: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/sharing: all-users
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			stateValue: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/sharing: all-users
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			expectedPlan: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/sharing: all-users
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			description: "Should use state value when dash0.com/sharing annotation is the same on view",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			modifier := customplanmodifier.YAMLSemanticEqual(converter.AnnotationSharing, converter.AnnotationFolderPath)
+
+			req := planmodifier.StringRequest{
+				ConfigValue: tt.configValue,
+				StateValue:  tt.stateValue,
+				PlanValue:   tt.configValue,
+			}
+			resp := &planmodifier.StringResponse{
+				PlanValue: tt.configValue,
+			}
+
+			modifier.PlanModifyString(context.Background(), req, resp)
+
+			assert.Equal(t, tt.expectedPlan, resp.PlanValue, tt.description)
+		})
+	}
+}
+
+func TestViewResource_FolderPathAnnotationTriggersReplan(t *testing.T) {
+	tests := []struct {
+		name         string
+		configValue  types.String
+		stateValue   types.String
+		expectedPlan types.String
+		description  string
+	}{
+		{
+			name: "dash0.com/folder-path changed - should trigger replan",
+			configValue: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/folder-path: /team-a/views
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			stateValue: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/folder-path: /team-b/views
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			expectedPlan: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/folder-path: /team-a/views
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			description: "Should use config value when dash0.com/folder-path annotation changed on view",
+		},
+		{
+			name: "dash0.com/folder-path same - should suppress replan",
+			configValue: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/folder-path: /team-a/views
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			stateValue: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/folder-path: /team-a/views
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			expectedPlan: types.StringValue(`
+metadata:
+  annotations:
+    dash0.com/folder-path: /team-a/views
+spec:
+  display:
+    name: My View
+  type: spans
+`),
+			description: "Should use state value when dash0.com/folder-path annotation is the same on view",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			modifier := customplanmodifier.YAMLSemanticEqual(converter.AnnotationSharing, converter.AnnotationFolderPath)
+
+			req := planmodifier.StringRequest{
+				ConfigValue: tt.configValue,
+				StateValue:  tt.stateValue,
+				PlanValue:   tt.configValue,
+			}
+			resp := &planmodifier.StringResponse{
+				PlanValue: tt.configValue,
+			}
+
+			modifier.PlanModifyString(context.Background(), req, resp)
+
+			assert.Equal(t, tt.expectedPlan, resp.PlanValue, tt.description)
+		})
+	}
+}
+
 func TestViewResource_Update(t *testing.T) {
 	mockClient := new(MockClient)
 	_ = mockClient
@@ -207,6 +427,8 @@ func TestViewResource_Update(t *testing.T) {
 	testYaml := "kind: View\nmetadata:\n  name: example-view\nspec:\n  title: Example View"
 	_ = testYaml
 
+	testURL := "https://app.dash0.com/goto/traces/explorer?view_id=internal-uuid"
+
 	// Test 1: Update view YAML only (no dataset change)
 	t.Run("update yaml only", func(t *testing.T) {
 		mockClient := new(MockClient)
@@ -216,12 +438,17 @@ func TestViewResource_Update(t *testing.T) {
 		state := tfsdk.State{
 			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+				"id":        tftypes.NewValue(tftypes.String, nil),
 				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 				"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
+				"url":       tftypes.NewValue(tftypes.String, testURL),
 			}),
 			Schema: schema.Schema{
 				Attributes: map[string]schema.Attribute{
 					"origin": schema.StringAttribute{
+						Computed: true,
+					},
+					"id": schema.StringAttribute{
 						Computed: true,
 					},
 					"dataset": schema.StringAttribute{
@@ -229,6 +456,9 @@ func TestViewResource_Update(t *testing.T) {
 					},
 					"view_yaml": schema.StringAttribute{
 						Required: true,
+					},
+					"url": schema.StringAttribute{
+						Computed: true,
 					},
 				},
 			},
@@ -240,8 +470,10 @@ func TestViewResource_Update(t *testing.T) {
 		plan := tfsdk.Plan{
 			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+				"id":        tftypes.NewValue(tftypes.String, nil),
 				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 				"view_yaml": tftypes.NewValue(tftypes.String, updatedYaml),
+				"url":       tftypes.NewValue(tftypes.String, testURL),
 			}),
 			Schema: state.Schema,
 		}
@@ -264,6 +496,12 @@ func TestViewResource_Update(t *testing.T) {
 		// Verify expectations
 		mockClient.AssertExpectations(t)
 		assert.False(t, resp.Diagnostics.HasError())
+
+		// URL is carried over from prior state (Update does not re-resolve it).
+		var resultState viewModel
+		diags := resp.State.Get(context.Background(), &resultState)
+		require.False(t, diags.HasError(), "state cannot be unmarshalled")
+		assert.Equal(t, testURL, resultState.URL.ValueString())
 	})
 
 	// Test 2: Invalid YAML
@@ -277,12 +515,17 @@ func TestViewResource_Update(t *testing.T) {
 		state := tfsdk.State{
 			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+				"id":        tftypes.NewValue(tftypes.String, nil),
 				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 				"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
+				"url":       tftypes.NewValue(tftypes.String, nil),
 			}),
 			Schema: schema.Schema{
 				Attributes: map[string]schema.Attribute{
 					"origin": schema.StringAttribute{
+						Computed: true,
+					},
+					"id": schema.StringAttribute{
 						Computed: true,
 					},
 					"dataset": schema.StringAttribute{
@@ -290,6 +533,9 @@ func TestViewResource_Update(t *testing.T) {
 					},
 					"view_yaml": schema.StringAttribute{
 						Required: true,
+					},
+					"url": schema.StringAttribute{
+						Computed: true,
 					},
 				},
 			},
@@ -299,8 +545,10 @@ func TestViewResource_Update(t *testing.T) {
 		plan := tfsdk.Plan{
 			Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 				"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+				"id":        tftypes.NewValue(tftypes.String, nil),
 				"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 				"view_yaml": tftypes.NewValue(tftypes.String, "invalid: yaml: : :"),
+				"url":       tftypes.NewValue(tftypes.String, nil),
 			}),
 			Schema: state.Schema,
 		}
@@ -335,12 +583,17 @@ func TestViewResource_Delete(t *testing.T) {
 	state := tfsdk.State{
 		Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
 			"origin":    tftypes.NewValue(tftypes.String, testOrigin),
+			"id":        tftypes.NewValue(tftypes.String, nil),
 			"dataset":   tftypes.NewValue(tftypes.String, testDataset),
 			"view_yaml": tftypes.NewValue(tftypes.String, testYaml),
+			"url":       tftypes.NewValue(tftypes.String, "https://app.dash0.com/goto/traces/explorer?view_id=internal-uuid"),
 		}),
 		Schema: schema.Schema{
 			Attributes: map[string]schema.Attribute{
 				"origin": schema.StringAttribute{
+					Computed: true,
+				},
+				"id": schema.StringAttribute{
 					Computed: true,
 				},
 				"dataset": schema.StringAttribute{
@@ -348,6 +601,9 @@ func TestViewResource_Delete(t *testing.T) {
 				},
 				"view_yaml": schema.StringAttribute{
 					Required: true,
+				},
+				"url": schema.StringAttribute{
+					Computed: true,
 				},
 			},
 		},

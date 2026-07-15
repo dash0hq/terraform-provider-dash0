@@ -77,6 +77,10 @@ variable "dataset" {
 output "origin" {
   value = dash0_dashboard.test.origin
 }
+
+output "url" {
+  value = dash0_dashboard.test.url
+}
 EOF
 
 tf_init "$WORK_DIR"
@@ -84,6 +88,13 @@ TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
 
 ORIGIN="$(TF_VAR_dataset="$DATASET" tf_output "$WORK_DIR" origin)"
 info "Created dashboard with origin: ${ORIGIN}"
+
+# Verify the computed url attribute is a Dash0 dashboard deep link.
+URL="$(TF_VAR_dataset="$DATASET" tf_output "$WORK_DIR" url)"
+info "Dashboard url: ${URL}"
+echo "$URL" | grep -Eq '^https://app\..+/goto/dashboards\?dashboard_id=.+' \
+  || fail "dashboard url output '${URL}' is not a valid dashboard deep link"
+info "Dashboard url check PASSED."
 
 # ---------------------------------------------------------------------------
 # Step 2: Verify via dash0 CLI

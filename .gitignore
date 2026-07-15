@@ -26,3 +26,4 @@ terraform-provider-dash0
 .env
 .claude/
 .tools/
+.lycheecache

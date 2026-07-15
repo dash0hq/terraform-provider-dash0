@@ -13,29 +13,66 @@ The changelog for this provider can be found [on GitHub](https://github.com/dash
 
 ## Authentication
 
-The Dash0 provider supports two authentication methods. You can get the authentication credentials through [Dash0's settings screens](https://app.dash0.com/settings/auth-tokens).
+The Dash0 provider supports three authentication sources. You can get the authentication credentials through [Dash0's settings screens](https://app.dash0.com/settings/auth-tokens).
+
+Credentials are resolved in this order:
+
+1. The `DASH0_API_URL` and `DASH0_AUTH_TOKEN` environment variables (`DASH0_URL` is accepted as a deprecated fallback for the URL).
+2. The `url` and `auth_token` provider attributes.
+3. A [dash0 CLI](https://github.com/dash0hq/dash0-cli) profile — the one named by the `profile` provider attribute, or the active profile in the CLI configuration directory if `profile` is unset.
 
 ### Option 1: Environment Variables (Recommended)
 
-Environment variables take precedence over provider configuration attributes.
-
 ```sh
-export DASH0_URL="https://api.us-west-2.aws.dash0.com"
+export DASH0_API_URL="https://api.us-west-2.aws.dash0.com"
 export DASH0_AUTH_TOKEN="auth_xxxx"
+export DASH0_MAX_RETRIES=3  # optional, default: 3, max: 5
 ```
+
+The following environment variables are supported:
+
+| Variable | Required | Description | Default |
+|----------|----------|-------------|---------|
+| `DASH0_API_URL` | Yes | The base URL of the Dash0 API (e.g. `https://api.us-west-2.aws.dash0.com`). Overrides the `url` provider attribute. | — |
+| `DASH0_URL` | No | Deprecated alias for `DASH0_API_URL`. Used only when `DASH0_API_URL` is not set. | — |
+| `DASH0_AUTH_TOKEN` | Yes | The API auth token for Dash0. Must start with `auth_` or `dash0_at_`. Overrides the `auth_token` provider attribute. | — |
+| `DASH0_CONFIG_DIR` | No | Directory containing the dash0 CLI configuration files (`activeProfile`, `profiles.json`). Used when loading credentials from a CLI profile. | `~/.dash0` |
+| `DASH0_MAX_RETRIES` | No | Maximum number of retries for failed API requests (0–5). Overrides the `max_retries` provider attribute. | `3` |
 
 ### Option 2: Provider Configuration
 
-Alternatively, you can configure authentication directly in the provider block:
+Alternatively, you can configure the provider directly in the provider block:
 
 ```terraform
 provider "dash0" {
-  url        = "https://api.us-west-2.aws.dash0.com"
-  auth_token = "auth_xxxx"
+  url         = "https://api.us-west-2.aws.dash0.com"
+  auth_token  = "auth_xxxx"
+  max_retries = 3  # optional, default: 3, max: 5
 }
 ```
 
-**Note:** Environment variables (`DASH0_URL` and `DASH0_AUTH_TOKEN`) will override provider configuration attributes if both are set.
+Environment variables take precedence over provider configuration attributes when both are set.
+
+### Option 3: dash0 CLI profile
+
+If the [dash0 CLI](https://github.com/dash0hq/dash0-cli) is installed and configured, the provider can load credentials from one of its profiles when neither environment variables nor provider attributes supply them. By default the active profile is used; the `profile` attribute selects a specific profile by name.
+
+{{ tffile "examples/provider/provider_with_profile.tf" }}
+
+The CLI configuration directory defaults to `~/.dash0`; set `DASH0_CONFIG_DIR` to point at a different location (useful for tests or for sandboxed environments).
+
+#### OAuth-enabled profiles
+
+Profiles authenticated via `dash0 auth login` (OAuth) are fully supported. The provider transparently refreshes the access token when it is close to expiry. If the refresh token itself has expired or been revoked, the provider emits a clear error asking you to re-authenticate:
+
+```
+Error: OAuth re-authentication required
+
+The OAuth session for your dash0 CLI profile has expired.
+Run `dash0 auth login` to re-authenticate, then re-run your Terraform command.
+```
+
+**Note:** Provider versions before this feature was added reject OAuth-enabled profiles with an `Invalid Dash0 Auth Token` error because they require auth tokens to start with the `auth_` prefix. OAuth access tokens use the `dash0_at_` prefix instead. If you see this error, upgrade the provider to the latest version.
 
 ## Examples
 

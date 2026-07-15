@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -66,6 +67,9 @@ func TestAccDashboardResource(t *testing.T) {
 					resource.TestCheckResourceAttr(dashboardResourceName, "dataset", "default"),
 					resource.TestCheckResourceAttr(dashboardResourceName, "dashboard_yaml", basicDashboardYaml),
 					resource.TestCheckResourceAttrSet(dashboardResourceName, "origin"),
+					// Verify the computed URL is set and points at the web app deep link
+					resource.TestMatchResourceAttr(dashboardResourceName, "url",
+						regexp.MustCompile(`^https://app\..+/goto/dashboards\?dashboard_id=.+`)),
 				),
 			},
 			// ImportState testing
@@ -94,6 +98,12 @@ func TestAccDashboardResource(t *testing.T) {
 					// Verify the dashboard_yaml attribute
 					if yaml := states[0].Attributes["dashboard_yaml"]; yaml == "" {
 						return fmt.Errorf("dashboard_yaml attribute is missing or empty")
+					}
+
+					// Verify the computed url is resolved on import
+					urlPattern := regexp.MustCompile(`^https://app\..+/goto/dashboards\?dashboard_id=.+`)
+					if u := states[0].Attributes["url"]; !urlPattern.MatchString(u) {
+						return fmt.Errorf("url attribute %q does not match expected dashboard deep link pattern", u)
 					}
 
 					return nil
@@ -176,6 +186,7 @@ func testAccCheckDashboardExists(resourceName string) resource.TestCheckFunc {
 			os.Getenv("DASH0_URL"),
 			os.Getenv("DASH0_AUTH_TOKEN"),
 			"test",
+			3,
 		)
 		if err != nil {
 			return fmt.Errorf("Error creating client: %s", err)

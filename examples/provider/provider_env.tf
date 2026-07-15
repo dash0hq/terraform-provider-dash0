@@ -9,5 +9,5 @@ terraform {
 
 provider "dash0" {
   # Configuration will be read from environment variables:
-  # DASH0_URL and DASH0_AUTH_TOKEN
+  # DASH0_API_URL (or DASH0_URL as fallback) and DASH0_AUTH_TOKEN
 }

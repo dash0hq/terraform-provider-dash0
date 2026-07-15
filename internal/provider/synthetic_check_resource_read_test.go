@@ -122,19 +122,25 @@ spec:
 				client: mockClient,
 			}
 
+			testURL := "https://app.dash0.com/goto/alerting/synthetics?check_id=internal-uuid"
+
 			// Setup request with current state
 			req := resource.ReadRequest{
 				State: tfsdk.State{
 					Raw: tftypes.NewValue(tftypes.Object{
 						AttributeTypes: map[string]tftypes.Type{
 							"origin":               tftypes.String,
+							"id":                   tftypes.String,
 							"dataset":              tftypes.String,
 							"synthetic_check_yaml": tftypes.String,
+							"url":                  tftypes.String,
 						},
 					}, map[string]tftypes.Value{
 						"origin":               tftypes.NewValue(tftypes.String, "test-origin"),
+						"id":                   tftypes.NewValue(tftypes.String, nil),
 						"dataset":              tftypes.NewValue(tftypes.String, "test-dataset"),
 						"synthetic_check_yaml": tftypes.NewValue(tftypes.String, tt.currentState),
+						"url":                  tftypes.NewValue(tftypes.String, testURL),
 					}),
 					Schema: testSyntheticCheckSchema(),
 				},
@@ -170,6 +176,9 @@ spec:
 					assert.Equal(t, tt.currentState, state.SyntheticCheckYaml.ValueString(),
 						"State should not have been updated")
 				}
+
+				// URL is carried over from prior state (Read does not re-resolve it).
+				assert.Equal(t, testURL, state.URL.ValueString())
 			}
 		})
 	}

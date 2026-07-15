@@ -25,7 +25,10 @@ IMAGE_NAME="dash0-roundtrip-tests"
 # ---------------------------------------------------------------------------
 # Resolve credentials first (fail fast before expensive Docker build).
 # Prefer env vars, fall back to dash0 CLI active profile.
+# OAuth-enabled profiles store a short-lived access token that may be expired;
+# in that case we mount the config dir so the provider can refresh it.
 # ---------------------------------------------------------------------------
+MOUNT_DASH0_CONFIG=""
 if [[ -n "${DASH0_API_URL:-}" && -n "${DASH0_AUTH_TOKEN:-}" ]]; then
   DASH0_DATASET="${DASH0_DATASET:-default}"
   echo "Using credentials from environment variables."
@@ -40,8 +43,27 @@ print(json.dumps(p['configuration']))
   DASH0_API_URL="$(echo  "$PROFILE_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["apiUrl"])')"
   DASH0_AUTH_TOKEN="$(echo "$PROFILE_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["authToken"])')"
   DASH0_DATASET="$(echo  "$PROFILE_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("dataset","default"))')"
-  echo "Using credentials from dash0 CLI profile: ${ACTIVE_PROFILE}"
+
+  # Detect OAuth-enabled profile. The access token may be expired; mount the
+  # config directory into the container so the provider can refresh it.
+  IS_OAUTH="$(echo "$PROFILE_JSON" | python3 -c 'import json,sys; cfg=json.load(sys.stdin); print("yes" if cfg.get("oauth") else "no")')"
+  if [[ "$IS_OAUTH" == "yes" ]]; then
+    DASH0_CONFIG_DIR="${DASH0_CONFIG_DIR:-$HOME/.dash0}"
+    MOUNT_DASH0_CONFIG="-v ${DASH0_CONFIG_DIR}:/root/.dash0"
+    # Clear the auth token so the provider loads it from the mounted profile
+    # and can refresh it if expired.
+    DASH0_AUTH_TOKEN=""
+    echo "Using OAuth-enabled dash0 CLI profile: ${ACTIVE_PROFILE} (config dir mounted into container)"
+  else
+    echo "Using credentials from dash0 CLI profile: ${ACTIVE_PROFILE}"
+  fi
 else
+  # In CI, fork PRs do not have access to repository secrets. Skip gracefully
+  # instead of failing the build.
+  if [[ -n "${CI:-}" ]]; then
+    echo "WARNING: No credentials available (expected for fork PRs). Skipping roundtrip tests."
+    exit 0
+  fi
   echo "ERROR: Set DASH0_API_URL and DASH0_AUTH_TOKEN env vars, or configure a dash0 CLI profile." >&2
   echo "       In CI, ensure the repository secrets DASH0_API_URL and DASH0_AUTH_TOKEN are configured." >&2
   exit 1
@@ -66,11 +88,16 @@ if [[ $# -gt 0 ]]; then
   TESTS=("$@")
 else
   TESTS=(
+    test_provider_empty_attributes.sh
+    test_provider_with_profile_attribute_and_env_overrides.sh
     test_check_rule.sh
     test_dashboard.sh
+    test_recording_rule.sh
     test_synthetic_check.sh
     test_view.sh
     test_notification_channel.sh
+    test_spam_filter_v1alpha1.sh
+    test_spam_filter_v1alpha2.sh
   )
 fi
 
@@ -86,10 +113,12 @@ for test in "${TESTS[@]}"; do
   echo "Running: ${test}"
   echo "========================================================"
   set +e
+  # shellcheck disable=SC2086
   docker run --rm \
     -e DASH0_API_URL="$DASH0_API_URL" \
-    -e DASH0_AUTH_TOKEN="$DASH0_AUTH_TOKEN" \
+    -e DASH0_AUTH_TOKEN="${DASH0_AUTH_TOKEN:-}" \
     -e DASH0_DATASET="$DASH0_DATASET" \
+    $MOUNT_DASH0_CONFIG \
     "$IMAGE_NAME" \
     "/tests/${test}"
   rc=$?
