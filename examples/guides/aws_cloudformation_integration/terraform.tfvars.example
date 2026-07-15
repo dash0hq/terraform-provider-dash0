@@ -3,7 +3,6 @@
 
 api_key                 = "your-dash0-auth-token"
 dataset                 = "default"
-technical_id            = "your-organization-technical-id"
 regions                 = ["eu-west-1"]
 dash0_regional_endpoint = "https://ingress.eu-west-1.aws.dash0.com"
 

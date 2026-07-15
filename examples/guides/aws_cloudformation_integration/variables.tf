@@ -30,7 +30,8 @@ variable "collect_lambda_lifecycle_events" {
 
 variable "technical_id" {
   type        = string
-  description = "The Dash0 organization technical ID. Found in the Dash0 UI under Settings > Organization."
+  description = "Optional external ID for securing IAM role assumption. When empty, the template uses the CloudFormation stack ID automatically."
+  default     = ""
 }
 
 variable "regions" {
