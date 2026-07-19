@@ -100,6 +100,16 @@ tf_output() {
   (cd "$dir" && TF_CLI_CONFIG_FILE="${dir}/.terraformrc" $TF output -raw "$name" 2>/dev/null)
 }
 
+tf_import() {
+  local dir="$1" address="$2" id="$3"
+  (cd "$dir" && TF_CLI_CONFIG_FILE="${dir}/.terraformrc" $TF import -input=false "$address" "$id")
+}
+
+tf_state_show() {
+  local dir="$1" address="$2"
+  (cd "$dir" && TF_CLI_CONFIG_FILE="${dir}/.terraformrc" $TF state show "$address")
+}
+
 tf_plan_detailed_exitcode() {
   local dir="$1"
   (cd "$dir" && TF_CLI_CONFIG_FILE="${dir}/.terraformrc" $TF plan -detailed-exitcode -input=false)
