@@ -83,13 +83,20 @@ func (c *dash0Client) ResolveNotificationChannel(ctx context.Context, origin str
 		return "", "", err
 	}
 
+	// Match on origin first, fall back to matching on id — see matchOriginID for
+	// the rationale (imports of UI-created channels have no origin label).
 	var id string
 	for _, channel := range channels {
 		if channel == nil {
 			continue
 		}
+		channelID := dash0.GetNotificationChannelID(channel)
 		if dash0.GetNotificationChannelOrigin(channel) == origin {
-			id = dash0.GetNotificationChannelID(channel)
+			id = channelID
+			break
+		}
+		if channelID != "" && channelID == origin {
+			id = channelID
 			break
 		}
 	}

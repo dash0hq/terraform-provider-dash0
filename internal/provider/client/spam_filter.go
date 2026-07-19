@@ -128,6 +128,8 @@ func (c *dash0Client) ResolveSpamFilter(ctx context.Context, origin string, data
 		return "", err
 	}
 
+	// Match on origin first, fall back to matching on id — see matchOriginID for
+	// the rationale (imports of UI-created filters have no origin label).
 	for _, obj := range items {
 		var meta *dash0.SpamFilterMetadata
 		switch f := obj.(type) {
@@ -140,18 +142,20 @@ func (c *dash0Client) ResolveSpamFilter(ctx context.Context, origin string, data
 				meta = &f.Metadata
 			}
 		}
-		if meta == nil || meta.Labels == nil || meta.Labels.Dash0Comorigin == nil {
+		if meta == nil || meta.Labels == nil {
 			continue
 		}
-		if *meta.Labels.Dash0Comorigin != origin {
-			continue
-		}
-		var id string
+		var itemID string
 		if meta.Labels.Dash0Comid != nil {
-			id = *meta.Labels.Dash0Comid
+			itemID = *meta.Labels.Dash0Comid
 		}
-		tflog.Debug(ctx, fmt.Sprintf("Resolved spam filter id for origin %s: %s", origin, id))
-		return id, nil
+		originMatches := meta.Labels.Dash0Comorigin != nil && *meta.Labels.Dash0Comorigin == origin
+		idMatches := itemID != "" && itemID == origin
+		if !originMatches && !idMatches {
+			continue
+		}
+		tflog.Debug(ctx, fmt.Sprintf("Resolved spam filter id for origin %s: %s", origin, itemID))
+		return itemID, nil
 	}
 
 	tflog.Warn(ctx, fmt.Sprintf("Spam filter with origin %q not found in dataset %q; id will be empty", origin, dataset))

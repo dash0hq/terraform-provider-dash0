@@ -75,9 +75,19 @@ func (c *dash0Client) ResolveView(ctx context.Context, origin string, dataset st
 		return "", "", err
 	}
 
+	// Match on origin first, fall back to matching on id — see matchOriginID for
+	// the rationale. Views cannot use matchOriginID directly because they carry
+	// a Type field that ViewDeeplinkURL needs alongside the id.
 	var matched *dash0.ViewApiListItem
 	for _, item := range items {
-		if item != nil && item.Origin != nil && *item.Origin == origin {
+		if item == nil {
+			continue
+		}
+		if item.Origin != nil && *item.Origin == origin {
+			matched = item
+			break
+		}
+		if item.Id != "" && item.Id == origin {
 			matched = item
 			break
 		}

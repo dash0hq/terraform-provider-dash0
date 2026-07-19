@@ -32,6 +32,7 @@ func TestResolveView(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode([]dash0.ViewApiListItem{
 			{Id: "11111111-1111-1111-1111-111111111111", Origin: strPtr("tf_other"), Type: dash0.Logs},
+			{Id: "22222222-2222-2222-2222-222222222222", Origin: nil, Type: dash0.Logs}, // UI-created, no origin
 			{Id: "33333333-3333-3333-3333-333333333333", Origin: strPtr("tf_target"), Type: dash0.Spans},
 		})
 	}))
@@ -58,5 +59,14 @@ func TestResolveView(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "", id)
 		assert.Equal(t, "", url)
+	})
+
+	t.Run("UI-created view resolves via id fallback (no origin label)", func(t *testing.T) {
+		// Imports of UI-created views use the internal id as the identifier
+		// because the origin label is absent. The resolver must find them.
+		id, url, err := c.ResolveView(t.Context(), "22222222-2222-2222-2222-222222222222", "production")
+		require.NoError(t, err)
+		assert.Equal(t, "22222222-2222-2222-2222-222222222222", id)
+		assert.Equal(t, "https://app.dash0.com/goto/logs?dataset=production&view_id=22222222-2222-2222-2222-222222222222", url)
 	})
 }

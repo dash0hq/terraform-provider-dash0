@@ -83,11 +83,14 @@ func (c *dash0Client) ResolveRecordingRule(ctx context.Context, origin string, d
 		return "", err
 	}
 
+	// Match on origin first, fall back to matching on id — see matchOriginID for
+	// the rationale (imports of UI-created rules have no origin label).
 	for _, rule := range items {
 		if rule == nil || rule.Metadata.Labels == nil {
 			continue
 		}
-		if (*rule.Metadata.Labels)[dash0.LabelOrigin] == origin {
+		labels := *rule.Metadata.Labels
+		if labels[dash0.LabelOrigin] == origin || (labels[dash0.LabelID] != "" && labels[dash0.LabelID] == origin) {
 			id := dash0.GetRecordingRuleID(rule)
 			tflog.Debug(ctx, fmt.Sprintf("Resolved recording rule id for origin %s: %s", origin, id))
 			return id, nil

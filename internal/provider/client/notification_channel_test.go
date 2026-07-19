@@ -53,6 +53,16 @@ func TestResolveNotificationChannel(t *testing.T) {
 					},
 				},
 			},
+			{
+				Kind: "Dash0NotificationChannel",
+				Metadata: dash0.NotificationChannelMetadata{
+					Name: "UI-created",
+					Labels: &dash0.NotificationChannelLabels{
+						// UI-created channels carry only Dash0Comid, no Dash0Comorigin.
+						Dash0Comid: strPtr("22222222-2222-2222-2222-222222222222"),
+					},
+				},
+			},
 		})
 	}))
 	t.Cleanup(server.Close)
@@ -78,5 +88,14 @@ func TestResolveNotificationChannel(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "", id)
 		assert.Equal(t, "", url)
+	})
+
+	t.Run("UI-created channel resolves via id fallback (no origin label)", func(t *testing.T) {
+		// Imports of UI-created channels use the internal id as the identifier
+		// because the origin label is absent.
+		id, url, err := c.ResolveNotificationChannel(t.Context(), "22222222-2222-2222-2222-222222222222")
+		require.NoError(t, err)
+		assert.Equal(t, "22222222-2222-2222-2222-222222222222", id)
+		assert.Equal(t, "https://app.dash0.com/goto/settings/notifications?channel_id=22222222-2222-2222-2222-222222222222", url)
 	})
 }

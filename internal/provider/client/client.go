@@ -72,19 +72,31 @@ type Client interface {
 var _ Client = &dash0Client{}
 
 // matchOriginID returns the server-assigned internal id of the list item whose
-// origin matches the given origin, or an empty string when no item matches.
+// origin (or, as a fallback, whose id) matches the given identifier, or an
+// empty string when no item matches.
 //
 // The Dash0 web app addresses assets by their internal id, which the
-// single-asset endpoints do not return (they only echo the origin). The id is
-// therefore resolved from the list endpoint by matching on origin. The accessor
-// extracts the (id, origin) pair from each list item type.
-func matchOriginID[T any](items []*T, origin string, accessor func(*T) (string, *string)) string {
+// single-asset endpoints do not return (they only echo the identifier that was
+// used to fetch them). The id is therefore resolved from the list endpoint. The
+// resolver tries origin first, then falls back to matching the identifier
+// against the list item's id — this covers assets originally created in the
+// Dash0 UI, which carry no `dash0.com/origin` label. The API's GET/PUT
+// endpoints accept either an origin or an id as the identifier, so both
+// matching paths produce a consistent result: an origin-matched item's id is
+// what the deep-link builder needs, and an id-matched item is already indexed
+// by the value the caller passed in.
+//
+// The accessor extracts the (id, origin) pair from each list item type.
+func matchOriginID[T any](items []*T, identifier string, accessor func(*T) (string, *string)) string {
 	for _, item := range items {
 		if item == nil {
 			continue
 		}
 		id, itemOrigin := accessor(item)
-		if itemOrigin != nil && *itemOrigin == origin {
+		if itemOrigin != nil && *itemOrigin == identifier {
+			return id
+		}
+		if id != "" && id == identifier {
 			return id
 		}
 	}

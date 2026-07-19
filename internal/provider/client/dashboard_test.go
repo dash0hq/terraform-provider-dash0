@@ -43,6 +43,30 @@ func TestMatchOriginID(t *testing.T) {
 	t.Run("no match returns empty", func(t *testing.T) {
 		assert.Equal(t, "", matchOriginID(items, "tf_missing", accessor))
 	})
+
+	t.Run("falls back to id match when origin is nil (UI-created asset)", func(t *testing.T) {
+		// The item without an origin label carries id "22222222-...". When the
+		// user imports that id as the identifier, the resolver must find it and
+		// return the same id so downstream URL construction still works.
+		assert.Equal(t, "22222222-2222-2222-2222-222222222222", matchOriginID(items, "22222222-2222-2222-2222-222222222222", accessor))
+	})
+
+	t.Run("falls back to id match when origin exists but does not match", func(t *testing.T) {
+		// The identifier "11111111-..." doesn't match any origin, but does match
+		// the first item's id. The resolver should still find it.
+		assert.Equal(t, "11111111-1111-1111-1111-111111111111", matchOriginID(items, "11111111-1111-1111-1111-111111111111", accessor))
+	})
+
+	t.Run("origin match takes precedence over id match on the same identifier", func(t *testing.T) {
+		// Contrived case: two items where item A has origin==X and item B has
+		// id==X. The origin match on A must fire first.
+		strPtr := func(s string) *string { return &s }
+		conflicting := []*dash0.DashboardApiListItem{
+			{Id: "aa", Origin: strPtr("shared-key")},
+			{Id: "shared-key", Origin: strPtr("bb")},
+		}
+		assert.Equal(t, "aa", matchOriginID(conflicting, "shared-key", accessor))
+	})
 }
 
 // TestGetDashboardURL verifies that GetDashboardURL resolves the internal id by
