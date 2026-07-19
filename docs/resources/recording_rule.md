@@ -4,14 +4,11 @@ page_title: "dash0_recording_rule Resource - Dash0"
 subcategory: ""
 description: |-
   Manages a Dash0 Recording Rule. Recording rules pre-compute frequently needed or computationally expensive PromQL expressions and save the results as new time series. See Manage Check Rules as Code https://dash0.com/docs/dash0/monitoring/alerting/manage-check-rules-as-code for more details — recording rules share the same Prometheus rule format and management surface as alert check rules. The recording rule definition uses the Prometheus Rule format https://prometheus-operator.dev/docs/api-reference/api/#monitoring.coreos.com/v1.PrometheusRule.
-  More information on how Prometheus rules are mapped to Dash0 recording rules can be found in the Dash0 Operator documentation https://dash0.com/docs/dash0/monitoring/kubernetes/about-kubernetes#managing-dash0-recording-rules.
 ---
 
 # dash0_recording_rule (Resource)
 
 Manages a Dash0 Recording Rule. Recording rules pre-compute frequently needed or computationally expensive PromQL expressions and save the results as new time series. See [Manage Check Rules as Code](https://dash0.com/docs/dash0/monitoring/alerting/manage-check-rules-as-code) for more details — recording rules share the same Prometheus rule format and management surface as alert check rules. The recording rule definition uses the [Prometheus Rule format](https://prometheus-operator.dev/docs/api-reference/api/#monitoring.coreos.com/v1.PrometheusRule).
-
-More information on how Prometheus rules are mapped to Dash0 recording rules can be found in the [Dash0 Operator documentation](https://dash0.com/docs/dash0/monitoring/kubernetes/about-kubernetes#managing-dash0-recording-rules).
 
 ## Example Usage
 
