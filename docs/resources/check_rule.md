@@ -4,14 +4,14 @@ page_title: "dash0_check_rule Resource - Dash0"
 subcategory: ""
 description: |-
   Manages a Dash0 Check Rule. Check rules define alerting conditions based on PromQL expressions that are continuously evaluated against your telemetry data. See About Alerting https://dash0.com/docs/dash0/monitoring/alerting/alerting and About Creating Check Rules https://dash0.com/docs/dash0/monitoring/alerting/create-check-rules for more details. The check rule definition uses the Prometheus Rule format https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/.
-  More information on how Prometheus rules are mapped to Dash0 check rules can be found in the Dash0 Operator documentation https://dash0.com/docs/dash0/monitoring/kubernetes/about-kubernetes#managing-dash0-check-rules.
+  More information on how Prometheus rules are mapped to Dash0 check rules can be found in the Dash0 Operator documentation https://dash0.com/docs/dash0/monitoring/kubernetes/dash0-operator/managing-dash0-resources#managing-dash0-check-rules.
 ---
 
 # dash0_check_rule (Resource)
 
 Manages a Dash0 Check Rule. Check rules define alerting conditions based on PromQL expressions that are continuously evaluated against your telemetry data. See [About Alerting](https://dash0.com/docs/dash0/monitoring/alerting/alerting) and [About Creating Check Rules](https://dash0.com/docs/dash0/monitoring/alerting/create-check-rules) for more details. The check rule definition uses the [Prometheus Rule format](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/).
 
-More information on how Prometheus rules are mapped to Dash0 check rules can be found in the [Dash0 Operator documentation](https://dash0.com/docs/dash0/monitoring/kubernetes/about-kubernetes#managing-dash0-check-rules).
+More information on how Prometheus rules are mapped to Dash0 check rules can be found in the [Dash0 Operator documentation](https://dash0.com/docs/dash0/monitoring/kubernetes/dash0-operator/managing-dash0-resources#managing-dash0-check-rules).
 
 ## Example Usage
 
