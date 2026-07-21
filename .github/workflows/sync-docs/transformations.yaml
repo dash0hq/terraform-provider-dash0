@@ -41,6 +41,19 @@ common:
     replace: "> [!NOTE]\n> \\1"
     required: false
 
+coverage:
+  # Every docs page matching `include` must appear as a `files[].source` below or be listed under
+  # `ignore`, otherwise the sync run fails before transforming anything. Prevents newly added
+  # resources or guides from being silently skipped when a maintainer forgets to declare them here.
+  include:
+    - docs/*.md
+    - docs/guides/*.md
+    - docs/resources/*.md
+  ignore:
+    # docs/index.md is the terraform-plugin-docs-generated Registry landing page — intentionally
+    # not synced because it duplicates the per-resource pages already published from docs/resources/*.
+    - docs/index.md
+
 nav:
   target: dash0/miscellaneous/tooling/terraform-provider-dash0/nav.json
   order: 72.7

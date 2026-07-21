@@ -171,6 +171,7 @@ Prose rules for `docs/about.md`:
 - **`files:`** is opt-in. Adding a new source file to `docs/` does nothing until it is declared here.
 - **`common:`** transformations run against every file, in order. Today they strip the terraform-plugin-docs frontmatter (marked `required: false` because hand-authored pages have none), strip the leading `# ...` heading (sync-docs-action replaces it with the page's frontmatter title), rewrite absolute `https://dash0.com/docs/...` URLs to site-internal `/docs/...` paths, and rewrite `~> **Note:**` admonitions to GitHub-style `> [!NOTE]` blocks.
 - Per-file `transformations:` handle source-vs-target divergences that only affect one page. None are needed today — the common rules cover every current divergence.
+- **`coverage:`** guards against silent drops. Every file matching `include` (currently `docs/*.md`, `docs/guides/*.md`, `docs/resources/*.md`) must be declared as a `files[].source` or listed under `ignore` (currently only `docs/index.md`). A new resource page under `docs/resources/` fails the sync run — including the CI dry-run — until it is declared, so you can't ship a new resource without also publishing its page.
 
 ### Admonition convention
 
@@ -181,7 +182,7 @@ Source pages use **Terraform-registry-native admonitions** (`~> **Note:** ...`, 
 
 The sync engine runs in dry-run mode on every CI build (`.github/workflows/ci.yml` → `sync-docs-to-website-dry-run`) — if a `replace-regex` rule stops matching (source docs drifted away from what the transformation expects), CI fails. Investigate the drift and either fix the source doc or update the transformation; do not silence the rule with `required: false` unless the drift is intentional.
 
-The full sync (dry-run false) runs from `.github/workflows/release.yml` after `goreleaser` publishes a release tag. It opens a PR against `dash0hq/dash0-website` using the `DOCS_WEBSITE_PR_TOKEN` secret — a fine-grained PAT scoped to `dash0hq/dash0-website` with `contents:write` and `pull-requests:write`. This is distinct from the broader `REPOSITORY_FULL_ACCESS_GITHUB_TOKEN` that GoReleaser and `prepare-release.yml` use to push artifacts and tags back to this repo.
+The full sync (dry-run false) runs from `.github/workflows/release.yml` after `goreleaser` publishes a release tag. It opens a PR against the target documentation repository using three secrets: `SYNC_DOCUMENTATION_TARGET_REPOSITORY` (owner/name of the target repo — `dash0hq/dash0-website` today), `SYNC_DOCUMENTATION_TARGET_DIRECTORY` (path within that repo — `src/app/(core)/docs/content` today), and `DOCS_WEBSITE_PR_TOKEN` (fine-grained PAT scoped to the target repo with `contents:write` and `pull-requests:write`). sync-docs-action v0.4.0 removed the built-in defaults for the first two, so they must be supplied explicitly. The token is distinct from the broader `REPOSITORY_FULL_ACCESS_GITHUB_TOKEN` that GoReleaser and `prepare-release.yml` use to push artifacts and tags back to this repo.
 
 ## Changelog
 
