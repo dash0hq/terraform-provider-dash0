@@ -112,6 +112,11 @@ files:
     title: dash0_synthetic_check
     description: Terraform resource for Dash0 synthetic checks — HTTP-based availability and correctness probes with configurable schedules, retries, and notifications.
 
+  - source: docs/resources/team.md
+    target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/team.md
+    title: dash0_team
+    description: Terraform resource for Dash0 teams — declaratively manage the technical name, display attributes, and membership of a team via the TeamDefinitionV1Alpha1 CRD envelope.
+
   - source: docs/resources/view.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/view.md
     title: dash0_view
