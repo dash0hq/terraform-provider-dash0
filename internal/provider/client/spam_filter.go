@@ -68,7 +68,7 @@ func (c *dash0Client) upsertSpamFilter(ctx context.Context, origin, filterJSON, 
 			return fmt.Errorf("error parsing spam filter JSON: %w", err)
 		}
 		// See comment in the v1alpha2 branch above.
-		v1alpha1 := dash0.V1alpha1
+		v1alpha1 := dash0.SpamFilterApiVersionV1Alpha1V1alpha1
 		filter.ApiVersion = &v1alpha1
 		setSpamFilterMetadataOrigin(&filter.Metadata, origin)
 		setSpamFilterMetadataDataset(&filter.Metadata, dataset)
