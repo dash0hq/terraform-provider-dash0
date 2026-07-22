@@ -66,6 +66,12 @@ type Client interface {
 	// the given origin (no deep-link URL — the Dash0 web app does not expose
 	// a per-spam-filter page).
 	ResolveSpamFilter(ctx context.Context, origin string, dataset string) (string, error)
+
+	CreateSLO(ctx context.Context, origin string, sloJSON string, dataset string) error
+	GetSLO(ctx context.Context, origin string, dataset string) (string, error)
+	UpdateSLO(ctx context.Context, origin string, sloJSON string, dataset string) error
+	DeleteSLO(ctx context.Context, origin string, dataset string) error
+	ResolveSLO(ctx context.Context, origin string, dataset string) (string, string, error)
 }
 
 // Ensure dash0Client implements Client
@@ -139,6 +145,15 @@ func unmarshalSyntheticCheck(jsonStr string) (*dash0.SyntheticCheckDefinition, e
 // unmarshalView parses a JSON string into a ViewDefinition.
 func unmarshalView(jsonStr string) (*dash0.ViewDefinition, error) {
 	var def dash0.ViewDefinition
+	if err := json.Unmarshal([]byte(jsonStr), &def); err != nil {
+		return nil, err
+	}
+	return &def, nil
+}
+
+// unmarshalSLO parses a JSON string into a SloDefinition.
+func unmarshalSLO(jsonStr string) (*dash0.SloDefinition, error) {
+	var def dash0.SloDefinition
 	if err := json.Unmarshal([]byte(jsonStr), &def); err != nil {
 		return nil, err
 	}

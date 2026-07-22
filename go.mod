@@ -2,6 +2,8 @@ module github.com/dash0hq/terraform-provider-dash0
 
 go 1.26.2
 
+replace github.com/dash0hq/dash0-api-client-go => ../../../dash0-api-client-go/.iac_maintainer/slos
+
 require (
 	github.com/dash0hq/dash0-api-client-go v1.16.0
 	github.com/google/go-cmp v0.7.0
