@@ -8,8 +8,9 @@ name: Synchronize docs to dash0.com/docs
 # Two modes:
 #
 #   - dry-run: applies the transformations and coverage check, then stops — no target checkout,
-#     no copy, no PR. Needs no target-side inputs or secrets. Used as a drift guard from CI on
-#     every PR.
+#     no copy, no PR. Needs no target-side inputs or secrets. Runnable on demand via
+#     `workflow_dispatch` when you want to verify the transformations still apply cleanly against
+#     the current docs.
 #
 #   - full sync (workflow_call from release.yml, or workflow_dispatch with dry-run unchecked):
 #     runs sync-docs-action end-to-end and opens/updates a PR on the target repository. Requires
