@@ -16,8 +16,10 @@ const teamResourceName = "dash0_team.test"
 
 // basicTeamYaml mirrors the shared create.yaml fixture used across the four
 // IaC facilities. Members reference organization users by email; the server
-// resolves them during reconciliation.
-const basicTeamYaml = `kind: Dash0Team
+// resolves them during reconciliation. Emails are substituted from the
+// DASH0_ACC_TEAM_MEMBER_{1,2,3}_EMAIL environment variables at test time so the
+// test can target the real organization behind DASH0_URL/DASH0_AUTH_TOKEN.
+const basicTeamYamlTemplate = `kind: Dash0Team
 metadata:
   name: backend-team
 spec:
@@ -28,12 +30,12 @@ spec:
       from: "#6366F1"
       to: "#8B5CF6"
   members:
-    - alice@example.com
-    - bob@example.com`
+    - %s
+    - %s`
 
-// updatedTeamYaml mirrors the shared update.yaml fixture: renamed description,
-// membership shift (drop bob, add carol).
-const updatedTeamYaml = `kind: Dash0Team
+// updatedTeamYamlTemplate mirrors update.yaml: renamed description and a
+// membership shift (drop the second member, add the third).
+const updatedTeamYamlTemplate = `kind: Dash0Team
 metadata:
   name: backend-team
 spec:
@@ -44,13 +46,23 @@ spec:
       from: "#6366F1"
       to: "#8B5CF6"
   members:
-    - alice@example.com
-    - carol@example.com`
+    - %s
+    - %s`
 
 func TestAccTeamResource(t *testing.T) {
 	if os.Getenv("TF_ACC") != "1" {
 		t.Skip("Acceptance tests skipped unless TF_ACC=1")
 	}
+
+	member1 := os.Getenv("DASH0_ACC_TEAM_MEMBER_1_EMAIL")
+	member2 := os.Getenv("DASH0_ACC_TEAM_MEMBER_2_EMAIL")
+	member3 := os.Getenv("DASH0_ACC_TEAM_MEMBER_3_EMAIL")
+	if member1 == "" || member2 == "" || member3 == "" {
+		t.Skip("Acceptance test needs three real org member emails; set DASH0_ACC_TEAM_MEMBER_{1,2,3}_EMAIL to run")
+	}
+
+	basicTeamYaml := fmt.Sprintf(basicTeamYamlTemplate, member1, member2)
+	updatedTeamYaml := fmt.Sprintf(updatedTeamYamlTemplate, member1, member3)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
