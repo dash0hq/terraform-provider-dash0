@@ -185,3 +185,28 @@ func (m *MockClient) ResolveSpamFilter(ctx context.Context, origin string, datas
 	args := m.Called(ctx, origin, dataset)
 	return args.String(0), args.Error(1)
 }
+
+func (m *MockClient) CreateSLO(ctx context.Context, origin string, sloJSON string, dataset string) error {
+	args := m.Called(ctx, origin, sloJSON, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) GetSLO(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockClient) UpdateSLO(ctx context.Context, origin string, sloJSON string, dataset string) error {
+	args := m.Called(ctx, origin, sloJSON, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteSLO(ctx context.Context, origin string, dataset string) error {
+	args := m.Called(ctx, origin, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) ResolveSLO(ctx context.Context, origin string, dataset string) (string, string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.String(1), args.Error(2)
+}
