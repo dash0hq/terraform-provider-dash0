@@ -2,7 +2,7 @@
 page_title: "Guide: Import existing Dash0 assets into Terraform"
 subcategory: ""
 description: |-
-  Adopt dashboards, check rules, views, synthetic checks, recording rules, notification channels, and spam filters that already exist in Dash0 into Terraform state, without recreating them.
+  Adopt dashboards, check rules, views, synthetic checks, recording rules, notification channels, spam filters, and teams that already exist in Dash0 into Terraform state, without recreating them.
 ---
 
 # Import existing Dash0 assets into Terraform
@@ -23,6 +23,7 @@ Under the JSON list output, the exact field varies by asset kind:
 | Recording rules | `.metadata.labels["dash0.com/id"]` |
 | Check rules | `.id` (top-level; check rules have no `metadata` field in the list response) |
 | Notification channels | `.metadata.labels["dash0.com/id"]` |
+| Teams | `.id` (top-level; teams have no `metadata` wrapper in the list response) |
 
 For assets created by the Terraform Provider the identifier is a `tf_`-prefixed value; for assets created via the Dash0 UI or CLI it is a UUID (sometimes prefixed `api-`).
 
@@ -176,12 +177,13 @@ Adjust the jq path (`.metadata.dash0Extensions.id`) to match your target asset k
 
 Sanity-check the resource addresses in `import.tf` — the sanitizer may still collide if two assets share the same display name — and fix any duplicates by hand before running `terraform plan`.
 
-## Notification channels: identifier only, no dataset
+## Organization-scoped assets: identifier only, no dataset
 
-`dash0_notification_channel` is organization-scoped, not dataset-scoped, so the import ID drops the dataset prefix:
+`dash0_notification_channel` and `dash0_team` are organization-scoped, not dataset-scoped, so their import IDs drop the dataset prefix:
 
 ```sh
 terraform import dash0_notification_channel.slack_alerts "<identifier>"
+terraform import dash0_team.backend "<identifier>"
 ```
 
 Every other asset kind — dashboards, check rules, views, synthetic checks, recording rules, and spam filters — uses the `dataset,identifier` shape.

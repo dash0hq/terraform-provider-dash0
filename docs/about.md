@@ -1,6 +1,6 @@
 # About the Dash0 Terraform Provider
 
-The Dash0 Terraform Provider manages Dash0 observability assets — dashboards, alerting rules, saved views, synthetic checks, and notification channels — as Terraform resources.
+The Dash0 Terraform Provider manages Dash0 observability assets — dashboards, alerting rules, saved views, synthetic checks, notification channels, spam filters, and teams — as Terraform resources.
 It is published on the [Terraform](https://registry.terraform.io/providers/dash0hq/dash0/latest) and [OpenTofu](https://search.opentofu.org/provider/dash0hq/dash0/latest) registries.
 
 ## Managed assets
@@ -14,6 +14,7 @@ Each Dash0 asset kind is exposed as a Terraform resource whose primary attribute
 - [`dash0_synthetic_check`](resources/synthetic-check) — HTTP-based availability probes.
 - [`dash0_notification_channel`](resources/notification-channel) — Slack, email, PagerDuty, Opsgenie, webhook, Microsoft Teams, Discord, and Google Chat destinations.
 - [`dash0_spam_filter`](resources/spam-filter) — ingestion-time telemetry filters.
+- [`dash0_team`](resources/team) — organization-level teams that group members and own assets.
 
 ## Authentication
 

@@ -55,7 +55,7 @@ func (p *dash0Provider) Metadata(_ context.Context, _ provider.MetadataRequest, 
 
 func providerSchema() schema.Schema {
 	return schema.Schema{
-		Description: "The Dash0 provider allows you to manage resources on the [Dash0](https://www.dash0.com) observability platform, including dashboards, check rules, recording rules, recording rule groups, synthetic checks, and views. Credentials can be supplied via provider configuration attributes, via the DASH0_API_URL and DASH0_AUTH_TOKEN environment variables, or via a dash0 CLI profile.",
+		Description: "The Dash0 provider allows you to manage resources on the [Dash0](https://www.dash0.com) observability platform, including dashboards, check rules, recording rules, recording rule groups, synthetic checks, views, and teams. Credentials can be supplied via provider configuration attributes, via the DASH0_API_URL and DASH0_AUTH_TOKEN environment variables, or via a dash0 CLI profile.",
 		Attributes: map[string]schema.Attribute{
 			"url": schema.StringAttribute{
 				Optional:    true,
@@ -315,5 +315,6 @@ func (p *dash0Provider) Resources(_ context.Context) []func() resource.Resource 
 		NewRecordingRuleResource,
 		NewNotificationChannelResource,
 		NewSpamFilterResource,
+		NewTeamResource,
 	}
 }
