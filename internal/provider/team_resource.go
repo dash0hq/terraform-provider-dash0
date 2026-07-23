@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
@@ -264,6 +265,15 @@ func (r *TeamResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 
 	apiResponseJSON, err := r.client.GetTeam(ctx, state.Origin.ValueString())
 	if err != nil {
+		// The team was removed out-of-band (CLI, UI, another workspace). The
+		// Plugin Framework contract for "gone from the underlying system" is to
+		// clear state so the next plan re-creates the resource; surfacing an
+		// error would force the user to `terraform state rm` manually.
+		if dash0.IsNotFound(err) {
+			tflog.Debug(ctx, fmt.Sprintf("Team %s no longer exists on the server; removing from state", state.Origin.ValueString()))
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read team, got error: %s", err))
 		return
 	}

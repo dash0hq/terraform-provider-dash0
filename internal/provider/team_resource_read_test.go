@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -10,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
 
@@ -268,4 +270,95 @@ spec:
 	assert.Equal(t, stateYaml, resultState.TeamYaml.ValueString(),
 		"server-side dash0.com/origin must not trigger a state update")
 	assert.Equal(t, 0, resp.Diagnostics.WarningsCount())
+}
+
+// TestTeamResource_ReadNotFoundClearsState covers the out-of-band-delete
+// contract: when GetTeam returns a 404 (team removed via CLI, UI, or another
+// workspace), Read must clear state so the next plan re-creates the resource,
+// not surface a hard error that forces `terraform state rm`.
+func TestTeamResource_ReadNotFoundClearsState(t *testing.T) {
+	testSchema := schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"origin":    schema.StringAttribute{Computed: true},
+			"id":        schema.StringAttribute{Computed: true},
+			"team_yaml": schema.StringAttribute{Required: true},
+		},
+	}
+	testClient := &testTeamClient{getError: &dash0.APIError{StatusCode: 404, Status: "404 Not Found"}}
+	r := &TeamResource{client: testClient}
+
+	raw := tftypes.NewValue(
+		tftypes.Object{
+			AttributeTypes: map[string]tftypes.Type{
+				"origin":    tftypes.String,
+				"id":        tftypes.String,
+				"team_yaml": tftypes.String,
+			},
+		},
+		map[string]tftypes.Value{
+			"origin":    tftypes.NewValue(tftypes.String, "tf_backend"),
+			"id":        tftypes.NewValue(tftypes.String, nil),
+			"team_yaml": tftypes.NewValue(tftypes.String, "kind: Dash0Team"),
+		},
+	)
+
+	state := tfsdk.State{Raw: raw, Schema: testSchema}
+	req := resource.ReadRequest{State: state}
+	resp := resource.ReadResponse{State: state}
+
+	r.Read(context.Background(), req, &resp)
+
+	assert.False(t, resp.Diagnostics.HasError(), "404 must not surface as an error")
+	assert.True(t, resp.State.Raw.IsNull(), "state must be cleared when the team no longer exists")
+}
+
+// TestTeamResource_ReadNonNotFoundStillErrors ensures the 404 short-circuit
+// does not swallow other transport errors (5xx, network failures, auth
+// errors). Only IsNotFound should route to RemoveResource.
+func TestTeamResource_ReadNonNotFoundStillErrors(t *testing.T) {
+	testSchema := schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"origin":    schema.StringAttribute{Computed: true},
+			"id":        schema.StringAttribute{Computed: true},
+			"team_yaml": schema.StringAttribute{Required: true},
+		},
+	}
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{"500 server error", &dash0.APIError{StatusCode: 500, Status: "500 Internal Server Error"}},
+		{"401 unauthorized", &dash0.APIError{StatusCode: 401, Status: "401 Unauthorized"}},
+		{"plain network error", errors.New("connection refused")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			testClient := &testTeamClient{getError: tc.err}
+			r := &TeamResource{client: testClient}
+
+			raw := tftypes.NewValue(
+				tftypes.Object{
+					AttributeTypes: map[string]tftypes.Type{
+						"origin":    tftypes.String,
+						"id":        tftypes.String,
+						"team_yaml": tftypes.String,
+					},
+				},
+				map[string]tftypes.Value{
+					"origin":    tftypes.NewValue(tftypes.String, "tf_backend"),
+					"id":        tftypes.NewValue(tftypes.String, nil),
+					"team_yaml": tftypes.NewValue(tftypes.String, "kind: Dash0Team"),
+				},
+			)
+
+			state := tfsdk.State{Raw: raw, Schema: testSchema}
+			req := resource.ReadRequest{State: state}
+			resp := resource.ReadResponse{State: state}
+
+			r.Read(context.Background(), req, &resp)
+
+			assert.True(t, resp.Diagnostics.HasError(), "non-404 errors must still surface")
+			assert.False(t, resp.State.Raw.IsNull(), "state must be preserved on transient errors")
+		})
+	}
 }
