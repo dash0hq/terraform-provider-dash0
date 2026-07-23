@@ -58,6 +58,7 @@ spec:
 		apiResponseYaml   string
 		expectYamlUpdated bool
 		expectWarning     bool
+		expectError       bool
 	}{
 		{
 			name: "metadata changes only - no significant diff",
@@ -136,10 +137,17 @@ spec:
 			expectWarning:     false,
 		},
 		{
-			name:              "invalid YAML response - update and warn",
+			// Regression: previously the code overwrote state.TeamYaml with
+			// the unparseable API response and only warned, which permanently
+			// poisoned state — the next refresh compared against garbage,
+			// diffed forever, and could only be recovered by `terraform state
+			// rm`. Now we preserve the prior state and surface an error so a
+			// subsequent successful refresh can heal state naturally.
+			name:              "invalid YAML response - preserve state and error",
 			apiResponseYaml:   "not valid yaml {",
-			expectYamlUpdated: true,
-			expectWarning:     true,
+			expectYamlUpdated: false,
+			expectWarning:     false,
+			expectError:       true,
 		},
 	}
 
@@ -189,11 +197,13 @@ spec:
 			if tc.expectYamlUpdated {
 				assert.Equal(t, tc.apiResponseYaml, resultState.TeamYaml.ValueString())
 			} else {
-				assert.Equal(t, originalYaml, resultState.TeamYaml.ValueString())
+				assert.Equal(t, originalYaml, resultState.TeamYaml.ValueString(),
+					"prior state.team_yaml must be preserved when the API response is unparseable")
 			}
 
 			hasWarnings := resp.Diagnostics.WarningsCount() > 0
 			assert.Equal(t, tc.expectWarning, hasWarnings)
+			assert.Equal(t, tc.expectError, resp.Diagnostics.HasError())
 		})
 	}
 }

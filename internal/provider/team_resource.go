@@ -290,11 +290,19 @@ func (r *TeamResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		additionalIgnored = append(additionalIgnored, teamAlwaysIgnoredFields...)
 		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored, nil)
 		if err != nil {
-			resp.Diagnostics.AddWarning(
+			// Comparison failed — most commonly because the API response is
+			// unparseable (edge case: server returned malformed YAML/JSON, or
+			// the converter tripped on an unexpected shape). Preserving the
+			// prior state.TeamYaml keeps a known-good value on disk so the
+			// next successful refresh can reconcile normally, and surfacing
+			// an error (rather than a warning) makes the failure visible
+			// instead of quietly poisoning state with the offending payload.
+			resp.Diagnostics.AddError(
 				"Team Comparison Error",
-				fmt.Sprintf("Error comparing teams: %s. Using API response as source of truth.", err),
+				fmt.Sprintf("Failed to compare team against the API response: %s. "+
+					"Leaving state.team_yaml unchanged; the next refresh will retry once the API returns a parseable response.", err),
 			)
-			state.TeamYaml = types.StringValue(apiResponseJSON)
+			return
 		} else if !equivalent {
 			tflog.Debug(ctx, "Team has changed, updating state")
 			state.TeamYaml = types.StringValue(apiResponseJSON)
