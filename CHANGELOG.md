@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.15.0
+
+
+### New Components
+
+
+- `teams`: Add team resource for managing teams and membership as code (#133)
+  New `dash0_team` resource declaratively manages Dash0 teams — the technical name, display
+  attributes, and membership — via the `TeamDefinitionV1Alpha1` CRD envelope. Members can be
+  referenced by email address or internal Dash0 id; the server resolves emails during
+  reconciliation, and the provider rewrites returned ids back to emails on read so state
+  matches the user's YAML. Teams are organization-level resources and are not scoped to a
+  dataset.
+  
+
+
+### Bug Fixes
+
+
+- `provider`: Populate `id` and `url` in state after `terraform import` for assets that carry no `dash0.com/origin` label. (#135)
+  Assets originally created in the Dash0 UI have no `dash0.com/origin` label, so the previous
+  identifier resolver — which matched only on origin — left the imported resource's `id` and `url`
+  attributes empty (only a `TF_LOG=INFO` warning surfaced the miss). The resolver now falls back to
+  matching the imported identifier against each list item's internal id, so `id` and `url` are
+  populated for both CLI/API/Terraform-created assets (where the origin label is present) and
+  UI-created assets (where it is absent). Applies to dashboards, views, check rules, synthetic
+  checks, recording rules, spam filters, and notification channels.
+  
+
 ## 1.14.2
 
 
