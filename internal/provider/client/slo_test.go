@@ -13,7 +13,7 @@ import (
 )
 
 func TestUnmarshalSLO(t *testing.T) {
-	jsonStr := `{"apiVersion":"openslo/v1","kind":"SLO","metadata":{"name":"test"},"spec":{"service":"checkout"}}`
+	jsonStr := `{"apiVersion":"openslo.com/v1","kind":"SLO","metadata":{"name":"test"},"spec":{"service":"checkout"}}`
 	def, err := unmarshalSLO(jsonStr)
 	require.NoError(t, err)
 	assert.NotNil(t, def)
@@ -33,7 +33,7 @@ func TestResolveSLO(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode([]dash0.SloDefinition{
 			{
-				ApiVersion: "openslo/v1",
+				ApiVersion: "openslo.com/v1",
 				Kind:       "SLO",
 				Metadata: dash0.SloMetadata{
 					Name: "other",
@@ -44,7 +44,7 @@ func TestResolveSLO(t *testing.T) {
 				},
 			},
 			{
-				ApiVersion: "openslo/v1",
+				ApiVersion: "openslo.com/v1",
 				Kind:       "SLO",
 				Metadata: dash0.SloMetadata{
 					Name: "target",
