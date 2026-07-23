@@ -161,6 +161,31 @@ func (m *MockClient) ResolveNotificationChannel(ctx context.Context, origin stri
 	return args.String(0), args.String(1), args.Error(2)
 }
 
+func (m *MockClient) CreateTeam(ctx context.Context, origin string, teamJSON string) error {
+	args := m.Called(ctx, origin, teamJSON)
+	return args.Error(0)
+}
+
+func (m *MockClient) GetTeam(ctx context.Context, origin string) (string, error) {
+	args := m.Called(ctx, origin)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockClient) UpdateTeam(ctx context.Context, origin string, teamJSON string) error {
+	args := m.Called(ctx, origin, teamJSON)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteTeam(ctx context.Context, origin string) error {
+	args := m.Called(ctx, origin)
+	return args.Error(0)
+}
+
+func (m *MockClient) ResolveTeam(ctx context.Context, origin string) (string, error) {
+	args := m.Called(ctx, origin)
+	return args.String(0), args.Error(1)
+}
+
 func (m *MockClient) CreateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error {
 	args := m.Called(ctx, origin, filterJSON, dataset)
 	return args.Error(0)

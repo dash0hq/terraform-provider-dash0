@@ -58,6 +58,15 @@ type Client interface {
 	DeleteNotificationChannel(ctx context.Context, origin string) error
 	ResolveNotificationChannel(ctx context.Context, origin string) (string, string, error)
 
+	CreateTeam(ctx context.Context, origin string, teamJSON string) error
+	GetTeam(ctx context.Context, origin string) (string, error)
+	UpdateTeam(ctx context.Context, origin string, teamJSON string) error
+	DeleteTeam(ctx context.Context, origin string) error
+	// ResolveTeam returns the server-assigned id of the team with the given
+	// origin (no deep-link URL — the Dash0 web app does not currently expose
+	// a per-team page distinct from the settings screen).
+	ResolveTeam(ctx context.Context, origin string) (string, error)
+
 	CreateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error
 	GetSpamFilter(ctx context.Context, origin string, dataset string) (string, error)
 	UpdateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error
