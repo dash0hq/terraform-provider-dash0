@@ -192,30 +192,48 @@ func TestTeamResource_ReadError(t *testing.T) {
 	mockClient.AssertExpectations(t)
 }
 
+// teamTftypesValue builds a tftypes.Value carrying (origin, id, team_yaml).
+// A nil id is passed through as tftypes null.
+func teamTftypesValue(origin string, id *string, teamYaml string) tftypes.Value {
+	var idValue tftypes.Value
+	if id == nil {
+		idValue = tftypes.NewValue(tftypes.String, nil)
+	} else {
+		idValue = tftypes.NewValue(tftypes.String, *id)
+	}
+	return tftypes.NewValue(
+		tftypes.Object{
+			AttributeTypes: map[string]tftypes.Type{
+				"origin":    tftypes.String,
+				"id":        tftypes.String,
+				"team_yaml": tftypes.String,
+			},
+		},
+		map[string]tftypes.Value{
+			"origin":    tftypes.NewValue(tftypes.String, origin),
+			"id":        idValue,
+			"team_yaml": tftypes.NewValue(tftypes.String, teamYaml),
+		},
+	)
+}
+
+// teamTestSchema returns the minimal in-test schema shared by Delete/Update
+// fixtures. Kept as a helper so any future attribute rename lands in one place.
+func teamTestSchema() schema.Schema {
+	return schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"origin":    schema.StringAttribute{Computed: true},
+			"id":        schema.StringAttribute{Computed: true},
+			"team_yaml": schema.StringAttribute{Required: true},
+		},
+	}
+}
+
 // teamDeleteState builds the minimal state fixture used by the Delete tests.
 func teamDeleteState(origin string) tfsdk.State {
 	return tfsdk.State{
-		Raw: tftypes.NewValue(
-			tftypes.Object{
-				AttributeTypes: map[string]tftypes.Type{
-					"origin":    tftypes.String,
-					"id":        tftypes.String,
-					"team_yaml": tftypes.String,
-				},
-			},
-			map[string]tftypes.Value{
-				"origin":    tftypes.NewValue(tftypes.String, origin),
-				"id":        tftypes.NewValue(tftypes.String, nil),
-				"team_yaml": tftypes.NewValue(tftypes.String, "kind: Dash0Team"),
-			},
-		),
-		Schema: schema.Schema{
-			Attributes: map[string]schema.Attribute{
-				"origin":    schema.StringAttribute{Computed: true},
-				"id":        schema.StringAttribute{Computed: true},
-				"team_yaml": schema.StringAttribute{Required: true},
-			},
-		},
+		Raw:    teamTftypesValue(origin, nil, "kind: Dash0Team"),
+		Schema: teamTestSchema(),
 	}
 }
 
@@ -281,6 +299,175 @@ func TestTeamResource_Delete_NonNotFoundStillErrors(t *testing.T) {
 			mockClient.AssertExpectations(t)
 		})
 	}
+}
+
+// teamUpdateRequest builds an UpdateRequest whose State carries (stateOrigin,
+// stateID, stateYaml) and whose Plan carries (planOrigin, planID, planYaml).
+// Update is expected to overwrite plan.Origin/plan.ID with the state values,
+// so the plan-side origin/id are usually set to a distinct sentinel to prove
+// the carry-over happened.
+func teamUpdateRequest(stateOrigin string, stateID *string, stateYaml, planOrigin string, planID *string, planYaml string) resource.UpdateRequest {
+	return resource.UpdateRequest{
+		State: tfsdk.State{
+			Raw:    teamTftypesValue(stateOrigin, stateID, stateYaml),
+			Schema: teamTestSchema(),
+		},
+		Plan: tfsdk.Plan{
+			Raw:    teamTftypesValue(planOrigin, planID, planYaml),
+			Schema: teamTestSchema(),
+		},
+	}
+}
+
+// TestTeamResource_Update_Success covers the happy path: valid YAML,
+// successful UpdateTeam, state persisted with origin+id carried from prior
+// state, team_yaml updated to the plan value.
+func TestTeamResource_Update_Success(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &TeamResource{client: mockClient}
+
+	stateYaml := `kind: Dash0Team
+metadata:
+  name: backend-team
+spec:
+  members: []`
+	planYaml := `kind: Dash0Team
+metadata:
+  name: backend-team
+spec:
+  display:
+    name: Backend Team
+  members: [alice@example.com]`
+
+	// The Update path converts YAML to JSON before calling the client, so we
+	// match on any string argument for the JSON body.
+	mockClient.On("UpdateTeam", mock.Anything, "tf_backend", mock.AnythingOfType("string")).Return(nil)
+
+	stateID := "00000000-0000-0000-0000-000000000001"
+	req := teamUpdateRequest("tf_backend", &stateID, stateYaml, "tf_backend", &stateID, planYaml)
+	resp := &resource.UpdateResponse{
+		State: tfsdk.State{Raw: req.State.Raw, Schema: teamTestSchema()},
+	}
+
+	r.Update(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError(), "happy-path Update must not error")
+
+	var finalState teamModel
+	resp.State.Get(context.Background(), &finalState)
+	assert.Equal(t, planYaml, finalState.TeamYaml.ValueString(), "team_yaml must reflect the plan value")
+	assert.Equal(t, "tf_backend", finalState.Origin.ValueString(), "origin must be carried from prior state")
+	assert.Equal(t, stateID, finalState.ID.ValueString(), "id must be carried from prior state")
+	mockClient.AssertExpectations(t)
+}
+
+// TestTeamResource_Update_CarriesOverOriginAndIDFromState is the load-bearing
+// invariant of the resource: origin is immutable after Create and id is
+// server-immutable. Even if the plan somehow carries a different origin/id
+// (Framework quirk, corrupted plan, unknown-at-plan-time), Update must ignore
+// the plan values and preserve state's.
+func TestTeamResource_Update_CarriesOverOriginAndIDFromState(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &TeamResource{client: mockClient}
+
+	teamYaml := `kind: Dash0Team
+metadata:
+  name: backend-team
+spec:
+  members: []`
+
+	// Capture the origin actually passed to UpdateTeam so we can prove it is
+	// state.Origin, not plan.Origin.
+	var seenOrigin string
+	mockClient.On("UpdateTeam", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string")).
+		Run(func(args mock.Arguments) {
+			seenOrigin = args.String(1)
+		}).
+		Return(nil)
+
+	stateID := "00000000-0000-0000-0000-000000000001"
+	rogueID := "99999999-9999-9999-9999-999999999999"
+	// Plan carries different origin/id (simulating a Framework quirk); state
+	// values must win.
+	req := teamUpdateRequest("tf_backend", &stateID, teamYaml, "tf_rogue_should_be_ignored", &rogueID, teamYaml)
+	resp := &resource.UpdateResponse{
+		State: tfsdk.State{Raw: req.State.Raw, Schema: teamTestSchema()},
+	}
+
+	r.Update(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError())
+	assert.Equal(t, "tf_backend", seenOrigin, "UpdateTeam must be called with state.Origin, not plan.Origin")
+
+	var finalState teamModel
+	resp.State.Get(context.Background(), &finalState)
+	assert.Equal(t, "tf_backend", finalState.Origin.ValueString(), "state.Origin must survive Update")
+	assert.Equal(t, stateID, finalState.ID.ValueString(), "state.ID must survive Update")
+}
+
+// TestTeamResource_Update_InvalidYAML covers the plan-side YAML syntax check
+// before the client is ever called.
+func TestTeamResource_Update_InvalidYAML(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &TeamResource{client: mockClient}
+
+	stateYaml := `kind: Dash0Team
+metadata:
+  name: backend-team
+spec:
+  members: []`
+
+	stateID := "00000000-0000-0000-0000-000000000001"
+	req := teamUpdateRequest("tf_backend", &stateID, stateYaml, "tf_backend", &stateID, "invalid: yaml: [")
+	resp := &resource.UpdateResponse{
+		State: tfsdk.State{Raw: req.State.Raw, Schema: teamTestSchema()},
+	}
+
+	r.Update(context.Background(), req, resp)
+
+	assert.True(t, resp.Diagnostics.HasError())
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Invalid YAML")
+	// UpdateTeam must not have been called — the mock has no expectations, so
+	// an unexpected call would panic with an assertion failure. Assert
+	// expectations to make the "no call" contract explicit.
+	mockClient.AssertExpectations(t)
+}
+
+// TestTeamResource_Update_ClientError covers the branch where the API rejects
+// the write. The error propagates as a Client Error diagnostic; state is not
+// updated.
+func TestTeamResource_Update_ClientError(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &TeamResource{client: mockClient}
+
+	stateYaml := `kind: Dash0Team
+metadata:
+  name: backend-team
+spec:
+  members: []`
+	planYaml := `kind: Dash0Team
+metadata:
+  name: backend-team
+spec:
+  display:
+    name: Backend Team
+  members: []`
+
+	mockClient.On("UpdateTeam", mock.Anything, "tf_backend", mock.AnythingOfType("string")).
+		Return(errors.New("upstream 500"))
+
+	stateID := "00000000-0000-0000-0000-000000000001"
+	req := teamUpdateRequest("tf_backend", &stateID, stateYaml, "tf_backend", &stateID, planYaml)
+	resp := &resource.UpdateResponse{
+		State: tfsdk.State{Raw: req.State.Raw, Schema: teamTestSchema()},
+	}
+
+	r.Update(context.Background(), req, resp)
+
+	assert.True(t, resp.Diagnostics.HasError())
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Client Error")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "upstream 500")
+	mockClient.AssertExpectations(t)
 }
 
 func TestWarnIfCustomTeamMetadataSet(t *testing.T) {
