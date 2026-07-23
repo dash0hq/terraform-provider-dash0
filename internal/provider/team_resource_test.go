@@ -192,6 +192,73 @@ func TestTeamResource_ReadError(t *testing.T) {
 	mockClient.AssertExpectations(t)
 }
 
+// TestTeamResource_ResolveTeamID_SilentEmpty locks in the shape of the
+// "server has no dash0.com/id label yet" branch: the client wrapper returns
+// ("", nil) — no error — and resolveTeamID must render model.ID as null
+// without emitting a diagnostic. This branch is externally indistinguishable
+// from a fresh team whose id has not propagated yet, so silently returning
+// null is the intended behavior. Callers that rely on state.id being
+// non-null must re-check on the next refresh (Read's self-heal branch,
+// covered by TestTeamResource_ReadSelfHealsNullID, will retry).
+func TestTeamResource_ResolveTeamID_SilentEmpty(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &TeamResource{client: mockClient}
+
+	mockClient.On("ResolveTeam", mock.Anything, "tf_backend").Return("", nil)
+
+	model := teamModel{Origin: types.StringValue("tf_backend"), ID: types.StringValue("stale-id-to-be-overwritten")}
+	var diags diag.Diagnostics
+	r.resolveTeamID(context.Background(), &model, &diags)
+
+	assert.True(t, model.ID.IsNull(), "empty id from ResolveTeam must be rendered as tf null via stringOrNull")
+	assert.Equal(t, 0, diags.WarningsCount(), "silent-empty branch must NOT emit a warning — reserved for the error path")
+	assert.False(t, diags.HasError())
+	mockClient.AssertExpectations(t)
+}
+
+// TestTeamResource_ResolveTeamID_ErrorEmitsWarning is the symmetric case:
+// on a real transport error, resolveTeamID must warn AND set id to null so
+// callers can distinguish "we tried and failed" (warning + null) from
+// "server has no id yet" (no warning + null; TestTeamResource_ResolveTeamID_
+// SilentEmpty above).
+func TestTeamResource_ResolveTeamID_ErrorEmitsWarning(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &TeamResource{client: mockClient}
+
+	mockClient.On("ResolveTeam", mock.Anything, "tf_backend").
+		Return("", errors.New("members endpoint 500"))
+
+	model := teamModel{Origin: types.StringValue("tf_backend"), ID: types.StringValue("stale-id-to-be-overwritten")}
+	var diags diag.Diagnostics
+	r.resolveTeamID(context.Background(), &model, &diags)
+
+	assert.True(t, model.ID.IsNull(), "on error, id must be reset to null (no stale value leaks through)")
+	assert.Equal(t, 1, diags.WarningsCount(), "transient failure must emit a warning so users can distinguish it from silent-empty")
+	assert.Contains(t, diags.Warnings()[0].Summary(), "Unable to resolve team id")
+	assert.False(t, diags.HasError(), "resolveTeamID is best-effort — never an error")
+	mockClient.AssertExpectations(t)
+}
+
+// TestTeamResource_ResolveTeamID_Success is the happy-path pin: a non-empty
+// id maps into model.ID as a value-bearing types.String.
+func TestTeamResource_ResolveTeamID_Success(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &TeamResource{client: mockClient}
+
+	mockClient.On("ResolveTeam", mock.Anything, "tf_backend").
+		Return("00000000-0000-0000-0000-000000000001", nil)
+
+	model := teamModel{Origin: types.StringValue("tf_backend")}
+	var diags diag.Diagnostics
+	r.resolveTeamID(context.Background(), &model, &diags)
+
+	assert.Equal(t, "00000000-0000-0000-0000-000000000001", model.ID.ValueString())
+	assert.False(t, model.ID.IsNull())
+	assert.Equal(t, 0, diags.WarningsCount())
+	assert.False(t, diags.HasError())
+	mockClient.AssertExpectations(t)
+}
+
 // teamTftypesValue builds a tftypes.Value carrying (origin, id, team_yaml).
 // A nil id is passed through as tftypes null.
 func teamTftypesValue(origin string, id *string, teamYaml string) tftypes.Value {
