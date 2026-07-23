@@ -470,6 +470,134 @@ spec:
 	mockClient.AssertExpectations(t)
 }
 
+// teamImportStateResponse builds an ImportStateResponse whose State is
+// initialized the way the framework's ImportResourceState RPC does: a
+// tftypes.Object whose attributes are all null. ImportState then fills them
+// in via SetAttribute.
+func teamImportStateResponse() *resource.ImportStateResponse {
+	nullRaw := tftypes.NewValue(
+		tftypes.Object{
+			AttributeTypes: map[string]tftypes.Type{
+				"origin":    tftypes.String,
+				"id":        tftypes.String,
+				"team_yaml": tftypes.String,
+			},
+		},
+		map[string]tftypes.Value{
+			"origin":    tftypes.NewValue(tftypes.String, nil),
+			"id":        tftypes.NewValue(tftypes.String, nil),
+			"team_yaml": tftypes.NewValue(tftypes.String, nil),
+		},
+	)
+	return &resource.ImportStateResponse{
+		State: tfsdk.State{Raw: nullRaw, Schema: teamTestSchema()},
+	}
+}
+
+// TestTeamResource_ImportState_Success covers the happy path: GetTeam
+// returns valid YAML, ResolveTeam returns the server-assigned id, and state
+// is populated with all three attributes so the subsequent Refresh has a
+// complete resource to reconcile against.
+func TestTeamResource_ImportState_Success(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &TeamResource{client: mockClient}
+
+	apiResponse := `kind: Dash0Team
+metadata:
+  name: backend-team
+  labels:
+    dash0.com/origin: tf_backend
+spec:
+  display:
+    name: Backend Team
+  members: []`
+	resolvedID := "00000000-0000-0000-0000-000000000001"
+
+	mockClient.On("GetTeam", mock.Anything, "tf_backend").Return(apiResponse, nil)
+	mockClient.On("ResolveTeam", mock.Anything, "tf_backend").Return(resolvedID, nil)
+
+	req := resource.ImportStateRequest{ID: "tf_backend"}
+	resp := teamImportStateResponse()
+
+	r.ImportState(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError())
+
+	var finalState teamModel
+	resp.State.Get(context.Background(), &finalState)
+	assert.Equal(t, "tf_backend", finalState.Origin.ValueString())
+	assert.Equal(t, apiResponse, finalState.TeamYaml.ValueString())
+	assert.Equal(t, resolvedID, finalState.ID.ValueString())
+	mockClient.AssertExpectations(t)
+}
+
+// TestTeamResource_ImportState_GetTeamError covers the branch where the
+// import identifier does not resolve (wrong origin, wrong id, insufficient
+// permissions). The error is surfaced and no state is written; ResolveTeam
+// must not be called since it would only reproduce the same failure.
+func TestTeamResource_ImportState_GetTeamError(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &TeamResource{client: mockClient}
+
+	mockClient.On("GetTeam", mock.Anything, "does_not_exist").
+		Return("", errors.New("dash0 api error: not found (status: 404)"))
+
+	req := resource.ImportStateRequest{ID: "does_not_exist"}
+	resp := teamImportStateResponse()
+
+	r.ImportState(context.Background(), req, resp)
+
+	assert.True(t, resp.Diagnostics.HasError())
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Error Importing Team")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "does_not_exist")
+
+	// State must remain null-shaped — ImportState short-circuits before any
+	// SetAttribute call.
+	var finalState teamModel
+	resp.State.Get(context.Background(), &finalState)
+	assert.True(t, finalState.Origin.IsNull(), "state must not be partially populated on GetTeam failure")
+	assert.True(t, finalState.TeamYaml.IsNull())
+
+	mockClient.AssertExpectations(t)
+	mockClient.AssertNotCalled(t, "ResolveTeam", mock.Anything, mock.Anything)
+}
+
+// TestTeamResource_ImportState_ResolveTeamFailureKeepsIDNull covers the
+// best-effort id-resolution contract: if ResolveTeam fails after GetTeam
+// succeeded, import still finishes with origin+team_yaml set, id=null, and
+// a warning. Read's self-heal branch (Read calls resolveTeamID when
+// state.ID.IsNull()) later recovers the id on the next refresh.
+func TestTeamResource_ImportState_ResolveTeamFailureKeepsIDNull(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &TeamResource{client: mockClient}
+
+	apiResponse := `kind: Dash0Team
+metadata:
+  name: backend-team
+spec:
+  members: []`
+
+	mockClient.On("GetTeam", mock.Anything, "tf_backend").Return(apiResponse, nil)
+	mockClient.On("ResolveTeam", mock.Anything, "tf_backend").Return("", errors.New("members endpoint unavailable"))
+
+	req := resource.ImportStateRequest{ID: "tf_backend"}
+	resp := teamImportStateResponse()
+
+	r.ImportState(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError(), "ResolveTeam failure must not abort import")
+	assert.Equal(t, 1, resp.Diagnostics.WarningsCount(), "ResolveTeam failure must warn")
+	assert.Contains(t, resp.Diagnostics.Warnings()[0].Summary(), "Unable to resolve team id")
+
+	var finalState teamModel
+	resp.State.Get(context.Background(), &finalState)
+	assert.Equal(t, "tf_backend", finalState.Origin.ValueString())
+	assert.Equal(t, apiResponse, finalState.TeamYaml.ValueString())
+	assert.True(t, finalState.ID.IsNull(), "id must remain null so Read can self-heal on the next refresh")
+
+	mockClient.AssertExpectations(t)
+}
+
 func TestWarnIfCustomTeamMetadataSet(t *testing.T) {
 	cases := []struct {
 		name           string
