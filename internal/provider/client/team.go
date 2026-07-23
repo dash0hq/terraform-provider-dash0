@@ -50,13 +50,18 @@ func (c *dash0Client) GetTeam(ctx context.Context, origin string) (string, error
 
 	tflog.Debug(ctx, fmt.Sprintf("Team retrieved with origin: %s", origin))
 
-	// Rewrite spec.members to emails using the shared helper so the state
-	// comparison lines up with user-authored YAML that lists members by email.
-	// Best-effort: on failure, log-and-continue with the raw IDs. The helper
-	// itself falls back to the raw ID for entries that don't resolve to an
-	// email.
+	// Rewrite spec.members to emails so state normalization lines up with
+	// user-authored YAML that lists members by email. A failure here means the
+	// /api/members endpoint could not be enumerated in bulk — Spec.Members
+	// still holds raw internal IDs from the server response. Returning the
+	// error (instead of log-and-continue) prevents the caller from writing
+	// id-form YAML into Terraform state during a transient outage, which would
+	// then produce spurious drift on every subsequent plan until the outage
+	// resolves. Terraform's own retry semantics handle the transient case.
+	// Per-entry fallback (a member that resolves to no email) is handled inside
+	// the helper and returns nil, so this branch fires only on bulk failure.
 	if resolveErr := dash0.ResolveTeamMembersToEmails(ctx, c.inner, def); resolveErr != nil {
-		tflog.Warn(ctx, fmt.Sprintf("Failed to resolve team members to emails for origin %s: %s", origin, resolveErr))
+		return "", fmt.Errorf("failed to resolve team members to emails for origin %s: %w", origin, resolveErr)
 	}
 
 	// Strip server-managed fields so the read response does not perpetually

@@ -172,3 +172,58 @@ func TestGetTeam_NormalizesMembersAndStripsServerFields(t *testing.T) {
 	assert.Equal(t, "alice@example.com", members[0])
 	assert.Equal(t, "bob@example.com", members[1])
 }
+
+// TestGetTeam_MembersEndpointFailureSurfaces asserts that a transient
+// /api/members outage is returned as an error rather than silently written
+// into state as id-form YAML. Without this, a partial members-endpoint
+// failure would poison state.TeamYaml with raw internal IDs and produce
+// spurious drift on every subsequent plan until the outage resolves.
+func TestGetTeam_MembersEndpointFailureSurfaces(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/api/teams/"):
+			team := map[string]interface{}{
+				"apiVersion": "dash0.com/v1alpha1",
+				"kind":       "Dash0Team",
+				"metadata":   map[string]interface{}{"name": "backend-team"},
+				"spec": map[string]interface{}{
+					"display": map[string]interface{}{
+						"name":  "Backend Team",
+						"color": map[string]interface{}{"from": "#111111", "to": "#222222"},
+					},
+					"members": []string{"00000000-0000-0000-0000-0000000000A1"},
+				},
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"team":            team,
+				"members":         []interface{}{},
+				"dashboards":      []interface{}{},
+				"checkRules":      []interface{}{},
+				"syntheticChecks": []interface{}{},
+				"views":           []interface{}{},
+				"datasets":        []interface{}{},
+			})
+		case r.URL.Path == "/api/members":
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"error":"members endpoint unavailable"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	inner, err := dash0.NewClient(
+		dash0.WithApiUrl(server.URL),
+		dash0.WithAuthToken("auth_test-token"),
+		dash0.WithUserAgent("test"),
+	)
+	require.NoError(t, err)
+
+	c := &dash0Client{inner: inner, apiURL: server.URL}
+
+	result, err := c.GetTeam(t.Context(), "tf_backend")
+	assert.Error(t, err, "members-endpoint failure must surface as an error, not silently return id-form YAML")
+	assert.Empty(t, result, "no JSON should be returned when member resolution fails")
+	assert.Contains(t, err.Error(), "resolve team members to emails", "error must identify the resolution failure")
+}
