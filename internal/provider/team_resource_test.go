@@ -718,6 +718,171 @@ spec:
 	}
 }
 
+// teamValidateConfigRequest builds a ValidateConfigRequest whose Config
+// carries the given team_yaml. Origin and id are left null — ValidateConfig
+// only inspects team_yaml.
+func teamValidateConfigRequest(teamYaml string) resource.ValidateConfigRequest {
+	return resource.ValidateConfigRequest{
+		Config: tfsdk.Config{
+			Raw:    teamTftypesValue("", nil, teamYaml),
+			Schema: teamTestSchema(),
+		},
+	}
+}
+
+// TestTeamResource_ValidateConfig_ValidYAML covers the happy path: a
+// well-formed Dash0Team CRD envelope passes validation with no errors and no
+// warnings (no custom labels).
+func TestTeamResource_ValidateConfig_ValidYAML(t *testing.T) {
+	r := &TeamResource{}
+	req := teamValidateConfigRequest(`
+apiVersion: dash0.com/v1alpha1
+kind: Dash0Team
+metadata:
+  name: backend-team
+spec:
+  display:
+    name: Backend Team
+    color:
+      from: "#111"
+      to: "#222"
+  members: []
+`)
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError())
+	assert.Equal(t, 0, resp.Diagnostics.WarningsCount())
+}
+
+// TestTeamResource_ValidateConfig_InvalidYAML asserts that syntactically
+// invalid YAML fails at plan time (via ValidateConfig) rather than at apply
+// time (via Create/Update's yaml.Unmarshal). The error must be attributed to
+// the team_yaml attribute so Terraform surfaces it inline.
+func TestTeamResource_ValidateConfig_InvalidYAML(t *testing.T) {
+	r := &TeamResource{}
+	req := teamValidateConfigRequest("invalid: yaml: [")
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), req, resp)
+
+	require := assert.New(t)
+	require.True(resp.Diagnostics.HasError())
+	require.Contains(resp.Diagnostics.Errors()[0].Summary(), "Invalid YAML")
+	// AttributePath is populated on attribute-scoped diagnostics.
+	require.NotEmpty(resp.Diagnostics.ErrorsCount(), "attribute-scoped diagnostic should be present")
+}
+
+// TestTeamResource_ValidateConfig_WrongKind asserts the CRD shape check: the
+// resource only manages `kind: Dash0Team`, so any other kind is rejected at
+// plan time with a message pointing at team_yaml.
+func TestTeamResource_ValidateConfig_WrongKind(t *testing.T) {
+	cases := []struct {
+		name string
+		yaml string
+	}{
+		{
+			name: "missing kind",
+			yaml: `
+metadata:
+  name: backend-team
+spec:
+  members: []
+`,
+		},
+		{
+			name: "wrong kind (Dash0Dashboard)",
+			yaml: `
+kind: Dash0Dashboard
+metadata:
+  name: backend-team
+spec: {}
+`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &TeamResource{}
+			req := teamValidateConfigRequest(tc.yaml)
+			resp := &resource.ValidateConfigResponse{}
+			r.ValidateConfig(context.Background(), req, resp)
+
+			assert.True(t, resp.Diagnostics.HasError())
+			assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "wrong kind")
+		})
+	}
+}
+
+// TestTeamResource_ValidateConfig_EmptyDocument covers the case where
+// yaml.Unmarshal succeeds but produces nil (an empty or whitespace-only
+// input). Without the empty-map guard, the subsequent kind check would
+// index a nil map. Bare scalars and sequence roots trip the earlier
+// yaml.Unmarshal-into-map error path and are covered by
+// ValidateConfig_InvalidYAML.
+func TestTeamResource_ValidateConfig_EmptyDocument(t *testing.T) {
+	r := &TeamResource{}
+	req := teamValidateConfigRequest("")
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), req, resp)
+
+	assert.True(t, resp.Diagnostics.HasError())
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "empty or not a YAML mapping")
+}
+
+// TestTeamResource_ValidateConfig_CustomMetadataWarns asserts the two
+// validators compose correctly: valid YAML with the right kind but custom
+// labels emits a warning (not an error) from the metadata check.
+func TestTeamResource_ValidateConfig_CustomMetadataWarns(t *testing.T) {
+	r := &TeamResource{}
+	req := teamValidateConfigRequest(`
+kind: Dash0Team
+metadata:
+  name: backend-team
+  labels:
+    team-lead: alice@example.com
+spec:
+  members: []
+`)
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError())
+	assert.Equal(t, 1, resp.Diagnostics.WarningsCount())
+	assert.Contains(t, resp.Diagnostics.Warnings()[0].Summary(), "metadata.labels outside the dash0.com/*")
+}
+
+// TestTeamResource_ValidateConfig_UnknownOrNullSkips guards the early-return
+// branch: when team_yaml is unknown at plan time (e.g., interpolation from
+// another as-yet-uncomputed resource) or null, ValidateConfig must
+// short-circuit without erroring — the later Create/Update path will re-run
+// the checks against the resolved value.
+func TestTeamResource_ValidateConfig_UnknownOrNullSkips(t *testing.T) {
+	r := &TeamResource{}
+	req := resource.ValidateConfigRequest{
+		Config: tfsdk.Config{
+			Raw: tftypes.NewValue(
+				tftypes.Object{
+					AttributeTypes: map[string]tftypes.Type{
+						"origin":    tftypes.String,
+						"id":        tftypes.String,
+						"team_yaml": tftypes.String,
+					},
+				},
+				map[string]tftypes.Value{
+					"origin":    tftypes.NewValue(tftypes.String, nil),
+					"id":        tftypes.NewValue(tftypes.String, nil),
+					"team_yaml": tftypes.NewValue(tftypes.String, tftypes.UnknownValue),
+				},
+			),
+			Schema: teamTestSchema(),
+		},
+	}
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError(), "unknown team_yaml must not trip validation prematurely")
+	assert.Equal(t, 0, resp.Diagnostics.WarningsCount())
+}
+
 // TestWarnIfCustomTeamMetadataSet_ListsCustomKeysInDetail asserts the
 // warning detail identifies exactly which custom keys will be dropped, so
 // users can locate and remove them.

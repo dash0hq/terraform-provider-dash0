@@ -134,10 +134,18 @@ func (r *TeamResource) Metadata(_ context.Context, req resource.MetadataRequest,
 	resp.TypeName = req.ProviderTypeName + "_team"
 }
 
-// ValidateConfig surfaces warnings about config that the Dash0 API will not
-// honor. Currently this is limited to non-dash0.com/* labels and annotations
-// in metadata, which are dropped by the API on write and stripped by the
-// client on read — so any value the user provided round-trips to nothing.
+// ValidateConfig runs plan-time validation for team_yaml so users see
+// problems on `terraform plan` rather than on the subsequent `terraform
+// apply`. Three checks fire, all cheap:
+//   - YAML syntax: catches malformed heredocs and typos before any write
+//     path is exercised.
+//   - Shape: asserts `kind: Dash0Team` (the CRD envelope discriminator).
+//     `apiVersion` is intentionally not required — the server accepts
+//     omission (defaults to v1alpha1 today); the example pins it for
+//     forward-compat.
+//   - Custom metadata: warns when metadata.labels or metadata.annotations
+//     outside dash0.com/* are declared (the API silently drops them on
+//     write).
 func (r *TeamResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	var model teamModel
 	diags := req.Config.Get(ctx, &model)
@@ -148,7 +156,41 @@ func (r *TeamResource) ValidateConfig(ctx context.Context, req resource.Validate
 	if model.TeamYaml.IsNull() || model.TeamYaml.IsUnknown() {
 		return
 	}
-	warnIfCustomTeamMetadataSet(model.TeamYaml.ValueString(), &resp.Diagnostics)
+	teamYaml := model.TeamYaml.ValueString()
+
+	var parsed map[string]interface{}
+	if err := yaml.Unmarshal([]byte(teamYaml), &parsed); err != nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("team_yaml"),
+			"Invalid YAML in team_yaml",
+			fmt.Sprintf("team_yaml is not valid YAML: %s", err),
+		)
+		return
+	}
+
+	// yaml.Unmarshal accepts a bare scalar or a sequence as valid YAML; those
+	// decode into nil or a non-map value. Guard both so the shape check below
+	// does not spuriously trigger on a well-formed but non-CRD document.
+	if parsed == nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("team_yaml"),
+			"team_yaml is empty or not a YAML mapping",
+			"team_yaml must be a YAML mapping following the Dash0Team CRD envelope (kind, metadata, spec).",
+		)
+		return
+	}
+
+	if kind, _ := parsed["kind"].(string); kind != "Dash0Team" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("team_yaml"),
+			"team_yaml is missing or has the wrong kind",
+			fmt.Sprintf("team_yaml must declare `kind: Dash0Team`; got %q. The dash0_team resource "+
+				"only manages the Dash0Team CRD kind.", kind),
+		)
+		return
+	}
+
+	warnIfCustomTeamMetadataSet(teamYaml, &resp.Diagnostics)
 }
 
 func (r *TeamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
