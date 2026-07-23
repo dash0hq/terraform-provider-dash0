@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c #v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e #v6
         with:
           go-version-file: './go.mod'
 
@@ -49,4 +49,6 @@ jobs:
     with:
       dry-run: false
     secrets:
+      SYNC_DOCUMENTATION_TARGET_REPOSITORY: ${{ secrets.SYNC_DOCUMENTATION_TARGET_REPOSITORY }}
+      SYNC_DOCUMENTATION_TARGET_DIRECTORY: ${{ secrets.SYNC_DOCUMENTATION_TARGET_DIRECTORY }}
       DOCS_WEBSITE_PR_TOKEN: ${{ secrets.DOCS_WEBSITE_PR_TOKEN }}
