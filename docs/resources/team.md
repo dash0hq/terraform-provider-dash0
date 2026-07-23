@@ -29,6 +29,7 @@ Only `metadata.labels` and `metadata.annotations` under the `dash0.com/*` namesp
 # style because they are legible in diffs and reviews.
 resource "dash0_team" "backend" {
   team_yaml = <<-YAML
+apiVersion: dash0.com/v1alpha1
 kind: Dash0Team
 metadata:
   name: backend-team
@@ -63,7 +64,7 @@ output "backend_team_id" {
 
 ### Required
 
-- `team_yaml` (String) The team definition in YAML format, following the `Dash0Team` CRD envelope (`kind: Dash0Team`, `metadata.name` for the technical name, and `spec.display` plus `spec.members` for the human-facing attributes and membership). Server-managed metadata fields (`dash0.com/id`, `dash0.com/source`, `dash0.com/created-at`, `dash0.com/updated-at`) are stripped from the state on read; the provider stamps `dash0.com/origin` from the `origin` attribute on write.
+- `team_yaml` (String) The team definition in YAML format, following the `Dash0Team` CRD envelope: `apiVersion: dash0.com/v1alpha1`, `kind: Dash0Team`, `metadata.name` for the technical name, and `spec.display` plus `spec.members` for the human-facing attributes and membership. Setting `apiVersion` explicitly is recommended so the configuration pins to the current schema and does not silently migrate if a future schema version ships. Server-managed metadata fields (`dash0.com/id`, `dash0.com/source`, `dash0.com/created-at`, `dash0.com/updated-at`) are stripped from the state on read; the provider stamps `dash0.com/origin` from the `origin` attribute on write.
 
 ### Read-Only
 

@@ -81,6 +81,7 @@ info "Step 2: Creating team via Terraform..."
 # Fixture derived from the shared create.yaml — technical name backend-team,
 # display "Backend Team", two members by email.
 cat > "${WORK_DIR}/team.yaml" <<YAMLEOF
+apiVersion: dash0.com/v1alpha1
 kind: Dash0Team
 metadata:
   name: roundtrip-test-team
@@ -158,6 +159,7 @@ info "Team equivalence check PASSED."
 info "Step 4: Updating team (description + membership swap)..."
 
 cat > "${WORK_DIR}/team.yaml" <<YAMLEOF
+apiVersion: dash0.com/v1alpha1
 kind: Dash0Team
 metadata:
   name: roundtrip-test-team

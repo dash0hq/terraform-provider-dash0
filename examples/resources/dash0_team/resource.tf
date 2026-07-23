@@ -8,6 +8,7 @@
 # style because they are legible in diffs and reviews.
 resource "dash0_team" "backend" {
   team_yaml = <<-YAML
+apiVersion: dash0.com/v1alpha1
 kind: Dash0Team
 metadata:
   name: backend-team

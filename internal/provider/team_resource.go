@@ -25,12 +25,17 @@ import (
 )
 
 // teamAlwaysIgnoredFields lists YAML paths that are always stripped during
-// drift detection. The server surfaces these on read but they are not part of
-// the user's declarative intent — they are either fully server-generated
-// (apiVersion, dash0.com/{id,source,created-at,updated-at}) or already
-// captured elsewhere in state (dash0.com/origin, which is stored as the
-// dedicated origin attribute). Stripping them here means the read-side
-// comparison against `team_yaml` sees only the fields the user authored.
+// drift detection because the server manages them, not the user. The
+// `dash0.com/{id,source,created-at,updated-at}` labels/annotations are
+// server-generated on read; `dash0.com/origin` is client-settable on create
+// but already captured elsewhere in state (via the dedicated `origin`
+// attribute). Stripping them here means the read-side comparison against
+// `team_yaml` sees only the fields the user authored.
+//
+// `apiVersion` and `kind` are also stripped during comparison but through the
+// normalizer's default `ignoredFields` list (see internal/converter/normalizer.go),
+// so they do not appear here. The example resource sets them explicitly for
+// clarity and forward compatibility — either style round-trips without drift.
 var teamAlwaysIgnoredFields = []string{
 	"metadata.labels.dash0.com/id",
 	"metadata.labels.dash0.com/origin",
@@ -176,9 +181,11 @@ func (r *TeamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				},
 			},
 			"team_yaml": schema.StringAttribute{
-				Description: "The team definition in YAML format, following the `Dash0Team` CRD envelope (`kind: Dash0Team`, " +
-					"`metadata.name` for the technical name, and `spec.display` plus `spec.members` for the human-facing " +
-					"attributes and membership). Server-managed metadata fields (`dash0.com/id`, `dash0.com/source`, " +
+				Description: "The team definition in YAML format, following the `Dash0Team` CRD envelope: `apiVersion: " +
+					"dash0.com/v1alpha1`, `kind: Dash0Team`, `metadata.name` for the technical name, and `spec.display` " +
+					"plus `spec.members` for the human-facing attributes and membership. Setting `apiVersion` explicitly is " +
+					"recommended so the configuration pins to the current schema and does not silently migrate if a future " +
+					"schema version ships. Server-managed metadata fields (`dash0.com/id`, `dash0.com/source`, " +
 					"`dash0.com/created-at`, `dash0.com/updated-at`) are stripped from the state on read; the provider stamps " +
 					"`dash0.com/origin` from the `origin` attribute on write.",
 				Required: true,
