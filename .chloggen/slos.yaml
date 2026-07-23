@@ -16,7 +16,7 @@ issues: [140]
 # These lines will be padded with 2 spaces and then inserted directly into the document.
 # Use pipe (|) for multiline entries.
 subtext: |
-  SLOs are defined as OpenSLO v1 documents (`apiVersion: openslo/v1`, `kind: SLO`) supplied through the
+  SLOs are defined as OpenSLO v1 documents (`apiVersion: openslo.com/v1`, `kind: SLO`) supplied through the
   `slo_yaml` content attribute. The resource is dataset-scoped, exposes a computed `url` deep link into
   the Dash0 web app, and supports `terraform import` via a `dataset,origin` identifier. The feature is
   Private BETA and supports a constrained subset of OpenSLO: a single objective, an inline `ratioMetric`

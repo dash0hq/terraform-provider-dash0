@@ -21,7 +21,7 @@ import (
 
 // basicSLOYaml is a minimal OpenSLO v1 document within the supported subset
 // (single objective, inline ratioMetric, Occurrences budgeting, rolling 28d).
-const basicSLOYaml = `apiVersion: openslo/v1
+const basicSLOYaml = `apiVersion: openslo.com/v1
 kind: SLO
 metadata:
   name: checkout-availability
@@ -288,7 +288,7 @@ func TestSLOResource_SharingAnnotationTriggersReplan(t *testing.T) {
 		{
 			name: "dash0.com/sharing changed - should trigger replan",
 			configValue: types.StringValue(`
-apiVersion: openslo/v1
+apiVersion: openslo.com/v1
 kind: SLO
 metadata:
   name: checkout-availability
@@ -298,7 +298,7 @@ spec:
   service: checkout
 `),
 			stateValue: types.StringValue(`
-apiVersion: openslo/v1
+apiVersion: openslo.com/v1
 kind: SLO
 metadata:
   name: checkout-availability
@@ -308,7 +308,7 @@ spec:
   service: checkout
 `),
 			expectedPlan: types.StringValue(`
-apiVersion: openslo/v1
+apiVersion: openslo.com/v1
 kind: SLO
 metadata:
   name: checkout-availability
@@ -322,7 +322,7 @@ spec:
 		{
 			name: "dash0.com/sharing same - should suppress replan",
 			configValue: types.StringValue(`
-apiVersion: openslo/v1
+apiVersion: openslo.com/v1
 kind: SLO
 metadata:
   name: checkout-availability
@@ -332,7 +332,7 @@ spec:
   service: checkout
 `),
 			stateValue: types.StringValue(`
-apiVersion: openslo/v1
+apiVersion: openslo.com/v1
 kind: SLO
 metadata:
   name: checkout-availability
@@ -342,7 +342,7 @@ spec:
   service: checkout
 `),
 			expectedPlan: types.StringValue(`
-apiVersion: openslo/v1
+apiVersion: openslo.com/v1
 kind: SLO
 metadata:
   name: checkout-availability
