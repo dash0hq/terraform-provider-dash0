@@ -313,6 +313,18 @@ func (r *TeamResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		state.TeamYaml = types.StringValue(apiResponseJSON)
 	}
 
+	// Self-heal state.id when it's null. resolveTeamID is best-effort at
+	// Create/Import time (a warning + null id on failure) so a transient
+	// members-endpoint or GetTeam failure at Create can leave the resource
+	// with id=null forever — downstream references like dash0_team.foo.id
+	// would then render as an empty string indefinitely. Re-resolving here
+	// lets a subsequent refresh recover the id once the underlying issue
+	// clears. When state.ID is already populated we skip: the id is
+	// immutable server-side, so re-resolving is wasted work.
+	if state.ID.IsNull() {
+		r.resolveTeamID(ctx, &state, &resp.Diagnostics)
+	}
+
 	// Set refreshed state.
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

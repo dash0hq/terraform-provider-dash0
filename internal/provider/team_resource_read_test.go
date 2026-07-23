@@ -15,17 +15,25 @@ import (
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
 
-// testTeamClient is a minimal client.Client stub that returns a canned
-// response for GetTeam. It embeds client.Client so unused methods panic if
-// accidentally called.
+// testTeamClient is a minimal client.Client stub that returns canned
+// responses for GetTeam and ResolveTeam. It embeds client.Client so unused
+// methods panic if accidentally called.
 type testTeamClient struct {
 	client.Client
-	getResponse string
-	getError    error
+	getResponse     string
+	getError        error
+	resolveID       string
+	resolveError    error
+	resolveCallSeen bool
 }
 
 func (c *testTeamClient) GetTeam(_ context.Context, _ string) (string, error) {
 	return c.getResponse, c.getError
+}
+
+func (c *testTeamClient) ResolveTeam(_ context.Context, _ string) (string, error) {
+	c.resolveCallSeen = true
+	return c.resolveID, c.resolveError
 }
 
 // TestTeamResource_ReadWithDiffs exercises the resource's Read normalization
@@ -371,4 +379,128 @@ func TestTeamResource_ReadNonNotFoundStillErrors(t *testing.T) {
 			assert.False(t, resp.State.Raw.IsNull(), "state must be preserved on transient errors")
 		})
 	}
+}
+
+// TestTeamResource_ReadSelfHealsNullID covers the self-heal contract: when
+// state.ID is null (typically because Create's best-effort resolveTeamID
+// failed transiently), a subsequent Read must re-resolve so downstream
+// references to dash0_team.foo.id stop rendering as null once the underlying
+// issue clears.
+func TestTeamResource_ReadSelfHealsNullID(t *testing.T) {
+	stateYaml := `kind: Dash0Team
+metadata:
+  name: backend-team
+spec:
+  display:
+    name: Backend Team
+  members: []`
+
+	apiResponseYaml := `kind: Dash0Team
+metadata:
+  name: backend-team
+  labels:
+    dash0.com/origin: tf_backend
+spec:
+  display:
+    name: Backend Team
+  members: []`
+
+	testSchema := schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"origin":    schema.StringAttribute{Computed: true},
+			"id":        schema.StringAttribute{Computed: true},
+			"team_yaml": schema.StringAttribute{Required: true},
+		},
+	}
+	testClient := &testTeamClient{
+		getResponse: apiResponseYaml,
+		resolveID:   "00000000-0000-0000-0000-000000000001",
+	}
+	r := &TeamResource{client: testClient}
+
+	raw := tftypes.NewValue(
+		tftypes.Object{
+			AttributeTypes: map[string]tftypes.Type{
+				"origin":    tftypes.String,
+				"id":        tftypes.String,
+				"team_yaml": tftypes.String,
+			},
+		},
+		map[string]tftypes.Value{
+			"origin":    tftypes.NewValue(tftypes.String, "tf_backend"),
+			"id":        tftypes.NewValue(tftypes.String, nil), // stuck-null from a prior transient failure
+			"team_yaml": tftypes.NewValue(tftypes.String, stateYaml),
+		},
+	)
+
+	state := tfsdk.State{Raw: raw, Schema: testSchema}
+	req := resource.ReadRequest{State: state}
+	resp := resource.ReadResponse{State: state}
+
+	r.Read(context.Background(), req, &resp)
+
+	assert.True(t, testClient.resolveCallSeen, "Read must re-resolve when state.id is null")
+
+	var resultState teamModel
+	resp.State.Get(context.Background(), &resultState)
+	assert.Equal(t, "00000000-0000-0000-0000-000000000001", resultState.ID.ValueString(),
+		"resolved id must be written to state so downstream refs stop rendering as null")
+}
+
+// TestTeamResource_ReadSkipsResolveWhenIDAlreadyPresent asserts the
+// self-heal branch does not fire wasteful re-resolutions once the id is
+// known — the team id is immutable server-side, so re-resolving on every
+// refresh would be pure overhead.
+func TestTeamResource_ReadSkipsResolveWhenIDAlreadyPresent(t *testing.T) {
+	stateYaml := `kind: Dash0Team
+metadata:
+  name: backend-team
+spec:
+  members: []`
+
+	apiResponseYaml := `kind: Dash0Team
+metadata:
+  name: backend-team
+  labels:
+    dash0.com/origin: tf_backend
+spec:
+  members: []`
+
+	testSchema := schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"origin":    schema.StringAttribute{Computed: true},
+			"id":        schema.StringAttribute{Computed: true},
+			"team_yaml": schema.StringAttribute{Required: true},
+		},
+	}
+	testClient := &testTeamClient{getResponse: apiResponseYaml}
+	r := &TeamResource{client: testClient}
+
+	raw := tftypes.NewValue(
+		tftypes.Object{
+			AttributeTypes: map[string]tftypes.Type{
+				"origin":    tftypes.String,
+				"id":        tftypes.String,
+				"team_yaml": tftypes.String,
+			},
+		},
+		map[string]tftypes.Value{
+			"origin":    tftypes.NewValue(tftypes.String, "tf_backend"),
+			"id":        tftypes.NewValue(tftypes.String, "00000000-0000-0000-0000-000000000001"),
+			"team_yaml": tftypes.NewValue(tftypes.String, stateYaml),
+		},
+	)
+
+	state := tfsdk.State{Raw: raw, Schema: testSchema}
+	req := resource.ReadRequest{State: state}
+	resp := resource.ReadResponse{State: state}
+
+	r.Read(context.Background(), req, &resp)
+
+	assert.False(t, testClient.resolveCallSeen, "Read must not re-resolve when state.id is already populated")
+
+	var resultState teamModel
+	resp.State.Get(context.Background(), &resultState)
+	assert.Equal(t, "00000000-0000-0000-0000-000000000001", resultState.ID.ValueString(),
+		"existing id must be preserved untouched")
 }
