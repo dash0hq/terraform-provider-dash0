@@ -24,25 +24,25 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// teamAlwaysIgnoredFields lists YAML paths that are always stripped during
-// drift detection because the server manages them, not the user. The
-// `dash0.com/{id,source,created-at,updated-at}` labels/annotations are
-// server-generated on read; `dash0.com/origin` is client-settable on create
-// but already captured elsewhere in state (via the dedicated `origin`
-// attribute). Stripping them here means the read-side comparison against
-// `team_yaml` sees only the fields the user authored.
+// The team resource does not need an explicit list of extra fields to strip
+// during drift comparison. Server-managed CRD envelope fields fall into
+// categories the normalizer already handles wholesale:
 //
-// `apiVersion` and `kind` are also stripped during comparison but through the
-// normalizer's default `ignoredFields` list (see internal/converter/normalizer.go),
-// so they do not appear here. The example resource sets them explicitly for
-// clarity and forward compatibility — either style round-trips without drift.
-var teamAlwaysIgnoredFields = []string{
-	"metadata.labels.dash0.com/id",
-	"metadata.labels.dash0.com/origin",
-	"metadata.labels.dash0.com/source",
-	"metadata.annotations.dash0.com/created-at",
-	"metadata.annotations.dash0.com/updated-at",
-}
+//   - `apiVersion` and `kind` are in the normalizer's default `ignoredFields`
+//     (see internal/converter/normalizer.go).
+//   - `metadata.labels` (all keys, including present-and-future dash0.com/*)
+//     is also in that default list, so labels are stripped en masse on both
+//     sides of the comparison.
+//   - `metadata.annotations` (all keys, ditto) is stripped by
+//     stripMetadataAnnotations when no annotation keys are preserved — which
+//     is what we pass here.
+//
+// A hypothetical future server-managed label like `dash0.com/deleted-at`
+// therefore does not cause drift; the entire labels map is discarded before
+// the compare step. If the team resource ever needs to preserve a specific
+// annotation (e.g. `dash0.com/sharing` as check_rule does), switch the plan
+// modifier to `YAMLSemanticEqualWith([]string{...}, "dash0.com/sharing")`
+// and add coverage in team_resource_read_test.go.
 
 // warnIfCustomTeamMetadataSet emits a Warning when the user's YAML declares
 // any metadata.labels or metadata.annotations outside the dash0.com/*
@@ -190,7 +190,7 @@ func (r *TeamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 					"`dash0.com/origin` from the `origin` attribute on write.",
 				Required: true,
 				PlanModifiers: []planmodifier.String{
-					customplanmodifier.YAMLSemanticEqualWith(teamAlwaysIgnoredFields),
+					customplanmodifier.YAMLSemanticEqual(),
 				},
 			},
 		},
@@ -288,13 +288,15 @@ func (r *TeamResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	tflog.Trace(ctx, "read a team resource")
 
 	// Compare current state against the retrieved team so drift is detected
-	// only on fields the user actually authored. teamAlwaysIgnoredFields
-	// strips server-managed labels/annotations that the read path retains
-	// for provenance but that the user does not manage.
+	// only on fields the user actually authored. The normalizer's default
+	// ignoredFields already strips metadata.labels wholesale (any dash0.com/*
+	// key, present or future), and passing a nil preservedAnnotationKeys
+	// makes stripMetadataAnnotations discard all metadata.annotations — so no
+	// team-specific list is needed here (see the block-comment above
+	// teamAlwaysIgnoredFields for the rationale).
 	if state.TeamYaml.ValueString() != "" {
 		stateYAML := state.TeamYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
-		additionalIgnored = append(additionalIgnored, teamAlwaysIgnoredFields...)
 		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored, nil)
 		if err != nil {
 			// Comparison failed — most commonly because the API response is

@@ -220,8 +220,8 @@ spec:
 // response contains labels that the resource strips (server-managed
 // metadata), the state comparison still matches the user's minimal YAML —
 // i.e. the presence of dash0.com/origin in the response does not manifest as
-// perpetual drift. This is regression coverage for the
-// teamAlwaysIgnoredFields set.
+// perpetual drift. The normalizer strips metadata.labels wholesale, so this
+// is stability coverage for that shared normalization behavior.
 func TestTeamResource_ReadPreservesOriginLabel(t *testing.T) {
 	testOrigin := "tf_backend"
 
@@ -503,4 +503,83 @@ spec:
 	resp.State.Get(context.Background(), &resultState)
 	assert.Equal(t, "00000000-0000-0000-0000-000000000001", resultState.ID.ValueString(),
 		"existing id must be preserved untouched")
+}
+
+// TestTeamResource_ReadIgnoresHypotheticalFutureServerLabels locks in the
+// forward-compat property: a new server-managed dash0.com/* label added by a
+// future Dash0 release must not manifest as drift. The normalizer's default
+// ignoredFields already discards metadata.labels wholesale on both sides of
+// the comparison, so no team-specific hardcoded list is needed. This test
+// exists to catch a regression where someone narrows that normalizer
+// behavior without noticing the team resource depended on it.
+func TestTeamResource_ReadIgnoresHypotheticalFutureServerLabels(t *testing.T) {
+	stateYaml := `kind: Dash0Team
+metadata:
+  name: backend-team
+spec:
+  display:
+    name: Backend Team
+    color:
+      from: "#111"
+      to: "#222"
+  members:
+    - alice@example.com`
+
+	// API response carries labels the provider has never heard of — a
+	// deleted-at server label and an entirely fabricated future-tenant label.
+	// Neither is in teamAlwaysIgnoredFields (which is empty), yet Read must
+	// not treat them as drift.
+	apiResponseYaml := `kind: Dash0Team
+metadata:
+  name: backend-team
+  labels:
+    dash0.com/origin: tf_backend
+    dash0.com/deleted-at: "2027-01-01T00:00:00Z"
+    dash0.com/hypothetical-future-key: some-value
+spec:
+  display:
+    name: Backend Team
+    color:
+      from: "#111"
+      to: "#222"
+  members:
+    - alice@example.com`
+
+	testSchema := schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"origin":    schema.StringAttribute{Computed: true},
+			"id":        schema.StringAttribute{Computed: true},
+			"team_yaml": schema.StringAttribute{Required: true},
+		},
+	}
+	testClient := &testTeamClient{getResponse: apiResponseYaml}
+	r := &TeamResource{client: testClient}
+
+	raw := tftypes.NewValue(
+		tftypes.Object{
+			AttributeTypes: map[string]tftypes.Type{
+				"origin":    tftypes.String,
+				"id":        tftypes.String,
+				"team_yaml": tftypes.String,
+			},
+		},
+		map[string]tftypes.Value{
+			"origin":    tftypes.NewValue(tftypes.String, "tf_backend"),
+			"id":        tftypes.NewValue(tftypes.String, "00000000-0000-0000-0000-000000000001"),
+			"team_yaml": tftypes.NewValue(tftypes.String, stateYaml),
+		},
+	)
+
+	state := tfsdk.State{Raw: raw, Schema: testSchema}
+	req := resource.ReadRequest{State: state}
+	resp := resource.ReadResponse{State: state}
+
+	r.Read(context.Background(), req, &resp)
+
+	var resultState teamModel
+	resp.State.Get(context.Background(), &resultState)
+	assert.Equal(t, stateYaml, resultState.TeamYaml.ValueString(),
+		"future server-managed dash0.com/* labels must not trigger a state update")
+	assert.Equal(t, 0, resp.Diagnostics.WarningsCount())
+	assert.False(t, resp.Diagnostics.HasError())
 }
