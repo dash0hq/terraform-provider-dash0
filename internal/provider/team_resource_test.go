@@ -13,6 +13,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 )
 
 func TestTeamResourceModel(t *testing.T) {
@@ -188,6 +190,97 @@ func TestTeamResource_ReadError(t *testing.T) {
 	assert.True(t, resp.Diagnostics.HasError())
 	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Client Error")
 	mockClient.AssertExpectations(t)
+}
+
+// teamDeleteState builds the minimal state fixture used by the Delete tests.
+func teamDeleteState(origin string) tfsdk.State {
+	return tfsdk.State{
+		Raw: tftypes.NewValue(
+			tftypes.Object{
+				AttributeTypes: map[string]tftypes.Type{
+					"origin":    tftypes.String,
+					"id":        tftypes.String,
+					"team_yaml": tftypes.String,
+				},
+			},
+			map[string]tftypes.Value{
+				"origin":    tftypes.NewValue(tftypes.String, origin),
+				"id":        tftypes.NewValue(tftypes.String, nil),
+				"team_yaml": tftypes.NewValue(tftypes.String, "kind: Dash0Team"),
+			},
+		),
+		Schema: schema.Schema{
+			Attributes: map[string]schema.Attribute{
+				"origin":    schema.StringAttribute{Computed: true},
+				"id":        schema.StringAttribute{Computed: true},
+				"team_yaml": schema.StringAttribute{Required: true},
+			},
+		},
+	}
+}
+
+func TestTeamResource_Delete_Success(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &TeamResource{client: mockClient}
+
+	mockClient.On("DeleteTeam", mock.Anything, "tf_origin").Return(nil)
+
+	req := resource.DeleteRequest{State: teamDeleteState("tf_origin")}
+	resp := &resource.DeleteResponse{}
+
+	r.Delete(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError(), "happy-path delete must not surface a diagnostic")
+	mockClient.AssertExpectations(t)
+}
+
+// TestTeamResource_Delete_NotFoundIsIdempotent covers the destroy-after-out-of-
+// band-delete case: a 404 means the team is already gone, so terraform destroy
+// should proceed rather than block waiting for `terraform state rm`.
+func TestTeamResource_Delete_NotFoundIsIdempotent(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &TeamResource{client: mockClient}
+
+	mockClient.On("DeleteTeam", mock.Anything, "tf_origin").
+		Return(&dash0.APIError{StatusCode: 404, Status: "404 Not Found"})
+
+	req := resource.DeleteRequest{State: teamDeleteState("tf_origin")}
+	resp := &resource.DeleteResponse{}
+
+	r.Delete(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError(), "404 on Delete must be swallowed so destroy is idempotent")
+	mockClient.AssertExpectations(t)
+}
+
+// TestTeamResource_Delete_NonNotFoundStillErrors ensures the 404 short-circuit
+// does not swallow other transport errors (5xx, network, auth). Only IsNotFound
+// should turn into idempotent success.
+func TestTeamResource_Delete_NonNotFoundStillErrors(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{"500 server error", &dash0.APIError{StatusCode: 500, Status: "500 Internal Server Error"}},
+		{"401 unauthorized", &dash0.APIError{StatusCode: 401, Status: "401 Unauthorized"}},
+		{"plain network error", errors.New("connection refused")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockClient := &MockClient{}
+			r := &TeamResource{client: mockClient}
+			mockClient.On("DeleteTeam", mock.Anything, "tf_origin").Return(tc.err)
+
+			req := resource.DeleteRequest{State: teamDeleteState("tf_origin")}
+			resp := &resource.DeleteResponse{}
+
+			r.Delete(context.Background(), req, resp)
+
+			assert.True(t, resp.Diagnostics.HasError(), "non-404 errors must still surface")
+			assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Client Error")
+			mockClient.AssertExpectations(t)
+		})
+	}
 }
 
 func TestWarnIfCustomTeamMetadataSet(t *testing.T) {

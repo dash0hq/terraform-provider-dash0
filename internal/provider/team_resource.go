@@ -371,6 +371,13 @@ func (r *TeamResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 
 	err := r.client.DeleteTeam(ctx, state.Origin.ValueString())
 	if err != nil {
+		// Idempotent destroy: a 404 means the team was already removed
+		// out-of-band. The desired end-state ("team is gone") is achieved, so
+		// let terraform destroy proceed rather than force `terraform state rm`.
+		if dash0.IsNotFound(err) {
+			tflog.Debug(ctx, fmt.Sprintf("Team %s was already gone at delete time; treating as success", state.Origin.ValueString()))
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete team, got error: %s", err))
 		return
 	}
