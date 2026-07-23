@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -187,4 +188,150 @@ func TestTeamResource_ReadError(t *testing.T) {
 	assert.True(t, resp.Diagnostics.HasError())
 	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Client Error")
 	mockClient.AssertExpectations(t)
+}
+
+func TestWarnIfCustomTeamMetadataSet(t *testing.T) {
+	cases := []struct {
+		name           string
+		yaml           string
+		expectWarnings int
+		expectSummary  string
+	}{
+		{
+			name: "no metadata",
+			yaml: `
+kind: Dash0Team
+spec:
+  display:
+    name: Backend Team
+  members: []
+`,
+			expectWarnings: 0,
+		},
+		{
+			name: "metadata.name only",
+			yaml: `
+kind: Dash0Team
+metadata:
+  name: backend-team
+spec:
+  members: []
+`,
+			expectWarnings: 0,
+		},
+		{
+			name: "only dash0.com/* labels and annotations",
+			yaml: `
+kind: Dash0Team
+metadata:
+  name: backend-team
+  labels:
+    dash0.com/origin: tf_backend
+  annotations:
+    dash0.com/created-at: "2026-01-15T10:00:00Z"
+spec:
+  members: []
+`,
+			expectWarnings: 0,
+		},
+		{
+			name: "custom label surfaces a warning",
+			yaml: `
+kind: Dash0Team
+metadata:
+  name: backend-team
+  labels:
+    team-lead: alice@example.com
+spec:
+  members: []
+`,
+			expectWarnings: 1,
+			expectSummary:  "metadata.labels outside the dash0.com/* namespace are dropped",
+		},
+		{
+			name: "custom annotation surfaces a warning",
+			yaml: `
+kind: Dash0Team
+metadata:
+  name: backend-team
+  annotations:
+    internal.example.com/cost-center: eng-042
+spec:
+  members: []
+`,
+			expectWarnings: 1,
+			expectSummary:  "metadata.annotations outside the dash0.com/* namespace are dropped",
+		},
+		{
+			name: "mixed custom + dash0.com labels — one warning listing only the custom key",
+			yaml: `
+kind: Dash0Team
+metadata:
+  name: backend-team
+  labels:
+    dash0.com/origin: tf_backend
+    team-lead: alice@example.com
+spec:
+  members: []
+`,
+			expectWarnings: 1,
+		},
+		{
+			name: "custom in both labels and annotations produces two warnings",
+			yaml: `
+kind: Dash0Team
+metadata:
+  name: backend-team
+  labels:
+    team-lead: alice@example.com
+  annotations:
+    internal.example.com/cost-center: eng-042
+spec:
+  members: []
+`,
+			expectWarnings: 2,
+		},
+		{
+			name:           "invalid yaml is silently ignored (validated elsewhere)",
+			yaml:           "not valid {",
+			expectWarnings: 0,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var diags diag.Diagnostics
+			warnIfCustomTeamMetadataSet(tc.yaml, &diags)
+			assert.Equal(t, tc.expectWarnings, diags.WarningsCount())
+			if tc.expectSummary != "" && diags.WarningsCount() > 0 {
+				assert.Contains(t, diags.Warnings()[0].Summary(), tc.expectSummary)
+			}
+		})
+	}
+}
+
+// TestWarnIfCustomTeamMetadataSet_ListsCustomKeysInDetail asserts the
+// warning detail identifies exactly which custom keys will be dropped, so
+// users can locate and remove them.
+func TestWarnIfCustomTeamMetadataSet_ListsCustomKeysInDetail(t *testing.T) {
+	teamYaml := `
+kind: Dash0Team
+metadata:
+  name: backend-team
+  labels:
+    dash0.com/origin: tf_backend
+    zulu: last
+    alpha: first
+spec:
+  members: []
+`
+	var diags diag.Diagnostics
+	warnIfCustomTeamMetadataSet(teamYaml, &diags)
+	require := assert.New(t)
+	require.Equal(1, diags.WarningsCount())
+	detail := diags.Warnings()[0].Detail()
+	// Custom keys are sorted for stable output.
+	require.Contains(detail, "alpha, zulu")
+	// dash0.com/* keys must not appear in the list of dropped entries.
+	require.NotContains(detail, "dash0.com/origin")
 }

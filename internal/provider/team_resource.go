@@ -3,6 +3,8 @@ package provider
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -36,11 +38,55 @@ var teamAlwaysIgnoredFields = []string{
 	"metadata.annotations.dash0.com/updated-at",
 }
 
+// warnIfCustomTeamMetadataSet emits a Warning when the user's YAML declares
+// any metadata.labels or metadata.annotations outside the dash0.com/*
+// namespace. The Dash0 API silently drops non-dash0.com/* entries on write,
+// and StripTeamServerFields mirrors that behavior on the read side by
+// clearing AdditionalProperties on labels and annotations — so any value the
+// user provided round-trips to nothing with no server-side diagnostic. This
+// hook surfaces the discard at plan time so users know their intent will not
+// take effect.
+func warnIfCustomTeamMetadataSet(teamYaml string, diags *diag.Diagnostics) {
+	var parsed map[string]interface{}
+	if err := yaml.Unmarshal([]byte(teamYaml), &parsed); err != nil {
+		return
+	}
+	metadata, ok := parsed["metadata"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	report := func(section string, entries map[string]interface{}) {
+		var custom []string
+		for key := range entries {
+			if !strings.HasPrefix(key, "dash0.com/") {
+				custom = append(custom, key)
+			}
+		}
+		if len(custom) == 0 {
+			return
+		}
+		sort.Strings(custom)
+		diags.AddWarning(
+			fmt.Sprintf("metadata.%s outside the dash0.com/* namespace are dropped by the Dash0 API", section),
+			fmt.Sprintf("The following metadata.%s entries will be silently discarded on write and never appear on read: %s. "+
+				"Only metadata.labels and metadata.annotations under the dash0.com/* namespace are persisted.",
+				section, strings.Join(custom, ", ")),
+		)
+	}
+	if labels, ok := metadata["labels"].(map[string]interface{}); ok {
+		report("labels", labels)
+	}
+	if annotations, ok := metadata["annotations"].(map[string]interface{}); ok {
+		report("annotations", annotations)
+	}
+}
+
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &TeamResource{}
-	_ resource.ResourceWithConfigure   = &TeamResource{}
-	_ resource.ResourceWithImportState = &TeamResource{}
+	_ resource.Resource                   = &TeamResource{}
+	_ resource.ResourceWithConfigure      = &TeamResource{}
+	_ resource.ResourceWithImportState    = &TeamResource{}
+	_ resource.ResourceWithValidateConfig = &TeamResource{}
 )
 
 // NewTeamResource is a helper function to simplify the provider implementation.
@@ -82,6 +128,23 @@ func (r *TeamResource) Metadata(_ context.Context, req resource.MetadataRequest,
 	resp.TypeName = req.ProviderTypeName + "_team"
 }
 
+// ValidateConfig surfaces warnings about config that the Dash0 API will not
+// honor. Currently this is limited to non-dash0.com/* labels and annotations
+// in metadata, which are dropped by the API on write and stripped by the
+// client on read — so any value the user provided round-trips to nothing.
+func (r *TeamResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var model teamModel
+	diags := req.Config.Get(ctx, &model)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if model.TeamYaml.IsNull() || model.TeamYaml.IsUnknown() {
+		return
+	}
+	warnIfCustomTeamMetadataSet(model.TeamYaml.ValueString(), &resp.Diagnostics)
+}
+
 func (r *TeamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a Dash0 Team. Teams group organization members so alert notifications, dashboards, and other assets " +
@@ -89,7 +152,10 @@ func (r *TeamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 			"Membership in `spec.members` accepts either the member's email address or their internal Dash0 id (the " +
 			"`dash0.com/id` label value returned by the Members API, e.g. `user_01ABC...`). Emails are matched " +
 			"case-insensitively and translated to internal ids during reconciliation on the server. The provider normalizes " +
-			"server responses back to email addresses for legibility, so writing emails and refreshing state produces no drift.",
+			"server responses back to email addresses for legibility, so writing emails and refreshing state produces no drift.\n\n" +
+			"Only `metadata.labels` and `metadata.annotations` under the `dash0.com/*` namespace are persisted by the Dash0 API. " +
+			"Any custom labels or annotations you set are silently dropped on write; the provider surfaces this as a plan-time " +
+			"warning via `ValidateConfig` so the discard is visible before apply.",
 
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{

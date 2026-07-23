@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   Manages a Dash0 Team. Teams group organization members so alert notifications, dashboards, and other assets can be attributed to a shared owner. Teams are organization-level resources and are not scoped to a dataset.
   Membership in spec.members accepts either the member's email address or their internal Dash0 id (the dash0.com/id label value returned by the Members API, e.g. user_01ABC...). Emails are matched case-insensitively and translated to internal ids during reconciliation on the server. The provider normalizes server responses back to email addresses for legibility, so writing emails and refreshing state produces no drift.
+  Only metadata.labels and metadata.annotations under the dash0.com/* namespace are persisted by the Dash0 API. Any custom labels or annotations you set are silently dropped on write; the provider surfaces this as a plan-time warning via ValidateConfig so the discard is visible before apply.
 ---
 
 # dash0_team (Resource)
@@ -12,6 +13,8 @@ description: |-
 Manages a Dash0 Team. Teams group organization members so alert notifications, dashboards, and other assets can be attributed to a shared owner. Teams are organization-level resources and are not scoped to a dataset.
 
 Membership in `spec.members` accepts either the member's email address or their internal Dash0 id (the `dash0.com/id` label value returned by the Members API, e.g. `user_01ABC...`). Emails are matched case-insensitively and translated to internal ids during reconciliation on the server. The provider normalizes server responses back to email addresses for legibility, so writing emails and refreshing state produces no drift.
+
+Only `metadata.labels` and `metadata.annotations` under the `dash0.com/*` namespace are persisted by the Dash0 API. Any custom labels or annotations you set are silently dropped on write; the provider surfaces this as a plan-time warning via `ValidateConfig` so the discard is visible before apply.
 
 ## Example Usage
 
