@@ -22,7 +22,7 @@ write_provider_tf "$WORK_DIR"
 info "Step 1: Creating SLO via Terraform..."
 
 cat > "${WORK_DIR}/slo.yaml" <<'YAMLEOF'
-apiVersion: openslo/v1
+apiVersion: openslo.com/v1
 kind: SLO
 metadata:
   name: roundtrip-test-slo
@@ -112,7 +112,7 @@ info "SLO equivalence check PASSED."
 info "Step 3: Updating SLO (changing objective target and description)..."
 
 cat > "${WORK_DIR}/slo.yaml" <<'YAMLEOF'
-apiVersion: openslo/v1
+apiVersion: openslo.com/v1
 kind: SLO
 metadata:
   name: roundtrip-test-slo

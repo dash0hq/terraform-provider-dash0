@@ -10,7 +10,7 @@ resource "dash0_slo" "checkout_latency" {
   dataset = "default"
 
   slo_yaml = <<-YAML
-apiVersion: openslo/v1
+apiVersion: openslo.com/v1
 kind: SLO
 metadata:
   name: checkout-latency

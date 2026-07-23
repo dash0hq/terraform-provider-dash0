@@ -17,7 +17,7 @@ const sloResourceName = "dash0_slo.test"
 
 // basicSLOAccYaml is an OpenSLO v1 document within the supported subset
 // (single objective, inline ratioMetric, Occurrences budgeting, rolling 28d).
-const basicSLOAccYaml = `apiVersion: openslo/v1
+const basicSLOAccYaml = `apiVersion: openslo.com/v1
 kind: SLO
 metadata:
   name: checkout-availability
@@ -51,7 +51,7 @@ spec:
     - displayName: 99% availability
       target: 0.99`
 
-const updatedSLOAccYaml = `apiVersion: openslo/v1
+const updatedSLOAccYaml = `apiVersion: openslo.com/v1
 kind: SLO
 metadata:
   name: checkout-availability

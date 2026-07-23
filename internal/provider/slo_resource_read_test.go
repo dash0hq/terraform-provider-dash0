@@ -25,7 +25,7 @@ func (c *testSLOClient) GetSLO(_ context.Context, _, _ string) (string, error) {
 
 func TestSLOResource_ReadWithDiffs(t *testing.T) {
 	// Create test data
-	baseYAML := `apiVersion: openslo/v1
+	baseYAML := `apiVersion: openslo.com/v1
 kind: SLO
 metadata:
   name: checkout-availability
@@ -37,7 +37,7 @@ spec:
       target: 0.99
 `
 
-	yamlWithMetadataChanges := `apiVersion: openslo/v1
+	yamlWithMetadataChanges := `apiVersion: openslo.com/v1
 kind: SLO
 metadata:
   name: checkout-availability
@@ -55,7 +55,7 @@ spec:
       target: 0.99
 `
 
-	yamlWithSignificantChanges := `apiVersion: openslo/v1
+	yamlWithSignificantChanges := `apiVersion: openslo.com/v1
 kind: SLO
 metadata:
   name: checkout-availability
