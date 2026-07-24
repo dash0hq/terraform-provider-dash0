@@ -128,7 +128,7 @@ files:
   - source: docs/resources/team.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/team.md
     title: dash0_team
-    description: Terraform resource for Dash0 teams — declaratively manage the technical name, display attributes, and membership of a team via the TeamDefinitionV1Alpha1 CRD envelope.
+    description: Terraform resource for Dash0 teams — declaratively manage the technical name, display attributes, and membership of a team via the Dash0Team CRD envelope.
 
   - source: docs/resources/view.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/view.md

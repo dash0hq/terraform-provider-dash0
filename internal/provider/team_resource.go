@@ -203,7 +203,7 @@ func (r *TeamResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 			"server responses back to email addresses for legibility, so writing emails and refreshing state produces no drift.\n\n" +
 			"Only `metadata.labels` and `metadata.annotations` under the `dash0.com/*` namespace are persisted by the Dash0 API. " +
 			"Any custom labels or annotations you set are silently dropped on write; the provider surfaces this as a plan-time " +
-			"warning via `ValidateConfig` so the discard is visible before apply.",
+			"warning so the discard is visible before apply.",
 
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
