@@ -489,7 +489,7 @@ YAML
 #   (team.name = "sre" AND deployment.environment.name = "production")
 #   OR (service.severity = "critical")
 #
-# Note: `routing` also has a read-only `assets` sibling — the Dash0 API populates it as a
+# Note: `routing` also has an API-managed `assets` sibling — the Dash0 API populates it as a
 # back-reference when a check rule or synthetic check binds to the channel, and discards any
 # value supplied on write (the provider warns if you set it). Bind a check rule via its
 # `dash0.com/notification-channel-ids` annotation, or a synthetic check via its
