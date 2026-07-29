@@ -488,6 +488,12 @@ YAML
 # In this example, notifications are sent when:
 #   (team.name = "sre" AND deployment.environment.name = "production")
 #   OR (service.severity = "critical")
+#
+# Note: `routing` also has a read-only `assets` sibling — the Dash0 API populates it as a
+# back-reference when a check rule or synthetic check binds to the channel, and discards any
+# value supplied on write (the provider warns if you set it). Bind a check rule via its
+# `dash0.com/notification-channel-ids` annotation, or a synthetic check via its
+# `spec.notifications.channels`.
 resource "dash0_notification_channel" "webhook_with_routing" {
   notification_channel_yaml = <<-YAML
 kind: Dash0NotificationChannel
