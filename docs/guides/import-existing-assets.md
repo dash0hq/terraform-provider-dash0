@@ -197,6 +197,9 @@ Beyond that, three things are worth spot-checking:
 - **`id` and `url` attributes.** Both are computed after import — `id` is Dash0's server-assigned UUID, `url` deep-links into the Dash0 web app.
   Neither round-trips into Dash0; they exist so other resources can reference the imported asset.
 - **Cross-resource references.** A `dash0_check_rule` that names a `dash0_notification_channel` by its `id` in the `dash0.com/notification-channel-ids` annotation still resolves after an import — the channel's `id` attribute is populated during import, just as it is after a Terraform-driven create.
+- **API-managed `spec.routing.assets` on imported channels.** An imported `dash0_notification_channel` that check rules or synthetic checks bind to shows a populated `spec.routing.assets` — do not copy it into your configuration.
+  It is a server-derived back-reference: the API discards any value supplied on write (the provider warns if you set it), and the provider excludes it from drift comparison.
+  Bind a check rule via its `dash0.com/notification-channel-ids` annotation, or a synthetic check via its `spec.notifications.channels`.
 
 ~> **Note:** A stubborn `plan` diff on a `dash0_spam_filter` import that survives re-exporting the YAML is almost always an `apiVersion` mismatch — the provider dispatches on it, so `apiVersion: v1alpha1` (the older `spec.contexts` list shape) and `apiVersion: v1alpha2` (the newer `spec.context` single-value shape) are treated as distinct schemas.
 

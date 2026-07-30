@@ -43,7 +43,7 @@ var notificationChannelAlwaysIgnoredFields = []string{
 
 // warnIfRoutingAssetsSet emits a Warning when the user's YAML declares a
 // non-empty spec.routing.assets list. The Dash0 API discards this field on
-// write, so the value will not take effect; binding a check rule or synthetic
+// write, leaving existing bindings unaffected; binding a check rule or synthetic
 // check to a notification channel must be expressed on the check resource.
 func warnIfRoutingAssetsSet(channelYaml string, diags *diag.Diagnostics) {
 	var parsed map[string]interface{}
@@ -66,8 +66,8 @@ func warnIfRoutingAssetsSet(channelYaml string, diags *diag.Diagnostics) {
 		"spec.routing.assets is API-managed and ignored on write",
 		"The Dash0 API populates spec.routing.assets as a back-reference when "+
 			"other resources bind to this notification channel by id, and "+
-			"discards any value supplied on write. The entries you provided "+
-			"will not take effect. To bind a check rule, set the annotation "+
+			"discards any value supplied on write. Existing bindings "+
+			"are unaffected. To bind a check rule, set the annotation "+
 			"dash0.com/notification-channel-ids on the check rule; to bind a "+
 			"synthetic check, set spec.notifications.channels on the "+
 			"synthetic check.",
