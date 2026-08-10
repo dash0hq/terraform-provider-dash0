@@ -115,6 +115,11 @@ files:
     title: dash0_recording_rule
     description: Terraform resource for Dash0 recording rule groups defined in the Prometheus Rule format.
 
+  - source: docs/resources/slo.md
+    target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/slo.md
+    title: dash0_slo
+    description: Terraform resource for Dash0 service level objectives (SLOs) defined in the OpenSLO format.
+
   - source: docs/resources/spam_filter.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/spam-filter.md
     title: dash0_spam_filter
