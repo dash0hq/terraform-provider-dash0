@@ -11,16 +11,19 @@ This guide shows how to deploy the Dash0 AWS integration using Terraform's [`aws
 
 ~> **Note:** This is not a native Dash0 provider resource. It uses the AWS provider to deploy a CloudFormation stack with the official Dash0 integration template.
 
-The integration provisions the required IAM roles and configuration for collecting telemetry from your AWS account. The template additionally provisions, via a CloudFormation StackSet, per-region resources for the `AWS/Lambda` namespace — a Kinesis Firehose delivery stream, a CloudWatch metric stream and an S3 backup bucket — and, optionally, an EventBridge rule, ApiDestination, and Connection that forward Lambda lifecycle events (`UpdateFunctionConfiguration`, `DeleteFunction`) to Dash0 in near real-time.
+The integration provisions the required IAM roles and configuration for collecting telemetry from your AWS account.
+The template additionally provisions, via a CloudFormation StackSet, per-region resources for the `AWS/Lambda` namespace — a Kinesis Firehose delivery stream, a CloudWatch metric stream and an S3 backup bucket — and, optionally, an EventBridge rule, ApiDestination, and Connection that forward Lambda lifecycle events (`UpdateFunctionConfiguration`, `DeleteFunction`) to Dash0 in near real-time.
 
 ## Prerequisites
 
 - An active [Dash0](https://dash0.com) organization.
 - A Dash0 **API key** (auth token), created under **Settings > Auth Tokens** in the Dash0 UI.
-- Your Dash0 **regional endpoint base URL**, found under **Settings > Endpoints > AWS CloudWatch Metrics** in the Dash0 UI (for example `https://ingress.eu-west-1.aws.dash0.com`). Provide only the base URL — the template appends the required paths internally.
+- Your Dash0 **regional endpoint base URL**, found under **Settings > Endpoints > AWS CloudWatch Metrics** in the Dash0 UI (for example `https://ingress.eu-west-1.aws.dash0.com`).
+  Provide only the base URL — the template appends the required paths internally.
 - An AWS account with permissions to create CloudFormation stacks, StackSets, and IAM roles.
 - Terraform >= 1.0 and the [AWS provider](https://registry.terraform.io/providers/hashicorp/aws/latest) >= 5.0.
-- To collect Lambda lifecycle events (enabled by default), a CloudTrail trail logging management events in each region listed in `Regions`. Most AWS accounts already have an org-wide trail; if yours does not, either enable one or set `CollectLambdaLifecycleEvents` to `"false"`.
+- To collect Lambda lifecycle events (enabled by default), a CloudTrail trail logging management events in each region listed in `Regions`.
+  Most AWS accounts already have an org-wide trail; if yours does not, either enable one or set `CollectLambdaLifecycleEvents` to `"false"`.
 
 ## Example Usage
 
@@ -47,7 +50,8 @@ resource "aws_cloudformation_stack" "dash0_integration" {
 }
 ```
 
-The `CAPABILITY_NAMED_IAM` capability is required because the template creates named IAM roles for the Dash0 integration. The `CAPABILITY_AUTO_EXPAND` capability is required because the v2 template includes a nested `AWS::CloudFormation::StackSet` that deploys the per-region Dash0 resources (Lambda metrics streaming and, optionally, Lambda lifecycle event forwarding).
+The `CAPABILITY_NAMED_IAM` capability is required because the template creates named IAM roles for the Dash0 integration.
+The `CAPABILITY_AUTO_EXPAND` capability is required because the v2 template includes a nested `AWS::CloudFormation::StackSet` that deploys the per-region Dash0 resources (Lambda metrics streaming and, optionally, Lambda lifecycle event forwarding).
 
 CloudFormation expects `Regions` to be a `CommaDelimitedList`, so the Terraform list variable is joined into a comma-separated string before being passed to the stack.
 
@@ -92,6 +96,11 @@ CloudFormation expects `Regions` to be a `CommaDelimitedList`, so the Terraform 
 ## Notes
 
 - The `api_key` variable is marked as `sensitive` so Terraform will not display its value in plan or apply output.
-- The `TechnicalId` parameter is optional. When omitted or left empty, the template derives the IAM external ID from the CloudFormation stack ID. This is the recommended approach for Terraform onboarding — no Dash0-internal identifier is required.
-- The CloudFormation stack is region-specific. Deploy it in the region where your AWS workloads run, or in the region closest to your Dash0 environment. The `Regions` parameter controls which regions the nested StackSet provisions Lambda metrics streaming into; it is independent from the region the parent stack itself is deployed in.
-- The S3 backup bucket created by the StackSet is retained on `terraform destroy` by design. Delete it manually if you want to fully reclaim the bucket name before re-onboarding.
+- The `TechnicalId` parameter is optional.
+  When omitted or left empty, the template derives the IAM external ID from the CloudFormation stack ID.
+  This is the recommended approach for Terraform onboarding — no Dash0-internal identifier is required.
+- The CloudFormation stack is region-specific.
+  Deploy it in the region where your AWS workloads run, or in the region closest to your Dash0 environment.
+  The `Regions` parameter controls which regions the nested StackSet provisions Lambda metrics streaming into; it is independent from the region the parent stack itself is deployed in.
+- The S3 backup bucket created by the StackSet is retained on `terraform destroy` by design.
+  Delete it manually if you want to fully reclaim the bucket name before re-onboarding.

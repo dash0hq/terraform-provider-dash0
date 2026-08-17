@@ -31,6 +31,7 @@ IMAGE_NAME="dash0-roundtrip-tests"
 MOUNT_DASH0_CONFIG=""
 if [[ -n "${DASH0_API_URL:-}" && -n "${DASH0_AUTH_TOKEN:-}" ]]; then
   DASH0_DATASET="${DASH0_DATASET:-default}"
+  DASH0_OTLP_URL="${DASH0_OTLP_URL:-}"
   echo "Using credentials from environment variables."
 elif [[ -f ~/.dash0/activeProfile && -f ~/.dash0/profiles.json ]]; then
   ACTIVE_PROFILE="$(cat ~/.dash0/activeProfile)"
@@ -43,6 +44,7 @@ print(json.dumps(p['configuration']))
   DASH0_API_URL="$(echo  "$PROFILE_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["apiUrl"])')"
   DASH0_AUTH_TOKEN="$(echo "$PROFILE_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["authToken"])')"
   DASH0_DATASET="$(echo  "$PROFILE_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("dataset","default"))')"
+  DASH0_OTLP_URL="$(echo "$PROFILE_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("otlpUrl",""))')"
 
   # Detect OAuth-enabled profile. The access token may be expired; mount the
   # config directory into the container so the provider can refresh it.
@@ -107,6 +109,7 @@ else
     test_import_synthetic_check.sh
     test_import_team.sh
     test_import_view.sh
+    test_actions.sh
   )
 fi
 
@@ -127,6 +130,7 @@ for test in "${TESTS[@]}"; do
     -e DASH0_API_URL="$DASH0_API_URL" \
     -e DASH0_AUTH_TOKEN="${DASH0_AUTH_TOKEN:-}" \
     -e DASH0_DATASET="$DASH0_DATASET" \
+    -e DASH0_OTLP_URL="${DASH0_OTLP_URL:-}" \
     $MOUNT_DASH0_CONFIG \
     "$IMAGE_NAME" \
     "/tests/${test}"

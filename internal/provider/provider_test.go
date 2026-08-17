@@ -70,12 +70,20 @@ func clearCredentialEnv(t *testing.T) {
 	t.Setenv("DASH0_API_URL", "")
 	t.Setenv("DASH0_URL", "")
 	t.Setenv("DASH0_AUTH_TOKEN", "")
+	t.Setenv("DASH0_OTLP_URL", "")
 	t.Setenv("DASH0_CONFIG_DIR", filepath.Join(t.TempDir(), "no-config-here"))
 }
 
 // providerTestConfig builds a tfsdk.Config for provider tests. Pass nil for
-// any value to leave it unset (null).
+// any value to leave it unset (null). The OTLP URL is left unset; use
+// providerTestConfigWithOtlpURL when it matters.
 func providerTestConfig(url, authToken, profile *string, maxRetries *int64) tfsdk.Config {
+	return providerTestConfigWithOtlpURL(url, authToken, profile, nil, maxRetries)
+}
+
+// providerTestConfigWithOtlpURL builds a tfsdk.Config including the otlp_url
+// attribute. Pass nil for any value to leave it unset (null).
+func providerTestConfigWithOtlpURL(url, authToken, profile, otlpURL *string, maxRetries *int64) tfsdk.Config {
 	stringVal := func(p *string) tftypes.Value {
 		if p == nil {
 			return tftypes.NewValue(tftypes.String, nil)
@@ -93,12 +101,14 @@ func providerTestConfig(url, authToken, profile *string, maxRetries *int64) tfsd
 			AttributeTypes: map[string]tftypes.Type{
 				"url":         tftypes.String,
 				"auth_token":  tftypes.String,
+				"otlp_url":    tftypes.String,
 				"profile":     tftypes.String,
 				"max_retries": tftypes.Number,
 			},
 		}, map[string]tftypes.Value{
 			"url":         stringVal(url),
 			"auth_token":  stringVal(authToken),
+			"otlp_url":    stringVal(otlpURL),
 			"profile":     stringVal(profile),
 			"max_retries": numberVal(maxRetries),
 		}),

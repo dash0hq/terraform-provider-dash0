@@ -129,6 +129,7 @@ func testAccCheckNotificationChannelExists(resourceName string) resource.TestChe
 		c, err := client.NewDash0Client(
 			os.Getenv("DASH0_URL"),
 			dash0.StaticAuthTokenProvider(os.Getenv("DASH0_AUTH_TOKEN")),
+			false,
 			"test",
 			3,
 		)

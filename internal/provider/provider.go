@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/action"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -23,7 +24,8 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces
 var (
-	_ provider.Provider = &dash0Provider{}
+	_ provider.Provider            = &dash0Provider{}
+	_ provider.ProviderWithActions = &dash0Provider{}
 )
 
 // New is a helper function to simplify provider server and testing implementation.
@@ -44,6 +46,7 @@ type dash0Provider struct {
 type providerConfigModel struct {
 	URL        types.String `tfsdk:"url"`
 	AuthToken  types.String `tfsdk:"auth_token"`
+	OtlpURL    types.String `tfsdk:"otlp_url"`
 	Profile    types.String `tfsdk:"profile"`
 	MaxRetries types.Int64  `tfsdk:"max_retries"`
 }
@@ -60,16 +63,20 @@ func providerSchema() schema.Schema {
 		Attributes: map[string]schema.Attribute{
 			"url": schema.StringAttribute{
 				Optional:    true,
-				Description: "The base URL of the Dash0 API (e.g. \"https://api.us-west-2.aws.dash0.com\"). If omitted, the DASH0_API_URL environment variable is used. DASH0_URL is accepted as a deprecated fallback.",
+				Description: "The base URL of the Dash0 API (e.g. \"https://api.us-west-2.aws.dash0.com\"). Find yours on the [API endpoint settings page](https://app.dash0.com/goto/settings/endpoints?endpoint_type=api_http). If omitted, the DASH0_API_URL environment variable is used. DASH0_URL is accepted as a deprecated fallback.",
 			},
 			"auth_token": schema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,
-				Description: "The API auth token for Dash0. Static tokens (prefixed `auth_`) can be created in [Dash0 Settings > Auth Tokens](https://app.dash0.com/settings/auth-tokens). OAuth access tokens (prefixed `dash0_at_`) are obtained via `dash0 auth login`. If omitted, the DASH0_AUTH_TOKEN environment variable is used.",
+				Description: "The API auth token for Dash0. Static tokens (prefixed `auth_`) can be created in [Dash0 Settings > Auth Tokens](https://app.dash0.com/goto/settings/auth-tokens). OAuth access tokens (prefixed `dash0_at_`) are obtained via `dash0 auth login`. If omitted, the DASH0_AUTH_TOKEN environment variable is used.",
+			},
+			"otlp_url": schema.StringAttribute{
+				Optional:    true,
+				Description: "The base URL of the Dash0 OTLP/HTTP ingress endpoint (e.g. \"https://ingress.us-west-2.aws.dash0.com\"). Find yours on the [OTLP endpoint settings page](https://app.dash0.com/goto/settings/endpoints?endpoint_type=otlp_http). This is a different host from `url`, which addresses the Dash0 API. It is only required by the `dash0_log_event` and `dash0_deployment_event` actions; all resources work without it. If omitted, the DASH0_OTLP_URL environment variable is used, followed by the OTLP URL of the dash0 CLI profile. Signal-specific paths such as `/v1/logs` are appended automatically and must not be included.",
 			},
 			"profile": schema.StringAttribute{
 				Optional:    true,
-				Description: "The name of a [dash0 CLI](https://github.com/dash0hq/dash0-cli) profile to load credentials from when `url`/`auth_token` are not supplied via attributes or environment variables. If unset, the active profile in the dash0 CLI configuration directory is used. The directory defaults to `~/.dash0` and can be overridden with the DASH0_CONFIG_DIR environment variable.",
+				Description: "The name of a [dash0 CLI](https://github.com/dash0hq/dash0-cli) profile to load credentials from when `url`/`auth_token`/`otlp_url` are not supplied via attributes or environment variables. If unset, the active profile in the dash0 CLI configuration directory is used. The directory defaults to `~/.dash0` and can be overridden with the DASH0_CONFIG_DIR environment variable.",
 			},
 			"max_retries": schema.Int64Attribute{
 				Optional:    true,
@@ -126,9 +133,9 @@ func loadProfileConfiguration(ctx context.Context, profileName string) (*dash0Pr
 	return cfg, nil
 }
 
-// authInfo holds the resolved Dash0 URL, auth token, and whether the token
-// originated from an OAuth-enabled CLI profile (in which case the auth_
-// prefix validation is skipped).
+// authInfo holds the resolved Dash0 URL, auth token, OTLP endpoint, and
+// whether the token originated from an OAuth-enabled CLI profile (in which
+// case the auth_ prefix validation is skipped).
 //
 // profileCfg is the CLI profile the credentials came from, or nil when they came
 // from the environment or the provider block. It is retained so the client can
@@ -137,6 +144,7 @@ func loadProfileConfiguration(ctx context.Context, profileName string) (*dash0Pr
 type authInfo struct {
 	url        string
 	token      string
+	otlpURL    string
 	isOAuth    bool
 	profileCfg *dash0Profiles.Configuration
 }
@@ -153,12 +161,12 @@ func (a authInfo) tokenProvider() dash0.AuthTokenProvider {
 	return dash0.StaticAuthTokenProvider(a.token)
 }
 
-// resolveAuthInfo computes the Dash0 URL and auth token according to the
-// documented precedence:
+// resolveAuthInfo computes the Dash0 URL, auth token, and OTLP endpoint
+// according to the documented precedence:
 //
-//  1. DASH0_API_URL / DASH0_AUTH_TOKEN environment variables (DASH0_URL is
-//     accepted as a deprecated fallback for the URL).
-//  2. Provider attributes (`url`, `auth_token`).
+//  1. DASH0_API_URL / DASH0_AUTH_TOKEN / DASH0_OTLP_URL environment variables
+//     (DASH0_URL is accepted as a deprecated fallback for the API URL).
+//  2. Provider attributes (`url`, `auth_token`, `otlp_url`).
 //  3. dash0 CLI profile — the one named by the `profile` attribute, or the
 //     active profile if `profile` is empty.
 //
@@ -167,21 +175,37 @@ func (a authInfo) tokenProvider() dash0.AuthTokenProvider {
 // occurs. ErrNoActiveProfile with no explicit profile is treated as "no CLI
 // profile configured" and silently ignored — the caller is then expected to
 // emit a "missing credentials" diagnostic.
+//
+// The OTLP endpoint is deliberately not part of the "credentials are complete"
+// test: it is only needed by the log-event actions, so a configuration that
+// supplies the API URL and auth token but no OTLP URL must keep working exactly
+// as before. See the comment on the profile lookup below.
 func resolveAuthInfo(ctx context.Context, cfg *providerConfigModel) (authInfo, error) {
-	var attrURL, attrAuthToken string
+	var attrURL, attrAuthToken, attrOtlpURL string
 	if !cfg.URL.IsNull() && !cfg.URL.IsUnknown() {
 		attrURL = cfg.URL.ValueString()
 	}
 	if !cfg.AuthToken.IsNull() && !cfg.AuthToken.IsUnknown() {
 		attrAuthToken = cfg.AuthToken.ValueString()
 	}
+	if !cfg.OtlpURL.IsNull() && !cfg.OtlpURL.IsUnknown() {
+		attrOtlpURL = cfg.OtlpURL.ValueString()
+	}
 
 	url := cmp.Or(getEnvURL(), attrURL)
 	authToken := cmp.Or(os.Getenv("DASH0_AUTH_TOKEN"), attrAuthToken)
+	otlpURL := cmp.Or(os.Getenv("DASH0_OTLP_URL"), attrOtlpURL)
 
-	if url != "" && authToken != "" {
-		return authInfo{url: url, token: authToken}, nil
+	if url != "" && authToken != "" && otlpURL != "" {
+		return authInfo{url: url, token: authToken, otlpURL: otlpURL}, nil
 	}
+
+	// Whether the credentials were already complete before consulting the CLI
+	// profile decides how a profile-load failure is treated. When they were, the
+	// only thing the profile could still contribute is the OTLP URL, which most
+	// configurations do not need — so a broken or absent profiles file must not
+	// turn a previously working env-var-only setup into a hard error.
+	credentialsComplete := url != "" && authToken != ""
 
 	var profileName string
 	var profileExplicit bool
@@ -192,10 +216,15 @@ func resolveAuthInfo(ctx context.Context, cfg *providerConfigModel) (authInfo, e
 
 	profileCfg, err := loadProfileConfiguration(ctx, profileName)
 	if err != nil {
-		if !profileExplicit && errors.Is(err, dash0Profiles.ErrNoActiveProfile) {
-			return authInfo{url: url, token: authToken}, nil
+		if !profileExplicit && (credentialsComplete || errors.Is(err, dash0Profiles.ErrNoActiveProfile)) {
+			if credentialsComplete && !errors.Is(err, dash0Profiles.ErrNoActiveProfile) {
+				tflog.Debug(ctx, "Ignoring dash0 CLI profile error; credentials already resolved", map[string]any{
+					"error": err.Error(),
+				})
+			}
+			return authInfo{url: url, token: authToken, otlpURL: otlpURL}, nil
 		}
-		return authInfo{url: url, token: authToken}, err
+		return authInfo{url: url, token: authToken, otlpURL: otlpURL}, err
 	}
 
 	isOAuth := false
@@ -206,7 +235,10 @@ func resolveAuthInfo(ctx context.Context, cfg *providerConfigModel) (authInfo, e
 		authToken = profileCfg.AuthToken
 		isOAuth = profileCfg.OAuth != nil
 	}
-	return authInfo{url: url, token: authToken, isOAuth: isOAuth, profileCfg: profileCfg}, nil
+	if otlpURL == "" {
+		otlpURL = profileCfg.OtlpUrl
+	}
+	return authInfo{url: url, token: authToken, otlpURL: otlpURL, isOAuth: isOAuth, profileCfg: profileCfg}, nil
 }
 
 // Configure prepares a Dash0 API client for data sources and resources.
@@ -301,8 +333,12 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	tflog.Debug(ctx, "Creating Dash0 client")
 
-	// Create dash0Client configuration for data sources and resources
-	dash0Client, err := client.NewDash0Client(auth.url, auth.tokenProvider(), p.version, maxRetries)
+	// Create dash0Client configuration for data sources, resources, and actions
+	clientOpts := []client.Dash0ClientOption{}
+	if auth.otlpURL != "" {
+		clientOpts = append(clientOpts, client.WithOtlpURL(auth.otlpURL))
+	}
+	dash0Client, err := client.NewDash0Client(auth.url, auth.tokenProvider(), auth.isOAuth, p.version, maxRetries, clientOpts...)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create Dash0 API Client",
@@ -313,6 +349,7 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	resp.DataSourceData = dash0Client
 	resp.ResourceData = dash0Client
+	resp.ActionData = dash0Client
 
 	tflog.Info(ctx, "Configured Dash0 client", map[string]any{"success": true})
 }
@@ -333,5 +370,15 @@ func (p *dash0Provider) Resources(_ context.Context) []func() resource.Resource 
 		NewNotificationChannelResource,
 		NewSpamFilterResource,
 		NewTeamResource,
+	}
+}
+
+// Actions defines the actions implemented in the provider. Actions are
+// point-in-time operations that do not manage state; they require Terraform
+// 1.14 or later.
+func (p *dash0Provider) Actions(_ context.Context) []func() action.Action {
+	return []func() action.Action{
+		NewLogEventAction,
+		NewDeploymentEventAction,
 	}
 }

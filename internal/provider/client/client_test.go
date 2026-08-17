@@ -10,7 +10,7 @@ import (
 )
 
 func TestNewDash0Client(t *testing.T) {
-	c, err := NewDash0Client("https://api.example.com", dash0.StaticAuthTokenProvider("auth_test-token"), "test", 3)
+	c, err := NewDash0Client("https://api.example.com", dash0.StaticAuthTokenProvider("auth_test-token"), false, "test", 3)
 	require.NoError(t, err)
 	assert.NotNil(t, c)
 }
@@ -24,7 +24,7 @@ func TestNewDash0Client(t *testing.T) {
 // error: the provider's Configure validates the prefix before reaching this
 // constructor. See TestDash0Provider_Configure_InvalidAuthToken.
 func TestNewDash0Client_InvalidToken(t *testing.T) {
-	c, err := NewDash0Client("https://api.example.com", dash0.StaticAuthTokenProvider("invalid-token"), "test", 3)
+	c, err := NewDash0Client("https://api.example.com", dash0.StaticAuthTokenProvider("invalid-token"), false, "test", 3)
 	require.NoError(t, err)
 	assert.NotNil(t, c)
 }
