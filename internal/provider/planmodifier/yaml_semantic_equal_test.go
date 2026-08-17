@@ -2,6 +2,7 @@ package planmodifier
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -290,6 +291,71 @@ spec:
 			resp := &planmodifier.StringResponse{
 				PlanValue: tt.configValue, // Initialize with config value
 			}
+
+			modifier.PlanModifyString(context.Background(), req, resp)
+
+			assert.Equal(t, tt.expectedPlan, resp.PlanValue, tt.description)
+		})
+	}
+}
+
+// The normalize func is applied to both sides before they are compared, so two
+// documents that differ only in a way normalization erases must plan as equal,
+// and a normalize func that erases nothing must leave the comparison unchanged.
+func TestYAMLSemanticEqualNormalizing_PlanModifyString(t *testing.T) {
+	// Moves a top-level `shared` key onto the single rule, mirroring what the
+	// check rule resource does with metadata.annotations.
+	moveShared := func(in string) string {
+		if !strings.HasPrefix(in, "shared: top\n") {
+			return in
+		}
+		return strings.TrimPrefix(in, "shared: top\n") + "  shared: top\n"
+	}
+
+	config := "shared: top\nrules:\n  rule: yes\n"
+	// What the API returns: the same document with the merge already applied.
+	stateMerged := "rules:\n  rule: yes\n  shared: top\n"
+
+	tests := []struct {
+		name         string
+		normalize    func(string) string
+		stateValue   types.String
+		expectedPlan types.String
+		description  string
+	}{
+		{
+			name:         "normalize makes the two sides equal",
+			normalize:    moveShared,
+			stateValue:   types.StringValue(stateMerged),
+			expectedPlan: types.StringValue(stateMerged),
+			description:  "State should win once normalization erases the difference",
+		},
+		{
+			name:         "nil normalize leaves the comparison unchanged",
+			normalize:    nil,
+			stateValue:   types.StringValue(stateMerged),
+			expectedPlan: types.StringValue(config),
+			description:  "Without normalization the two documents differ, so the config stands",
+		},
+		{
+			name:         "normalize does not mask a real difference",
+			normalize:    moveShared,
+			stateValue:   types.StringValue("rules:\n  rule: no\n  shared: top\n"),
+			expectedPlan: types.StringValue(config),
+			description:  "A difference normalization does not erase must still plan",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			modifier := YAMLSemanticEqualNormalizing(tt.normalize)
+
+			req := planmodifier.StringRequest{
+				ConfigValue: types.StringValue(config),
+				StateValue:  tt.stateValue,
+				PlanValue:   types.StringValue(config),
+			}
+			resp := &planmodifier.StringResponse{PlanValue: types.StringValue(config)}
 
 			modifier.PlanModifyString(context.Background(), req, resp)
 

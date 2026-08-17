@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -264,6 +265,106 @@ func TestAccCheckRuleResource_WithNonZeroThresholds(t *testing.T) {
 			},
 		},
 	})
+}
+
+// checkRuleYamlWithTopLevelAnnotation is adapted from
+// fixtures/check-rule-annotation-parity/multi-rule-with-top-level-annotations.yaml
+// (plans/005-check-rule-annotation-parity.md) down to a single rule, since
+// Terraform's check_rule_yaml only supports one rule per resource. The rule
+// declares no annotations of its own, so it must inherit the top-level
+// runbook_url annotation once the shared dash0-api-client-go merge fix
+// applies. Deliberately an arbitrary, non-reserved annotation key rather than
+// dash0.com/notification-channel-ids: the latter is validated server-side
+// against real notification channels, and this test runs with TF_ACC=1
+// against a live backend in CI, where a made-up channel id 400s.
+const checkRuleYamlWithTopLevelAnnotation = `apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: checkout-check-rules
+  annotations:
+    runbook_url: "https://runbooks.example.com/checkout-check-rules"
+spec:
+  groups:
+    - name: Alerting
+      interval: 1m
+      rules:
+        - alert: CheckoutHighLatency
+          expr: up{job="checkout"} == 0
+          labels:
+            team: checkout`
+
+// TestAccCheckRuleResource_TopLevelAnnotationMerge proves that the annotation
+// merge fix (dash0-api-client-go's mergeAnnotations, invoked via
+// dash0yaml.UnmarshalPrometheusRule) flows through the Terraform provider:
+// applying a check_rule_yaml whose single rule has no annotations of its own
+// but whose top-level metadata.annotations sets runbook_url must result in a
+// created check rule that carries that annotation, verified by reading it
+// back from the API.
+func TestAccCheckRuleResource_TopLevelAnnotationMerge(t *testing.T) {
+	if os.Getenv("TF_ACC") != "1" {
+		t.Skip("Acceptance tests skipped unless TF_ACC=1")
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCheckRuleResourceConfig("terraform-test", checkRuleYamlWithTopLevelAnnotation),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckCheckRuleExists(checkRuleResourceName),
+					testAccCheckCheckRuleHasMergedAnnotation(checkRuleResourceName,
+						"runbook_url",
+						"https://runbooks.example.com/checkout-check-rules"),
+				),
+			},
+			// Cleanup
+			{
+				Config: `provider "dash0" {}`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckCheckRuleDoesNotExists(checkRuleResourceName),
+				),
+			},
+		},
+	})
+}
+
+// testAccCheckCheckRuleHasMergedAnnotation reads the check rule back from the
+// API (not from Terraform state, since state normalization/YAML-equivalence
+// comparison can mask server-side annotation merging) and asserts that the
+// given annotation key/value is present in the returned Prometheus YAML.
+func testAccCheckCheckRuleHasMergedAnnotation(resourceName, annotationKey, expectedValue string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("not found: %s", resourceName)
+		}
+
+		origin := rs.Primary.Attributes["origin"]
+		dataset := rs.Primary.Attributes["dataset"]
+
+		c, err := client.NewDash0Client(
+			os.Getenv("DASH0_URL"),
+			os.Getenv("DASH0_AUTH_TOKEN"),
+			"test",
+			3,
+		)
+		if err != nil {
+			return fmt.Errorf("Error creating client: %s", err)
+		}
+
+		apiResponseYAML, err := c.GetCheckRule(context.Background(), origin, dataset)
+		if err != nil {
+			return fmt.Errorf("Error retrieving check rule: %s", err)
+		}
+
+		expected := fmt.Sprintf("%s: %s", annotationKey, expectedValue)
+		if !strings.Contains(apiResponseYAML, expected) {
+			return fmt.Errorf("expected check rule annotations to contain %q, got:\n%s", expected, apiResponseYAML)
+		}
+
+		return nil
+	}
 }
 
 // Test configuration for check rule resource
