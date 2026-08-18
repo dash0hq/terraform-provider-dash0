@@ -168,7 +168,7 @@ func (r *NotificationChannelResource) Schema(_ context.Context, _ resource.Schem
 				Description: "The notification channel definition in YAML format. " +
 					"The YAML must include `kind: Dash0NotificationChannel`, a `metadata.name` field, " +
 					"and a `spec` with `type` and type-specific `config`. " +
-					"Optional fields include `frequency` (default `10m`) and `routing` for filtering which alerts are delivered. " +
+					"Optional fields include `frequency` (controls reminder notification intervals; defaults to `10m` if omitted; set to `0s` to disable reminders) and `routing` for filtering which alerts are delivered. " +
 					"Note that `spec.routing.assets` is populated by the Dash0 API as a back-reference when a check rule or " +
 					"synthetic check binds to this channel by id, and is discarded if supplied on write; bind a check rule by " +
 					"setting the `dash0.com/notification-channel-ids` annotation on the rule, or a synthetic check by setting " +
