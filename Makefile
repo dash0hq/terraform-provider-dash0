@@ -38,6 +38,14 @@ test-roundtrip:
 docs:
 	go generate ./...
 
+# docs-check verifies that `make docs` is a no-op against the committed tree —
+# i.e. docs/ and examples/ are up to date with their generators (templates,
+# resource schemas, example configs). Run after editing a resource Description,
+# a templates/*.tmpl file, or an examples/ config.
+.PHONY: docs-check
+docs-check: docs
+	@git diff --exit-code -- docs examples || (echo "'make docs' produced changes — run 'make docs' and commit the result" >&2; exit 1)
+
 .PHONY: clean
 clean:
 	rm -f terraform-provider-dash0
