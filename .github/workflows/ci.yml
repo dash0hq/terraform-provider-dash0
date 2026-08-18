@@ -61,6 +61,27 @@ jobs:
       - name: Run ShellCheck
         run: make lint-sh
 
+  docs-check:
+    # Drift guard: verify that `docs/` and `examples/` are up to date with their
+    # generators (templates, resource schemas, example configs). Without this,
+    # hand edits to a generated doc file silently disappear on the next `make docs`.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: './go.mod'
+
+      - name: Set up Terraform CLI
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_wrapper: false
+
+      - name: Verify make docs is a no-op
+        run: make docs-check
+
   sync-docs-to-website-dry-run:
     # Drift guard: verify on every CI build that the transformations declared in
     # `.github/workflows/sync-docs/transformations.yaml` still apply cleanly against the current
