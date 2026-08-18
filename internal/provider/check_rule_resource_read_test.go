@@ -48,10 +48,108 @@ spec:
 
 	tests := []struct {
 		name              string
+		stateYaml         string
 		apiResponseYaml   string
 		expectYamlUpdated bool
 		expectWarning     bool
 	}{
+		{
+			// Regression test for the plan-stability bug this same rollout
+			// surfaced: the API always returns top-level metadata.annotations
+			// already merged into the rule (dash0hq/dash0-api-client-go#29).
+			// Without merging on this side too before comparing,
+			// ResourceYAMLEquivalent sees the top-level annotation on one side
+			// and the rule-level annotation on the other and reports drift,
+			// so state gets overwritten with the API's rule-annotation shape.
+			// The *next* plan then diffs that against the config, which still
+			// has the annotation at the top level, forever. Confirmed this
+			// case fails without converter.MoveTopLevelAnnotationsIntoRules in Read.
+			name: "top-level annotation merged by the API - no significant diff",
+			stateYaml: `
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  annotations:
+    runbook_url: "https://runbooks.example.com/checkout"
+spec:
+  groups:
+    - name: TestGroup
+      interval: 1m0s
+      rules:
+        - alert: TestAlert
+          expr: "vector(1)"
+          for: 1m0s
+          labels:
+            severity: warning
+`,
+			apiResponseYaml: `
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    dash0.com/origin: test-check-rule
+    dash0.com/dataset: test-dataset
+spec:
+  groups:
+    - name: TestGroup
+      interval: 1m0s
+      rules:
+        - alert: TestAlert
+          expr: "vector(1)"
+          for: 1m0s
+          annotations:
+            runbook_url: "https://runbooks.example.com/checkout"
+          labels:
+            severity: warning
+`,
+			expectYamlUpdated: false,
+			expectWarning:     false,
+		},
+		{
+			// dash0.com/sharing is the one metadata annotation normalization
+			// preserves, so before MoveTopLevelAnnotationsIntoRules removed the
+			// top-level map it stayed on both sides in different shapes and
+			// never compared equal, drifting on every plan.
+			name: "top-level dash0.com/sharing - no significant diff",
+			stateYaml: `
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  annotations:
+    dash0.com/sharing: "team:team_01abc"
+spec:
+  groups:
+    - name: TestGroup
+      interval: 1m0s
+      rules:
+        - alert: TestAlert
+          expr: "vector(1)"
+          for: 1m0s
+          labels:
+            severity: warning
+`,
+			apiResponseYaml: `
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    dash0.com/origin: test-check-rule
+spec:
+  groups:
+    - name: TestGroup
+      interval: 1m0s
+      rules:
+        - alert: TestAlert
+          expr: "vector(1)"
+          for: 1m0s
+          annotations:
+            dash0.com/sharing: "team:team_01abc"
+          labels:
+            severity: warning
+`,
+			expectYamlUpdated: false,
+			expectWarning:     false,
+		},
 		{
 			name: "metadata changes only - no significant diff",
 			apiResponseYaml: `
@@ -141,6 +239,11 @@ spec:
 
 			testURL := "https://app.dash0.com/goto/alerting/check-rules?check_rule_id=internal-uuid"
 
+			stateYaml := tc.stateYaml
+			if stateYaml == "" {
+				stateYaml = originalYaml
+			}
+
 			raw := tftypes.NewValue(
 				tftypes.Object{
 					AttributeTypes: map[string]tftypes.Type{
@@ -155,7 +258,7 @@ spec:
 					"origin":          tftypes.NewValue(tftypes.String, testOrigin),
 					"id":              tftypes.NewValue(tftypes.String, nil),
 					"dataset":         tftypes.NewValue(tftypes.String, testDataset),
-					"check_rule_yaml": tftypes.NewValue(tftypes.String, originalYaml),
+					"check_rule_yaml": tftypes.NewValue(tftypes.String, stateYaml),
 					"url":             tftypes.NewValue(tftypes.String, testURL),
 				},
 			)
@@ -182,7 +285,10 @@ spec:
 			if tc.expectYamlUpdated {
 				assert.Equal(t, tc.apiResponseYaml, resultState.CheckRuleYaml.ValueString())
 			} else {
-				assert.Equal(t, originalYaml, resultState.CheckRuleYaml.ValueString())
+				// When equivalent, Read must keep the original state verbatim
+				// (the merge in mergeTopLevelAnnotationsIntoRules is
+				// comparison-only and must not leak into what's written back).
+				assert.Equal(t, stateYaml, resultState.CheckRuleYaml.ValueString())
 			}
 
 			// URL is carried over from prior state (Read does not re-resolve it).
