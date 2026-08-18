@@ -1,7 +1,9 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -55,4 +57,71 @@ func TestResolveCheckRule(t *testing.T) {
 		assert.Equal(t, "", id)
 		assert.Equal(t, "", url)
 	})
+}
+
+// singleRuleWithTopLevelAnnotation is adapted from
+// fixtures/check-rule-annotation-parity/multi-rule-with-top-level-annotations.yaml
+// (see plans/005-check-rule-annotation-parity.md) down to a single rule, since
+// Terraform's UnmarshalPrometheusRule path only supports one rule per resource.
+// The rule declares no annotations of its own, so it must inherit the
+// top-level dash0.com/notification-channel-ids annotation in full once
+// dash0yaml.UnmarshalPrometheusRule merges metadata.annotations into the
+// rule's own annotations.
+const singleRuleWithTopLevelAnnotation = `apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: checkout-check-rules
+  namespace: monitoring
+  annotations:
+    dash0.com/notification-channel-ids: "3fa42d0c-6b8e-4c1a-9f2d-111111111111,3fa42d0c-6b8e-4c1a-9f2d-222222222222"
+spec:
+  groups:
+    - name: Alerting
+      interval: 1m
+      rules:
+        - alert: CheckoutHighLatency
+          expr: up{job="checkout"} == 0
+          labels:
+            team: checkout
+`
+
+// TestCreateCheckRule_MergesTopLevelAnnotations proves that the
+// dash0-api-client-go fix (mergeAnnotations, called from
+// dash0yaml.UnmarshalPrometheusRule) flows through the provider's client
+// wrapper: a top-level metadata.annotations entry not repeated on the single
+// rule must end up in the JSON body sent to the API.
+func TestCreateCheckRule_MergesTopLevelAnnotations(t *testing.T) {
+	var capturedBody dash0.PrometheusAlertRule
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(body, &capturedBody))
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(dash0.PrometheusAlertRule{
+			Name:       "CheckoutHighLatency",
+			Expression: `up{job="checkout"} == 0`,
+		})
+	}))
+	t.Cleanup(server.Close)
+
+	inner, err := dash0.NewClient(
+		dash0.WithApiUrl(server.URL),
+		dash0.WithAuthToken("auth_test-token"),
+		dash0.WithUserAgent("test"),
+	)
+	require.NoError(t, err)
+
+	c := &dash0Client{inner: inner, apiURL: server.URL}
+
+	err = c.CreateCheckRule(context.Background(), "tf_test-origin", singleRuleWithTopLevelAnnotation, "test-dataset")
+	require.NoError(t, err)
+
+	require.NotNil(t, capturedBody.Annotations)
+	require.NotNil(t, capturedBody.Annotations.AdditionalProperties)
+	assert.Equal(t,
+		"3fa42d0c-6b8e-4c1a-9f2d-111111111111,3fa42d0c-6b8e-4c1a-9f2d-222222222222",
+		capturedBody.Annotations.AdditionalProperties["dash0.com/notification-channel-ids"],
+		"the rule had no annotations of its own, so it must inherit the top-level metadata.annotations entry in full")
 }

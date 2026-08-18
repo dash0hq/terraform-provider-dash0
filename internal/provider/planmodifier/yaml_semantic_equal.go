@@ -33,9 +33,25 @@ func YAMLSemanticEqualWith(alwaysIgnoredFields []string, preservedAnnotationKeys
 	}
 }
 
+// YAMLSemanticEqualNormalizing returns a plan modifier like YAMLSemanticEqual
+// that first puts both sides through normalize. Use it when a resource stores
+// a document in a different shape than the user writes it, so the two are only
+// comparable once that difference is reconciled.
+func YAMLSemanticEqualNormalizing(normalize func(string) string, preservedAnnotationKeys ...string) planmodifier.String {
+	return yamlSemanticEqualModifier{
+		preservedAnnotationKeys: preservedAnnotationKeys,
+		normalize:               normalize,
+	}
+}
+
 type yamlSemanticEqualModifier struct {
 	preservedAnnotationKeys []string
 	alwaysIgnoredFields     []string
+
+	// normalize, when set, is applied to both sides before comparing. Opt-in
+	// per resource: this modifier is shared, and a reconciliation that one
+	// resource needs is usually wrong for the others.
+	normalize func(string) string
 }
 
 func (m yamlSemanticEqualModifier) Description(_ context.Context) string {
@@ -60,6 +76,11 @@ func (m yamlSemanticEqualModifier) PlanModifyString(_ context.Context, req planm
 	// Compare the config YAML with the state YAML semantically
 	configYAML := req.ConfigValue.ValueString()
 	stateYAML := req.StateValue.ValueString()
+
+	if m.normalize != nil {
+		configYAML = m.normalize(configYAML)
+		stateYAML = m.normalize(stateYAML)
+	}
 
 	// Conditionally ignore API-managed fields that the user didn't include in their config.
 	// e.g., spec.permissions is enriched by the API on retrieval but users may optionally manage it.

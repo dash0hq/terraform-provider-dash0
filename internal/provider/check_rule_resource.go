@@ -99,10 +99,10 @@ More information on how Prometheus rules are mapped to Dash0 check rules can be 
 				},
 			},
 			"check_rule_yaml": schema.StringAttribute{
-				Description: "The check rule definition in YAML format, following the [Prometheus alerting rule specification](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/). The `dash0.com/sharing` metadata annotation is supported to control sharing settings; changes to it trigger a resource update. All other metadata annotations are managed by the server and ignored during drift detection.",
+				Description: "The check rule definition in YAML format, following the [Prometheus alerting rule specification](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/). Must contain exactly one group with exactly one rule. The document's top-level `metadata.annotations` are merged into the rule's own annotations, and the rule's own annotations take precedence when the same key is set in both places, so a document written for the Dash0 Kubernetes operator can be used here verbatim. Setting `dash0.com/sharing` controls sharing, and changes to it trigger a resource update.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
-					customplanmodifier.YAMLSemanticEqual(converter.AnnotationSharing),
+					customplanmodifier.YAMLSemanticEqualNormalizing(converter.MoveTopLevelAnnotationsIntoRules, converter.AnnotationSharing),
 				},
 			},
 			"url": schema.StringAttribute{
@@ -200,7 +200,14 @@ func (r *CheckRuleResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 	// Compare the current state with the retrieved check rule
 	if state.CheckRuleYaml.ValueString() != "" {
-		stateYAML := state.CheckRuleYaml.ValueString()
+		// The API always returns top-level metadata.annotations already merged
+		// into the rule's own annotations (dash0hq/dash0-api-client-go#29). Apply
+		// the same move to a comparison-only copy of the state's YAML before
+		// diffing, or a config that legitimately uses metadata.annotations would
+		// never compare equal to the API response and would drift on every plan.
+		// This must not affect what gets written back to state below; only the
+		// value compared against apiResponseYAML.
+		stateYAML := converter.MoveTopLevelAnnotationsIntoRules(state.CheckRuleYaml.ValueString())
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
 		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseYAML, additionalIgnored, []string{converter.AnnotationSharing})
 		if err != nil {
