@@ -472,6 +472,11 @@ assert_yaml_equivalent_eventually() {
 # OTLP ingestion/indexing lag. Used to confirm delivery of log events and
 # deployment events sent by the dash0_log_event / dash0_deployment_event
 # actions, which have no state to read back via the API.
+#
+# Passes --precision disabled: the server's default "adaptive" sampling mode
+# can skip a real match on a narrow per-run filter like ours, which made this
+# check flaky. "disabled" trades query speed (irrelevant on our 30m window)
+# for returning every matching record deterministically.
 assert_log_record_via_cli() {
   local dataset="$1" filter="$2" grep_pattern="$3"
   local max_retries="${4:-10}" delay="${5:-3}"
@@ -480,6 +485,7 @@ assert_log_record_via_cli() {
     set +e
     local output
     output="$(dash0 logs query --dataset "$dataset" --filter "$filter" --from now-30m \
+      --precision disabled \
       --column time --column "otel.event.name" --column body -o csv --skip-header 2>&1)"
     set -e
 
