@@ -612,6 +612,32 @@ func TestResolveAuthInfo_OAuth(t *testing.T) {
 		assert.Equal(t, "auth_static_token", auth.token)
 		assert.False(t, auth.isOAuth)
 	})
+
+	t.Run("OAuth-prefixed token supplied directly via env sets isOAuth", func(t *testing.T) {
+		// Regression guard: an OAuth access token (`dash0_at_` prefix) is
+		// documented as a valid DASH0_AUTH_TOKEN/auth_token value in its own
+		// right, not just something that arrives via a CLI profile. isOAuth
+		// must reflect the resolved token's own prefix regardless of source.
+		clearCredentialEnv(t)
+		t.Setenv("DASH0_API_URL", "https://api.example.com")
+		t.Setenv("DASH0_AUTH_TOKEN", "dash0_at_pasted-directly")
+
+		auth, err := resolveAuthInfo(ctx, &providerConfigModel{})
+		require.NoError(t, err)
+		assert.Equal(t, "dash0_at_pasted-directly", auth.token)
+		assert.True(t, auth.isOAuth)
+	})
+
+	t.Run("OAuth-prefixed token supplied directly via attribute sets isOAuth", func(t *testing.T) {
+		clearCredentialEnv(t)
+
+		auth, err := resolveAuthInfo(ctx, &providerConfigModel{
+			URL:       types.StringValue("https://api.example.com"),
+			AuthToken: types.StringValue("dash0_at_pasted-directly"),
+		})
+		require.NoError(t, err)
+		assert.True(t, auth.isOAuth)
+	})
 }
 
 // TestDash0Provider_Configure_OAuthProfile verifies that an OAuth-enabled CLI

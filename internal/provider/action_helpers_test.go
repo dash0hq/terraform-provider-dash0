@@ -2,16 +2,22 @@ package provider
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/action"
 	actionschema "github.com/hashicorp/terraform-plugin-framework/action/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
 
 // actionSchemaOf returns the schema an action declares.
@@ -76,13 +82,13 @@ func tfStringMap(m map[string]string) tftypes.Value {
 
 func TestMergeAttributes_DedicatedAttributesWin(t *testing.T) {
 	base := map[string]string{"service.name": "checkout-api"}
-	merged := mergeAttributes(base, map[string]string{
+	mergeAttributes(base, map[string]string{
 		"service.name":  "should-not-overwrite",
 		"custom.tenant": "acme",
 	})
 
-	assert.Equal(t, "checkout-api", merged["service.name"])
-	assert.Equal(t, "acme", merged["custom.tenant"])
+	assert.Equal(t, "checkout-api", base["service.name"])
+	assert.Equal(t, "acme", base["custom.tenant"])
 }
 
 func TestParseTimestampAttribute(t *testing.T) {
@@ -134,16 +140,58 @@ func TestValidateSeverityNumber(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			diags := &diag.Diagnostics{}
-			validateSeverityNumber(types.Int64Value(tt.value), diags)
+			validateSeverityNumber(path.Root("severity_number"), types.Int64Value(tt.value), diags)
 			assert.Equal(t, tt.wantError, diags.HasError(), "diagnostics: %v", diags)
+			if tt.wantError {
+				require.Len(t, diags.Errors(), 1)
+				assert.True(t, diags.Errors()[0].(diag.DiagnosticWithPath).Path().Equal(path.Root("severity_number")), "diagnostic should be scoped to severity_number")
+			}
 		})
 	}
 }
 
 func TestValidateSeverityNumber_UnsetIsValid(t *testing.T) {
 	diags := &diag.Diagnostics{}
-	validateSeverityNumber(types.Int64Null(), diags)
+	validateSeverityNumber(path.Root("severity_number"), types.Int64Null(), diags)
 	assert.False(t, diags.HasError())
+}
+
+func TestInvokeLogEvent_ConfigErrorAlwaysFailsRegardlessOfFailOnError(t *testing.T) {
+	for name, failOnError := range map[string]bool{"fail_on_error false": false, "fail_on_error true": true} {
+		t.Run(name, func(t *testing.T) {
+			m := &MockClient{}
+			m.On("SendLogEvent", mock.Anything, mock.Anything, "default").
+				Return(fmt.Errorf("%w: no Dash0 OTLP endpoint configured", client.ErrInvalidLogEventConfig))
+
+			resp := &action.InvokeResponse{}
+			invokeLogEvent(context.Background(), m, resp, client.LogEvent{Body: "b"}, "default", failOnError, "")
+
+			require.Len(t, resp.Diagnostics.Errors(), 1, "diagnostics: %v", resp.Diagnostics)
+			assert.Empty(t, resp.Diagnostics.Warnings())
+			assert.Equal(t, "Invalid Dash0 Log Event Configuration", resp.Diagnostics.Errors()[0].Summary())
+		})
+	}
+}
+
+func TestInvokeLogEvent_DeliveryFailureRespectsFailOnError(t *testing.T) {
+	m := &MockClient{}
+	m.On("SendLogEvent", mock.Anything, mock.Anything, "default").
+		Return(errors.New("failed to send log event: connection refused"))
+
+	t.Run("warns by default", func(t *testing.T) {
+		resp := &action.InvokeResponse{}
+		invokeLogEvent(context.Background(), m, resp, client.LogEvent{Body: "b"}, "default", false, "")
+
+		assert.Empty(t, resp.Diagnostics.Errors(), "diagnostics: %v", resp.Diagnostics)
+		require.Len(t, resp.Diagnostics.Warnings(), 1)
+	})
+
+	t.Run("errors when fail_on_error is true", func(t *testing.T) {
+		resp := &action.InvokeResponse{}
+		invokeLogEvent(context.Background(), m, resp, client.LogEvent{Body: "b"}, "default", true, "")
+
+		require.Len(t, resp.Diagnostics.Errors(), 1, "diagnostics: %v", resp.Diagnostics)
+	})
 }
 
 func TestValidateTraceContext(t *testing.T) {
@@ -152,16 +200,20 @@ func TestValidateTraceContext(t *testing.T) {
 		spanID    types.String
 		wantError bool
 	}{
-		"both set":      {traceID: types.StringValue("0af7651916cd43dd8448eb211c80319c"), spanID: types.StringValue("b7ad6b7169203331")},
-		"both unset":    {traceID: types.StringNull(), spanID: types.StringNull()},
-		"trace id only": {traceID: types.StringValue("0af7651916cd43dd8448eb211c80319c"), spanID: types.StringNull(), wantError: true},
-		"span id only":  {traceID: types.StringNull(), spanID: types.StringValue("b7ad6b7169203331"), wantError: true},
+		"both set":           {traceID: types.StringValue("0af7651916cd43dd8448eb211c80319c"), spanID: types.StringValue("b7ad6b7169203331")},
+		"both unset":         {traceID: types.StringNull(), spanID: types.StringNull()},
+		"trace id only":      {traceID: types.StringValue("0af7651916cd43dd8448eb211c80319c"), spanID: types.StringNull(), wantError: true},
+		"span id only":       {traceID: types.StringNull(), spanID: types.StringValue("b7ad6b7169203331"), wantError: true},
+		"trace id too short": {traceID: types.StringValue("0af765"), spanID: types.StringValue("b7ad6b7169203331"), wantError: true},
+		"trace id not hex":   {traceID: types.StringValue("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"), spanID: types.StringValue("b7ad6b7169203331"), wantError: true},
+		"span id too short":  {traceID: types.StringValue("0af7651916cd43dd8448eb211c80319c"), spanID: types.StringValue("b7ad"), wantError: true},
+		"span id not hex":    {traceID: types.StringValue("0af7651916cd43dd8448eb211c80319c"), spanID: types.StringValue("zzzzzzzzzzzzzzzz"), wantError: true},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			diags := &diag.Diagnostics{}
-			validateTraceContext(tt.traceID, tt.spanID, diags)
+			validateTraceContext(path.Root("trace_id"), path.Root("span_id"), tt.traceID, tt.spanID, diags)
 			assert.Equal(t, tt.wantError, diags.HasError(), "diagnostics: %v", diags)
 		})
 	}

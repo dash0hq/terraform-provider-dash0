@@ -22,36 +22,13 @@ type dash0Client struct {
 	// Dash0 OTLP/HTTP ingress endpoint does not currently accept OAuth access
 	// tokens, even though the REST API does; SendLogEvent uses this to fail
 	// fast with an actionable diagnostic instead of a bare 401 from the
-	// server.
+	// server. Resolved by the caller (the provider already knows whether the
+	// token came from an OAuth-enabled CLI profile) rather than re-derived
+	// here from the token's prefix, to avoid two sources of truth.
 	isOAuthToken bool
 	// version is the provider version. It is used as the OpenTelemetry
 	// instrumentation scope version on emitted telemetry.
 	version string
-}
-
-// Dash0ClientOption configures optional behavior on a dash0Client.
-//
-// Options exist so that capabilities which only some provider features need —
-// OTLP telemetry ingestion, for one — can be added without changing the
-// signature that every existing caller already uses.
-type Dash0ClientOption func(*dash0ClientConfig)
-
-// dash0ClientConfig accumulates the values supplied by Dash0ClientOption.
-type dash0ClientConfig struct {
-	otlpURL string
-}
-
-// WithOtlpURL configures the Dash0 OTLP/HTTP ingress endpoint used to emit
-// telemetry (for example deployment events). This is a different host from the
-// Dash0 API URL: the API lives at api.<region>.<cloud>.dash0.com while OTLP
-// ingestion lives at ingress.<region>.<cloud>.dash0.com.
-//
-// When it is not supplied, SendLogEvent returns an error explaining how to
-// configure it; all REST API operations are unaffected.
-func WithOtlpURL(otlpURL string) Dash0ClientOption {
-	return func(c *dash0ClientConfig) {
-		c.otlpURL = otlpURL
-	}
 }
 
 // NewDash0Client creates a new Dash0 API client backed by the shared library.
@@ -68,20 +45,18 @@ func WithOtlpURL(otlpURL string) Dash0ClientOption {
 // the token came from an OAuth-enabled CLI profile) rather than derived here:
 // there is no longer a static token string to inspect the prefix of once
 // authentication goes through a refreshing provider.
-func NewDash0Client(url string, authTokenProvider dash0.AuthTokenProvider, isOAuthToken bool, version string, maxRetries int, opts ...Dash0ClientOption) (*dash0Client, error) {
-	cfg := &dash0ClientConfig{}
-	for _, opt := range opts {
-		opt(cfg)
-	}
-
+//
+// otlpURL is optional: when empty, SendLogEvent returns an error explaining
+// how to configure it, and all REST API operations are unaffected.
+func NewDash0Client(url string, authTokenProvider dash0.AuthTokenProvider, isOAuthToken bool, version string, maxRetries int, otlpURL string) (*dash0Client, error) {
 	clientOpts := []dash0.ClientOption{
 		dash0.WithApiUrl(url),
 		dash0.WithAuthTokenProvider(authTokenProvider),
 		dash0.WithUserAgent(fmt.Sprintf("Dash0 Terraform Provider/%s", version)),
 		dash0.WithMaxRetries(maxRetries),
 	}
-	if cfg.otlpURL != "" {
-		clientOpts = append(clientOpts, dash0.WithOtlpEndpoint(dash0.OtlpEncodingJson, cfg.otlpURL))
+	if otlpURL != "" {
+		clientOpts = append(clientOpts, dash0.WithOtlpEndpoint(dash0.OtlpEncodingJson, otlpURL))
 	}
 
 	c, err := dash0.NewClient(clientOpts...)
@@ -91,7 +66,7 @@ func NewDash0Client(url string, authTokenProvider dash0.AuthTokenProvider, isOAu
 	return &dash0Client{
 		inner:        c,
 		apiURL:       url,
-		otlpURL:      cfg.otlpURL,
+		otlpURL:      otlpURL,
 		isOAuthToken: isOAuthToken,
 		version:      version,
 	}, nil

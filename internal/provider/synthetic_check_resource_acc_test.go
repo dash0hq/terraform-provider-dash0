@@ -334,6 +334,7 @@ func testAccCheckSyntheticCheckExists(resourceName string) resource.TestCheckFun
 			false,
 			"test",
 			3,
+			"",
 		)
 		if err != nil {
 			return fmt.Errorf("Error creating client: %s", err)

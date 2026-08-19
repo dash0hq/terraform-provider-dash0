@@ -162,6 +162,7 @@ func testAccCheckRecordingRuleExists(resourceName string) resource.TestCheckFunc
 			false,
 			"test",
 			3,
+			"",
 		)
 		if err != nil {
 			return fmt.Errorf("Error creating client: %s", err)

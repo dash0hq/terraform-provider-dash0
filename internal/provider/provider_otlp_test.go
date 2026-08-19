@@ -84,10 +84,12 @@ func TestResolveAuthInfo_OtlpURL(t *testing.T) {
 		assert.Equal(t, "https://api.us-west-2.aws.dash0.com", auth.url)
 	})
 
-	t.Run("from profile when credentials come from env", func(t *testing.T) {
-		// Credentials come from the environment but the OTLP URL only exists in
-		// the profile. The profile still has to be consulted, otherwise a user
-		// with a configured CLI profile would have to repeat the OTLP URL.
+	t.Run("not adopted from profile when url/token come from env", func(t *testing.T) {
+		// Regression guard: the profile's OTLP URL must only be adopted when
+		// the API URL also came from that same profile. Otherwise env
+		// credentials for one region/tenant could silently pair with a
+		// different profile's OTLP endpoint, surfacing as an opaque 401 or
+		// events landing in the wrong place.
 		clearCredentialEnv(t)
 		t.Setenv("DASH0_API_URL", "https://api.from-env.example.com")
 		t.Setenv("DASH0_AUTH_TOKEN", "auth_from_env")
@@ -97,7 +99,7 @@ func TestResolveAuthInfo_OtlpURL(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "https://api.from-env.example.com", auth.url, "env credentials must still win")
 		assert.Equal(t, "auth_from_env", auth.token)
-		assert.Equal(t, "https://ingress.us-west-2.aws.dash0.com", auth.otlpURL)
+		assert.Empty(t, auth.otlpURL, "the profile's OTLP URL must not be adopted when the API URL did not come from that profile")
 	})
 
 	t.Run("absent everywhere is not an error", func(t *testing.T) {
@@ -138,13 +140,29 @@ func TestResolveAuthInfo_BrokenProfileHandling(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("named profile failure always surfaced", func(t *testing.T) {
-		// An explicitly named profile that cannot be loaded is always an error,
-		// even when credentials are otherwise complete: the user asked for it.
+	t.Run("named profile failure tolerated when credentials already complete", func(t *testing.T) {
+		// Regression guard: when url+token are already complete, the profile
+		// is only ever consulted opportunistically for the OTLP URL. An
+		// explicit but nonexistent `profile` must not turn a previously
+		// working env-var/CI setup into a hard failure on upgrade.
 		clearCredentialEnv(t)
 		setupCLIConfigDir(t, "", otlpProfilesFixture)
 		t.Setenv("DASH0_API_URL", "https://api.from-env.example.com")
 		t.Setenv("DASH0_AUTH_TOKEN", "auth_from_env")
+
+		auth, err := resolveAuthInfo(ctx, &providerConfigModel{
+			Profile: types.StringValue("does-not-exist"),
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "https://api.from-env.example.com", auth.url)
+	})
+
+	t.Run("named profile failure surfaced when credentials incomplete", func(t *testing.T) {
+		// The converse: when the profile is actually needed to resolve
+		// missing credentials, an explicit but nonexistent profile name is a
+		// real error — the user asked for it by name.
+		clearCredentialEnv(t)
+		setupCLIConfigDir(t, "", otlpProfilesFixture)
 
 		_, err := resolveAuthInfo(ctx, &providerConfigModel{
 			Profile: types.StringValue("does-not-exist"),
@@ -174,9 +192,11 @@ func TestDash0Provider_Configure_OtlpURLAttribute(t *testing.T) {
 	assert.NotNil(t, resp.ActionData, "actions need the client to be published as ActionData")
 }
 
-func TestDash0Provider_Configure_RejectsOtlpURLWithSignalPath(t *testing.T) {
-	// The library appends /v1/logs itself, so a URL that already ends in a signal
-	// path is a configuration error worth surfacing at configure time.
+func TestDash0Provider_Configure_DowngradesInvalidOtlpURLToWarning(t *testing.T) {
+	// The library appends /v1/logs itself, so a URL that already ends in a
+	// signal path is rejected — but that must only break the two log-event
+	// actions, not every resource and data source: Configure retries without
+	// otlp_url and downgrades to a warning instead of failing outright.
 	clearCredentialEnv(t)
 
 	p := &dash0Provider{version: "1.0.0"}
@@ -190,8 +210,11 @@ func TestDash0Provider_Configure_RejectsOtlpURLWithSignalPath(t *testing.T) {
 	resp := &provider.ConfigureResponse{}
 	p.Configure(context.Background(), req, resp)
 
-	require.True(t, resp.Diagnostics.HasError())
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Unable to Create Dash0 API Client")
+	require.False(t, resp.Diagnostics.HasError(), "diagnostics: %v", resp.Diagnostics)
+	require.NotEmpty(t, resp.Diagnostics.Warnings(), "an invalid otlp_url must produce a warning")
+	assert.Contains(t, resp.Diagnostics.Warnings()[0].Summary(), "Invalid Dash0 OTLP Endpoint")
+	assert.NotNil(t, resp.ResourceData, "resources must not be affected by a bad otlp_url")
+	assert.NotNil(t, resp.ActionData)
 }
 
 func TestDash0Provider_Actions(t *testing.T) {

@@ -132,6 +132,7 @@ func testAccCheckNotificationChannelExists(resourceName string) resource.TestChe
 			false,
 			"test",
 			3,
+			"",
 		)
 		if err != nil {
 			return fmt.Errorf("Error creating client: %s", err)

@@ -197,7 +197,7 @@ func resolveAuthInfo(ctx context.Context, cfg *providerConfigModel) (authInfo, e
 	otlpURL := cmp.Or(os.Getenv("DASH0_OTLP_URL"), attrOtlpURL)
 
 	if url != "" && authToken != "" && otlpURL != "" {
-		return authInfo{url: url, token: authToken, otlpURL: otlpURL}, nil
+		return authInfo{url: url, token: authToken, otlpURL: otlpURL, isOAuth: isOAuthAccessToken(authToken)}, nil
 	}
 
 	// Whether the credentials were already complete before consulting the CLI
@@ -216,29 +216,54 @@ func resolveAuthInfo(ctx context.Context, cfg *providerConfigModel) (authInfo, e
 
 	profileCfg, err := loadProfileConfiguration(ctx, profileName)
 	if err != nil {
-		if !profileExplicit && (credentialsComplete || errors.Is(err, dash0Profiles.ErrNoActiveProfile)) {
+		// Whenever url+token were already complete, the profile was only ever
+		// being consulted opportunistically for the OTLP URL — a broken or
+		// explicitly-wrong `profile` must not turn a previously working
+		// env-var/attribute-only setup into a hard error. Only when
+		// credentials are still incomplete does profileExplicit matter: an
+		// explicit-but-bad profile name is then a real error, but an absent
+		// active profile (with no explicit profile requested) is not.
+		if credentialsComplete || (!profileExplicit && errors.Is(err, dash0Profiles.ErrNoActiveProfile)) {
 			if credentialsComplete && !errors.Is(err, dash0Profiles.ErrNoActiveProfile) {
 				tflog.Debug(ctx, "Ignoring dash0 CLI profile error; credentials already resolved", map[string]any{
 					"error": err.Error(),
 				})
 			}
-			return authInfo{url: url, token: authToken, otlpURL: otlpURL}, nil
+			return authInfo{url: url, token: authToken, otlpURL: otlpURL, isOAuth: isOAuthAccessToken(authToken)}, nil
 		}
-		return authInfo{url: url, token: authToken, otlpURL: otlpURL}, err
+		return authInfo{url: url, token: authToken, otlpURL: otlpURL, isOAuth: isOAuthAccessToken(authToken)}, err
 	}
 
-	isOAuth := false
+	// urlFromProfile must be captured before url is possibly overwritten below:
+	// the profile's OTLP URL is only adopted when the API URL also came from
+	// that same profile, otherwise env/attribute credentials for one region
+	// could be paired with a different profile's OTLP endpoint for another.
+	urlFromProfile := url == ""
 	if url == "" {
 		url = profileCfg.ApiUrl
 	}
 	if authToken == "" {
 		authToken = profileCfg.AuthToken
-		isOAuth = profileCfg.OAuth != nil
 	}
-	if otlpURL == "" {
+	if otlpURL == "" && urlFromProfile {
 		otlpURL = profileCfg.OtlpUrl
 	}
-	return authInfo{url: url, token: authToken, otlpURL: otlpURL, isOAuth: isOAuth, profileCfg: profileCfg}, nil
+	// isOAuth is derived from the final resolved token's own prefix rather
+	// than from profileCfg.OAuth, so it stays correct regardless of whether
+	// the token came from env vars, a provider attribute, or the profile:
+	// a `dash0_at_`-prefixed token pasted directly into DASH0_AUTH_TOKEN or
+	// `auth_token` is just as much an OAuth access token as one resolved via
+	// a CLI profile. profileCfg is still retained so tokenProvider() can
+	// refresh it when it came from an OAuth-enabled profile.
+	return authInfo{url: url, token: authToken, otlpURL: otlpURL, isOAuth: isOAuthAccessToken(authToken), profileCfg: profileCfg}, nil
+}
+
+// isOAuthAccessToken reports whether token is an OAuth access token
+// (`dash0_at_` prefix) rather than a static token (`auth_` prefix). This is
+// the sole place that inspects the token's prefix; the Dash0 client trusts
+// authInfo.isOAuth instead of re-deriving it.
+func isOAuthAccessToken(token string) bool {
+	return strings.HasPrefix(token, "dash0_at_")
 }
 
 // Configure prepares a Dash0 API client for data sources and resources.
@@ -333,12 +358,23 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	tflog.Debug(ctx, "Creating Dash0 client")
 
-	// Create dash0Client configuration for data sources, resources, and actions
-	clientOpts := []client.Dash0ClientOption{}
-	if auth.otlpURL != "" {
-		clientOpts = append(clientOpts, client.WithOtlpURL(auth.otlpURL))
+	dash0Client, err := client.NewDash0Client(auth.url, auth.tokenProvider(), auth.isOAuth, p.version, maxRetries, auth.otlpURL)
+	if err != nil && auth.otlpURL != "" {
+		// A malformed otlp_url only needs to break the dash0_log_event and
+		// dash0_deployment_event actions, not every resource and data source.
+		// Retry without it and downgrade to a warning; if construction still
+		// fails, the error is unrelated to OTLP and must surface below as before.
+		resp.Diagnostics.AddWarning(
+			"Invalid Dash0 OTLP Endpoint",
+			fmt.Sprintf(
+				"The configured OTLP endpoint is invalid and will be ignored: %s\n\n"+
+					"Resources and data sources are unaffected, but the dash0_log_event and "+
+					"dash0_deployment_event actions will fail if invoked.",
+				err,
+			),
+		)
+		dash0Client, err = client.NewDash0Client(auth.url, auth.tokenProvider(), auth.isOAuth, p.version, maxRetries, "")
 	}
-	dash0Client, err := client.NewDash0Client(auth.url, auth.tokenProvider(), auth.isOAuth, p.version, maxRetries, clientOpts...)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create Dash0 API Client",

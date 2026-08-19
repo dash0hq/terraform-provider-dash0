@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
-	dash0 "github.com/dash0hq/dash0-api-client-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/plog"
+
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 )
 
 func TestBuildLogs_MapsAllFields(t *testing.T) {
@@ -151,7 +152,7 @@ func TestBuildLogs_RejectsMalformedTraceContext(t *testing.T) {
 }
 
 func TestSendLogEvent_WithoutOtlpURL(t *testing.T) {
-	c, err := NewDash0Client("https://api.example.com", dash0.StaticAuthTokenProvider("auth_test-token"), false, "test", 3)
+	c, err := NewDash0Client("https://api.example.com", dash0.StaticAuthTokenProvider("auth_test-token"), false, "test", 3, "")
 	require.NoError(t, err)
 
 	err = c.SendLogEvent(context.Background(), LogEvent{Body: "message"}, "default")
@@ -164,7 +165,7 @@ func TestSendLogEvent_WithoutOtlpURL(t *testing.T) {
 
 func TestSendLogEvent_RejectsOAuthToken(t *testing.T) {
 	c, err := NewDash0Client("https://api.example.com", dash0.StaticAuthTokenProvider("dash0_at_test-token"), true, "test", 3,
-		WithOtlpURL("https://ingress.example.com"))
+		"https://ingress.example.com")
 	require.NoError(t, err)
 
 	err = c.SendLogEvent(context.Background(), LogEvent{Body: "message"}, "default")
@@ -175,7 +176,7 @@ func TestSendLogEvent_RejectsOAuthToken(t *testing.T) {
 
 func TestSendLogEvent_RejectsEmptyBody(t *testing.T) {
 	c, err := NewDash0Client("https://api.example.com", dash0.StaticAuthTokenProvider("auth_test-token"), false, "test", 3,
-		WithOtlpURL("https://ingress.example.com"))
+		"https://ingress.example.com")
 	require.NoError(t, err)
 
 	err = c.SendLogEvent(context.Background(), LogEvent{}, "default")
@@ -185,7 +186,7 @@ func TestSendLogEvent_RejectsEmptyBody(t *testing.T) {
 
 func TestNewDash0Client_WithOtlpURL(t *testing.T) {
 	c, err := NewDash0Client("https://api.example.com", dash0.StaticAuthTokenProvider("auth_test-token"), false, "1.2.3", 3,
-		WithOtlpURL("https://ingress.example.com"))
+		"https://ingress.example.com")
 	require.NoError(t, err)
 	assert.Equal(t, "https://ingress.example.com", c.otlpURL)
 	assert.Equal(t, "1.2.3", c.version)
@@ -195,7 +196,7 @@ func TestNewDash0Client_RejectsOtlpURLWithSignalPath(t *testing.T) {
 	// The library appends /v1/logs itself; including it would produce a
 	// double-suffixed URL, so it must be rejected at construction time.
 	_, err := NewDash0Client("https://api.example.com", dash0.StaticAuthTokenProvider("auth_test-token"), false, "test", 3,
-		WithOtlpURL("https://ingress.example.com/v1/logs"))
+		"https://ingress.example.com/v1/logs")
 	require.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "/v1/logs"), "error should name the offending suffix, got: %s", err)
 }

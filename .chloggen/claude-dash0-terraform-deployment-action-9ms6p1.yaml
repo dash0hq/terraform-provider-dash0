@@ -26,9 +26,13 @@ subtext: |
   variable, or a dash0 CLI profile's `otlpUrl`), which addresses the Dash0 OTLP ingress endpoint
   rather than the API. Resources are unaffected and continue to work without it.
 
-  Delivery failures are reported as warnings rather than errors by default, so an undeliverable event
-  cannot fail an apply or block a resource an action is attached to. Set `fail_on_error = true` to opt
-  into treating them as errors.
+  Delivery failures (the event was well-formed but Dash0 could not be reached) are reported as
+  warnings rather than errors by default, so a transient ingestion problem cannot fail an apply or
+  block a resource an action is attached to. Set `fail_on_error = true` to opt into treating them as
+  errors. Configuration mistakes (missing `otlp_url`, an OAuth-enabled profile — the Dash0 OTLP
+  ingress endpoint does not accept OAuth access tokens even though the API does — an empty `body`, or
+  malformed `trace_id`/`span_id`) always fail regardless of `fail_on_error`, since none of them
+  survive a retry.
 
 # If your change doesn't affect end users or the exported elements of any package,
 # you should instead start your pull request title with "chore" or use the "Skip Changelog" label.

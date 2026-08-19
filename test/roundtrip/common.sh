@@ -40,10 +40,12 @@ fail()  { echo -e "${RED}[FAIL]${NC}  $*"; exit 1; }
 # Write the provider configuration into the given working directory.
 # Usage: write_provider_tf <dir>
 #
-# Empty values for DASH0_API_URL, DASH0_AUTH_TOKEN, or DASH0_PROVIDER_PROFILE
-# omit the corresponding attribute from the generated provider block, so
-# callers can compose configurations that exercise the env-vars-only or
-# profile-only code paths.
+# Empty values for DASH0_API_URL, DASH0_AUTH_TOKEN, DASH0_PROVIDER_PROFILE, or
+# DASH0_OTLP_URL omit the corresponding attribute from the generated provider
+# block, so callers can compose configurations that exercise the
+# env-vars-only or profile-only code paths. DASH0_OTLP_URL is inert for every
+# test except the actions test (test_actions.sh), which is the only one that
+# sets it.
 write_provider_tf() {
   local dir="$1"
   {
@@ -62,6 +64,7 @@ EOF
     if [[ -n "${DASH0_API_URL}" ]];          then printf '  url        = "%s"\n' "${DASH0_API_URL}";          fi
     if [[ -n "${DASH0_AUTH_TOKEN}" ]];       then printf '  auth_token = "%s"\n' "${DASH0_AUTH_TOKEN}";       fi
     if [[ -n "${DASH0_PROVIDER_PROFILE}" ]]; then printf '  profile    = "%s"\n' "${DASH0_PROVIDER_PROFILE}"; fi
+    if [[ -n "${DASH0_OTLP_URL}" ]];         then printf '  otlp_url   = "%s"\n' "${DASH0_OTLP_URL}";         fi
     echo "}"
   } > "${dir}/provider.tf"
 }
@@ -127,34 +130,6 @@ tf_plan_detailed_exitcode() {
 # ---------------------------------------------------------------------------
 
 TERRAFORM="terraform"
-
-# Write a provider configuration that also sets `otlp_url`, required by the
-# dash0_log_event and dash0_deployment_event actions. Otherwise identical to
-# write_provider_tf.
-write_provider_tf_with_otlp() {
-  local dir="$1"
-  {
-    cat <<EOF
-terraform {
-  required_version = ">= 1.14"
-
-  required_providers {
-    dash0 = {
-      source  = "dash0hq/dash0"
-      version = "0.0.1"
-    }
-  }
-}
-
-provider "dash0" {
-EOF
-    if [[ -n "${DASH0_API_URL}" ]];          then printf '  url        = "%s"\n' "${DASH0_API_URL}";          fi
-    if [[ -n "${DASH0_AUTH_TOKEN}" ]];       then printf '  auth_token = "%s"\n' "${DASH0_AUTH_TOKEN}";       fi
-    if [[ -n "${DASH0_PROVIDER_PROFILE}" ]]; then printf '  profile    = "%s"\n' "${DASH0_PROVIDER_PROFILE}"; fi
-    if [[ -n "${DASH0_OTLP_URL}" ]];          then printf '  otlp_url   = "%s"\n' "${DASH0_OTLP_URL}";         fi
-    echo "}"
-  } > "${dir}/provider.tf"
-}
 
 # Run terraform init with the local mirror (registry.terraform.io namespace).
 tf_actions_init() {

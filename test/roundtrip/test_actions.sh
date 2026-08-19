@@ -34,7 +34,7 @@ info "Test marker: ${TEST_ID}"
 # ---------------------------------------------------------------------------
 # Step 0: Provider config (includes otlp_url, required by both actions)
 # ---------------------------------------------------------------------------
-write_provider_tf_with_otlp "$WORK_DIR"
+write_provider_tf "$WORK_DIR"
 
 # ---------------------------------------------------------------------------
 # Step 1: Declare both actions. Both are tagged with the same service.name so

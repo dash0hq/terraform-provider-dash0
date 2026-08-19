@@ -2,15 +2,25 @@ package provider
 
 import (
 	"context"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/action"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
+)
+
+// traceIDHexLen and spanIDHexLen are the expected hex-encoded lengths of an
+// OpenTelemetry trace ID (16 bytes) and span ID (8 bytes) respectively.
+const (
+	traceIDHexLen = 32
+	spanIDHexLen  = 16
 )
 
 // timestampLayout is the layout accepted for the `time` and `observed_time`
@@ -19,8 +29,9 @@ import (
 const timestampLayout = time.RFC3339Nano
 
 // minSeverityNumber and maxSeverityNumber bound the OpenTelemetry severity
-// number range (1–24). Zero is accepted at the schema level to mean "unset";
-// the emitted record then carries no severity number.
+// number range (1–24). Leaving the attribute entirely unset (null) means "no
+// severity" and emits a record with no severity number; 0 itself is rejected
+// by validateSeverityNumber like any other out-of-range value.
 const (
 	minSeverityNumber = 1
 	maxSeverityNumber = 24
@@ -91,15 +102,18 @@ func parseTimestampAttribute(attr types.String, path string, diags *diag.Diagnos
 	return parsed
 }
 
-// validateSeverityNumber reports an error when a set severity number falls
-// outside the OpenTelemetry 1–24 range.
-func validateSeverityNumber(attr types.Int64, diags *diag.Diagnostics) {
+// validateSeverityNumber reports an attribute-scoped error when a set
+// severity number falls outside the OpenTelemetry 1–24 range, so Terraform
+// can underline the offending argument instead of pointing at the action as
+// a whole.
+func validateSeverityNumber(attrPath path.Path, attr types.Int64, diags *diag.Diagnostics) {
 	if attr.IsNull() || attr.IsUnknown() {
 		return
 	}
 	value := attr.ValueInt64()
 	if value < minSeverityNumber || value > maxSeverityNumber {
-		diags.AddError(
+		diags.AddAttributeError(
+			attrPath,
 			"Invalid severity_number",
 			fmt.Sprintf(
 				"severity_number must be between %d and %d (see the OpenTelemetry specification), got: %d",
@@ -109,54 +123,87 @@ func validateSeverityNumber(attr types.Int64, diags *diag.Diagnostics) {
 	}
 }
 
-// validateTraceContext reports an error when only one half of the trace context
-// is supplied. A span ID without its trace ID cannot be correlated, so the
-// half-specified case is a configuration mistake rather than something to
-// silently drop.
-func validateTraceContext(traceID, spanID types.String, diags *diag.Diagnostics) {
+// validateTraceContext reports attribute-scoped errors when trace_id/span_id
+// are half-specified or not valid hexadecimal of the expected length. A span
+// ID without its trace ID (or vice versa) cannot be correlated, and malformed
+// hex would otherwise only surface as a warning at invoke time, once
+// buildLogs tries to actually decode it.
+func validateTraceContext(traceIDPath, spanIDPath path.Path, traceID, spanID types.String, diags *diag.Diagnostics) {
 	hasTraceID := !traceID.IsNull() && !traceID.IsUnknown() && traceID.ValueString() != ""
 	hasSpanID := !spanID.IsNull() && !spanID.IsUnknown() && spanID.ValueString() != ""
 
 	if hasTraceID != hasSpanID {
-		diags.AddError(
-			"Incomplete trace context",
-			"trace_id and span_id must be specified together: a span ID without its trace ID "+
-				"(or vice versa) cannot be correlated with a trace.",
+		if hasTraceID {
+			diags.AddAttributeError(spanIDPath, "Incomplete trace context", "span_id is required when trace_id is set.")
+		} else {
+			diags.AddAttributeError(traceIDPath, "Incomplete trace context", "trace_id is required when span_id is set.")
+		}
+		return
+	}
+	if hasTraceID {
+		validateHexID(traceIDPath, "trace_id", traceID.ValueString(), traceIDHexLen, diags)
+		validateHexID(spanIDPath, "span_id", spanID.ValueString(), spanIDHexLen, diags)
+	}
+}
+
+// validateHexID reports an attribute-scoped error when value is not exactly
+// hexLen hexadecimal characters.
+func validateHexID(attrPath path.Path, name, value string, hexLen int, diags *diag.Diagnostics) {
+	if len(value) != hexLen {
+		diags.AddAttributeError(
+			attrPath,
+			fmt.Sprintf("Invalid %s", name),
+			fmt.Sprintf("%s must be %d hexadecimal characters, got %d", name, hexLen, len(value)),
+		)
+		return
+	}
+	if _, err := hex.DecodeString(value); err != nil {
+		diags.AddAttributeError(
+			attrPath,
+			fmt.Sprintf("Invalid %s", name),
+			fmt.Sprintf("%s must be %d hexadecimal characters: %s", name, hexLen, err),
 		)
 	}
 }
 
 // putIfSet adds key to attrs when value holds a non-empty string. It keeps the
 // per-attribute mapping in the actions declarative rather than a wall of
-// if-statements.
+// if-statements. A null or unknown value already yields "" from ValueString(),
+// so no separate IsNull/IsUnknown check is needed.
 func putIfSet(attrs map[string]string, key string, value types.String) {
-	if value.IsNull() || value.IsUnknown() {
-		return
-	}
 	if v := value.ValueString(); v != "" {
 		attrs[key] = v
 	}
 }
 
-// mergeAttributes copies extra into base without overwriting keys base already
-// holds. First-level attributes therefore win over the escape-hatch maps, so a
-// typo in `resource_attributes` cannot silently shadow a dedicated attribute.
-func mergeAttributes(base, extra map[string]string) map[string]string {
+// mergeAttributes adds extra into base in place, without overwriting keys base
+// already holds. First-level attributes therefore win over the escape-hatch
+// maps, so a typo in `resource_attributes` cannot silently shadow a dedicated
+// attribute. It has no return value because it mutates base directly — maps
+// are reference types, so a functional-looking `x = mergeAttributes(x, y)`
+// signature would be misleading about what's actually happening.
+func mergeAttributes(base, extra map[string]string) {
 	for k, v := range extra {
 		if _, exists := base[k]; !exists {
 			base[k] = v
 		}
 	}
-	return base
 }
 
 // invokeLogEvent sends event and records the outcome on resp.
 //
-// Failure handling is governed by failOnError. It defaults to false at the
-// schema level because these actions emit telemetry: a marker that could not be
-// delivered should not fail an apply, and — for an action wired to
-// before_create — must not block the resource it annotates from being created.
-// Users who want the marker to be load-bearing opt in explicitly.
+// Failure handling is governed by failOnError, but only for genuine delivery
+// failures. It defaults to false at the schema level because these actions
+// emit telemetry: a marker that could not be delivered should not fail an
+// apply, and — for an action wired to before_create — must not block the
+// resource it annotates from being created. Users who want the marker to be
+// load-bearing opt in explicitly.
+//
+// Configuration mistakes (client.ErrInvalidLogEventConfig: missing OTLP
+// endpoint, an OAuth token, an empty body, malformed trace/span IDs) are
+// reported as errors unconditionally, regardless of failOnError. None of them
+// survive a retry, so letting fail_on_error's default silence them would let
+// a broken pipeline stay broken indefinitely while every apply still exits 0.
 func invokeLogEvent(
 	ctx context.Context,
 	c client.Client,
@@ -181,6 +228,16 @@ func invokeLogEvent(
 	}
 
 	if err := c.SendLogEvent(ctx, event, dataset); err != nil {
+		if errors.Is(err, client.ErrInvalidLogEventConfig) {
+			resp.Diagnostics.AddError(
+				"Invalid Dash0 Log Event Configuration",
+				fmt.Sprintf(
+					"The log event could not be sent because of a configuration problem, independent of `fail_on_error`: %s",
+					err,
+				),
+			)
+			return
+		}
 		if failOnError {
 			resp.Diagnostics.AddError(
 				"Unable to Send Dash0 Log Event",
@@ -207,16 +264,6 @@ func invokeLogEvent(
 		"event_name": event.EventName,
 		"dataset":    dataset,
 	})
-}
-
-// boolValueOrDefault returns the configured boolean, or fallback when the
-// attribute is absent. Action schemas have no Computed attributes and therefore
-// no schema-level defaults, so optional booleans are defaulted in code.
-func boolValueOrDefault(attr types.Bool, fallback bool) bool {
-	if attr.IsNull() || attr.IsUnknown() {
-		return fallback
-	}
-	return attr.ValueBool()
 }
 
 // stringValueOrDefault returns the configured string, or fallback when the

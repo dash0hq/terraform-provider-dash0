@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/action"
 	"github.com/hashicorp/terraform-plugin-framework/action/schema"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
@@ -148,7 +149,7 @@ func (a *DeploymentEventAction) Schema(_ context.Context, _ action.SchemaRequest
 			},
 			"fail_on_error": schema.BoolAttribute{
 				Optional:    true,
-				Description: "Whether a delivery failure fails the Terraform run. Defaults to `false`: an undelivered deployment marker is reported as a warning so that a transient ingestion problem does not fail a deployment, and so that an action wired to `before_create` cannot block the resource it annotates. Set to `true` when the marker is load-bearing.",
+				Description: "Whether a delivery failure fails the Terraform run. Defaults to `false`: an undelivered deployment marker is reported as a warning so that a transient ingestion problem does not fail a deployment, and so that an action wired to `before_create` cannot block the resource it annotates. Set to `true` when the marker is load-bearing. Configuration mistakes (a missing `otlp_url` or an OAuth token) always fail regardless of this setting, since none of them survive a retry.",
 			},
 		},
 	}
@@ -163,7 +164,7 @@ func (a *DeploymentEventAction) ValidateConfig(ctx context.Context, req action.V
 		return
 	}
 
-	validateSeverityNumber(cfg.SeverityNumber, &resp.Diagnostics)
+	validateSeverityNumber(path.Root("severity_number"), cfg.SeverityNumber, &resp.Diagnostics)
 	parseTimestampAttribute(cfg.Time, "time", &resp.Diagnostics)
 }
 
@@ -175,7 +176,9 @@ func (a *DeploymentEventAction) Invoke(ctx context.Context, req action.InvokeReq
 		return
 	}
 
-	validateSeverityNumber(cfg.SeverityNumber, &resp.Diagnostics)
+	// severity_number is already checked by ValidateConfig, which the
+	// framework runs before Invoke; re-running it here would only repeat work
+	// already done at plan time.
 	timestamp := parseTimestampAttribute(cfg.Time, "time", &resp.Diagnostics)
 	extraResourceAttributes := stringMapFromAttribute(ctx, cfg.ResourceAttributes, &resp.Diagnostics)
 	extraLogAttributes := stringMapFromAttribute(ctx, cfg.LogAttributes, &resp.Diagnostics)
@@ -198,13 +201,13 @@ func (a *DeploymentEventAction) Invoke(ctx context.Context, req action.InvokeReq
 	putIfSet(resourceAttributes, "vcs.repository.url.full", cfg.VcsRepositoryURL)
 	putIfSet(resourceAttributes, "vcs.ref.head.revision", cfg.VcsRefHeadRevision)
 	putIfSet(resourceAttributes, "vcs.ref.head.name", cfg.VcsRefHeadName)
-	resourceAttributes = mergeAttributes(resourceAttributes, extraResourceAttributes)
+	mergeAttributes(resourceAttributes, extraResourceAttributes)
 
 	// deployment.status describes this event, not the deployed entity, so it is
 	// a log record attribute.
 	logAttributes := map[string]string{}
 	putIfSet(logAttributes, "deployment.status", cfg.DeploymentStatus)
-	logAttributes = mergeAttributes(logAttributes, extraLogAttributes)
+	mergeAttributes(logAttributes, extraLogAttributes)
 
 	event := client.LogEvent{
 		Body:               stringValueOrDefault(cfg.Body, defaultDeploymentBody(cfg)),
@@ -222,7 +225,7 @@ func (a *DeploymentEventAction) Invoke(ctx context.Context, req action.InvokeReq
 		resp,
 		event,
 		cfg.Dataset.ValueString(),
-		boolValueOrDefault(cfg.FailOnError, false),
+		cfg.FailOnError.ValueBool(),
 		fmt.Sprintf("Sending deployment event for %s to Dash0", cfg.ServiceName.ValueString()),
 	)
 }
@@ -231,7 +234,7 @@ func (a *DeploymentEventAction) Invoke(ctx context.Context, req action.InvokeReq
 // set, so that the common case needs no boilerplate.
 func defaultDeploymentBody(cfg deploymentEventActionModel) string {
 	service := cfg.ServiceName.ValueString()
-	if version := stringValueOrDefault(cfg.ServiceVersion, ""); version != "" {
+	if version := cfg.ServiceVersion.ValueString(); version != "" {
 		return fmt.Sprintf("Deployed %s %s", service, version)
 	}
 	return fmt.Sprintf("Deployed %s", service)

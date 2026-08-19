@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/action"
 	"github.com/hashicorp/terraform-plugin-framework/action/schema"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
@@ -107,7 +108,7 @@ func (a *LogEventAction) Schema(_ context.Context, _ action.SchemaRequest, resp 
 			},
 			"fail_on_error": schema.BoolAttribute{
 				Optional:    true,
-				Description: "Whether a delivery failure fails the Terraform run. Defaults to `false`: undelivered telemetry is reported as a warning so that a transient ingestion problem does not fail an apply, and so that an action wired to `before_create` cannot block the resource it annotates. Set to `true` when the event is load-bearing.",
+				Description: "Whether a delivery failure fails the Terraform run. Defaults to `false`: undelivered telemetry is reported as a warning so that a transient ingestion problem does not fail an apply, and so that an action wired to `before_create` cannot block the resource it annotates. Set to `true` when the event is load-bearing. Configuration mistakes (a missing `otlp_url`, an OAuth token, an empty `body`, or malformed `trace_id`/`span_id`) always fail regardless of this setting, since none of them survive a retry.",
 			},
 		},
 	}
@@ -123,8 +124,8 @@ func (a *LogEventAction) ValidateConfig(ctx context.Context, req action.Validate
 		return
 	}
 
-	validateSeverityNumber(cfg.SeverityNumber, &resp.Diagnostics)
-	validateTraceContext(cfg.TraceID, cfg.SpanID, &resp.Diagnostics)
+	validateSeverityNumber(path.Root("severity_number"), cfg.SeverityNumber, &resp.Diagnostics)
+	validateTraceContext(path.Root("trace_id"), path.Root("span_id"), cfg.TraceID, cfg.SpanID, &resp.Diagnostics)
 	parseTimestampAttribute(cfg.Time, "time", &resp.Diagnostics)
 	parseTimestampAttribute(cfg.ObservedTime, "observed_time", &resp.Diagnostics)
 }
@@ -137,8 +138,9 @@ func (a *LogEventAction) Invoke(ctx context.Context, req action.InvokeRequest, r
 		return
 	}
 
-	validateSeverityNumber(cfg.SeverityNumber, &resp.Diagnostics)
-	validateTraceContext(cfg.TraceID, cfg.SpanID, &resp.Diagnostics)
+	// severity_number and trace_id/span_id pairing/format are already checked
+	// by ValidateConfig, which the framework runs before Invoke; re-running
+	// them here would only repeat work already done at plan time.
 	timestamp := parseTimestampAttribute(cfg.Time, "time", &resp.Diagnostics)
 	observedTimestamp := parseTimestampAttribute(cfg.ObservedTime, "observed_time", &resp.Diagnostics)
 	resourceAttributes := stringMapFromAttribute(ctx, cfg.ResourceAttributes, &resp.Diagnostics)
@@ -149,15 +151,15 @@ func (a *LogEventAction) Invoke(ctx context.Context, req action.InvokeRequest, r
 
 	event := client.LogEvent{
 		Body:               cfg.Body.ValueString(),
-		EventName:          stringValueOrDefault(cfg.EventName, ""),
-		SeverityNumber:     intValueOrDefault(cfg.SeverityNumber, 0),
-		SeverityText:       stringValueOrDefault(cfg.SeverityText, ""),
+		EventName:          cfg.EventName.ValueString(),
+		SeverityNumber:     int(cfg.SeverityNumber.ValueInt64()),
+		SeverityText:       cfg.SeverityText.ValueString(),
 		Timestamp:          timestamp,
 		ObservedTimestamp:  observedTimestamp,
 		ResourceAttributes: resourceAttributes,
 		LogAttributes:      logAttributes,
-		TraceID:            stringValueOrDefault(cfg.TraceID, ""),
-		SpanID:             stringValueOrDefault(cfg.SpanID, ""),
+		TraceID:            cfg.TraceID.ValueString(),
+		SpanID:             cfg.SpanID.ValueString(),
 	}
 
 	progress := "Sending log event to Dash0"
@@ -171,7 +173,7 @@ func (a *LogEventAction) Invoke(ctx context.Context, req action.InvokeRequest, r
 		resp,
 		event,
 		cfg.Dataset.ValueString(),
-		boolValueOrDefault(cfg.FailOnError, false),
+		cfg.FailOnError.ValueBool(),
 		progress,
 	)
 }

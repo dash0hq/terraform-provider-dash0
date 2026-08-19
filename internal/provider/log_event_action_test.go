@@ -165,6 +165,24 @@ func TestLogEventAction_ValidateConfig(t *testing.T) {
 			},
 			wantError: true,
 		},
+		"trace id not hex": {
+			values: map[string]tftypes.Value{
+				"body":     tfString("message"),
+				"dataset":  tfString("default"),
+				"trace_id": tfString("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"),
+				"span_id":  tfString("b7ad6b7169203331"),
+			},
+			wantError: true,
+		},
+		"span id too short": {
+			values: map[string]tftypes.Value{
+				"body":     tfString("message"),
+				"dataset":  tfString("default"),
+				"trace_id": tfString("0af7651916cd43dd8448eb211c80319c"),
+				"span_id":  tfString("b7ad"),
+			},
+			wantError: true,
+		},
 	}
 
 	for name, tt := range tests {
@@ -180,20 +198,8 @@ func TestLogEventAction_ValidateConfig(t *testing.T) {
 	}
 }
 
-func TestLogEventAction_InvokeRejectsHalfSpecifiedTraceContext(t *testing.T) {
-	// Invoke re-validates rather than trusting that ValidateConfig ran, so a
-	// half-specified trace context never reaches the client.
-	m := &MockClient{}
-	a := &LogEventAction{client: m}
-	cfg := actionTestConfig(t, actionSchemaOf(t, a), map[string]tftypes.Value{
-		"body":     tfString("message"),
-		"dataset":  tfString("default"),
-		"trace_id": tfString("0af7651916cd43dd8448eb211c80319c"),
-	})
-
-	resp := &action.InvokeResponse{}
-	a.Invoke(context.Background(), action.InvokeRequest{Config: cfg}, resp)
-
-	assert.True(t, resp.Diagnostics.HasError())
-	m.AssertNotCalled(t, "SendLogEvent", mock.Anything, mock.Anything, mock.Anything)
-}
+// Half-specified and malformed trace context are covered by
+// TestLogEventAction_ValidateConfig and TestValidateTraceContext:
+// ValidateConfig — which the Terraform actions protocol always runs before
+// Invoke — is now the sole owner of that check, so Invoke no longer repeats
+// it (see the comment in LogEventAction.Invoke).
