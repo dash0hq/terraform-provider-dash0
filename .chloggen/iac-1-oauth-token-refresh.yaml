@@ -1,0 +1,20 @@
+change_type: bug_fix
+
+component: provider
+
+note: Refresh OAuth access tokens throughout a plan or apply, and fix named OAuth profiles never refreshing
+
+issues: [161]
+
+subtext: |
+  Credentials from an OAuth-enabled Dash0 CLI profile were captured once, when the provider
+  was configured, then reused for the rest of the run. A Dash0 OAuth access token lasts 15
+  minutes, so a plan or apply over a large configuration failed with 401 partway through. The
+  token is now refreshed as needed for the whole run, which is what the documentation already
+  described.
+
+  A named profile, `provider "dash0" { profile = "production" }`, had it worse: it was never
+  refreshed, so it failed as soon as the stored token was over 15 minutes old. Only the active
+  profile was refreshed, and only at configure time. Named profiles now behave the same.
+
+  Static credentials from `DASH0_AUTH_TOKEN` or the `auth_token` attribute are unaffected.

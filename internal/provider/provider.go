@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 	dash0Profiles "github.com/dash0hq/dash0-api-client-go/profiles"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
@@ -98,10 +99,10 @@ func getEnvURL() string {
 // which honors the DASH0_CONFIG_DIR environment variable and falls back to
 // `~/.dash0`.
 //
-// When the resolved profile uses OAuth, the access token is transparently
-// refreshed (if close to expiry) for the active-profile path. Named profiles
-// that are not active cannot be refreshed because the library does not expose a
-// public per-name refresh API; the provider will use whatever token is on disk.
+// Both paths record which profile the configuration came from, which is what
+// lets the client refresh its OAuth access token per request. A hand-rolled
+// search through GetProfiles drops that, leaving a configuration that can only
+// serve whatever token happens to sit on disk.
 func loadProfileConfiguration(ctx context.Context, profileName string) (*dash0Profiles.Configuration, error) {
 	store, err := dash0Profiles.NewStore()
 	if err != nil {
@@ -115,25 +116,41 @@ func loadProfileConfiguration(ctx context.Context, profileName string) (*dash0Pr
 		}
 		return cfg, nil
 	}
-	profiles, err := store.GetProfiles()
+	cfg, err := store.GetConfigurationForProfile(ctx, profileName)
+	if errors.Is(err, dash0Profiles.ErrProfileNotFound) {
+		return nil, fmt.Errorf("profile %q not found in dash0 CLI configuration", profileName)
+	}
 	if err != nil {
 		return nil, err
 	}
-	for _, p := range profiles {
-		if p.Name == profileName {
-			return &p.Configuration, nil
-		}
-	}
-	return nil, fmt.Errorf("profile %q not found in dash0 CLI configuration", profileName)
+	return cfg, nil
 }
 
 // authInfo holds the resolved Dash0 URL, auth token, and whether the token
 // originated from an OAuth-enabled CLI profile (in which case the auth_
 // prefix validation is skipped).
+//
+// profileCfg is the CLI profile the credentials came from, or nil when they came
+// from the environment or the provider block. It is retained so the client can
+// be built around a refreshing token provider instead of the token snapshot in
+// the token field, which is only used for validation and logging.
 type authInfo struct {
-	url     string
-	token   string
-	isOAuth bool
+	url        string
+	token      string
+	isOAuth    bool
+	profileCfg *dash0Profiles.Configuration
+}
+
+// tokenProvider returns how the API client should authenticate.
+//
+// An OAuth profile yields a provider that refreshes the access token as it nears
+// expiry, so a long plan or apply is not cut off mid-run. Everything else is a
+// credential that does not expire, so it is served as-is.
+func (a authInfo) tokenProvider() dash0.AuthTokenProvider {
+	if a.isOAuth && a.profileCfg != nil {
+		return a.profileCfg.AuthTokenProvider()
+	}
+	return dash0.StaticAuthTokenProvider(a.token)
 }
 
 // resolveAuthInfo computes the Dash0 URL and auth token according to the
@@ -189,7 +206,7 @@ func resolveAuthInfo(ctx context.Context, cfg *providerConfigModel) (authInfo, e
 		authToken = profileCfg.AuthToken
 		isOAuth = profileCfg.OAuth != nil
 	}
-	return authInfo{url: url, token: authToken, isOAuth: isOAuth}, nil
+	return authInfo{url: url, token: authToken, isOAuth: isOAuth, profileCfg: profileCfg}, nil
 }
 
 // Configure prepares a Dash0 API client for data sources and resources.
@@ -285,7 +302,7 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 	tflog.Debug(ctx, "Creating Dash0 client")
 
 	// Create dash0Client configuration for data sources and resources
-	dash0Client, err := client.NewDash0Client(auth.url, auth.token, p.version, maxRetries)
+	dash0Client, err := client.NewDash0Client(auth.url, auth.tokenProvider(), p.version, maxRetries)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create Dash0 API Client",

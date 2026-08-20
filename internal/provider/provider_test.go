@@ -241,6 +241,25 @@ func TestDash0Provider_Configure_MissingAuthToken(t *testing.T) {
 	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Missing Dash0 Auth Token")
 }
 
+// TestDash0Provider_Configure_InvalidAuthToken covers the only remaining check
+// on a malformed token. The API client validates a token's shape per request
+// now, not at construction, so this is what turns a typo into an immediate,
+// actionable Terraform diagnostic instead of a failure on the first API call.
+func TestDash0Provider_Configure_InvalidAuthToken(t *testing.T) {
+	clearCredentialEnv(t)
+
+	p := &dash0Provider{}
+	req := provider.ConfigureRequest{
+		Config: providerTestConfig(strPtr("https://api.example.com"), strPtr("nonsense-token"), nil, nil),
+	}
+	resp := &provider.ConfigureResponse{}
+	p.Configure(context.Background(), req, resp)
+
+	assert.True(t, resp.Diagnostics.HasError())
+	require.Len(t, resp.Diagnostics.Errors(), 1)
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "Invalid Dash0 Auth Token")
+}
+
 func TestDash0Provider_Configure_MissingBoth(t *testing.T) {
 	clearCredentialEnv(t)
 
