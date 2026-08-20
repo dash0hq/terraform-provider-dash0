@@ -66,12 +66,12 @@ func trackingSpamFilterFake(attempts, inFlight, maxInFlight *int32) *dash0test.M
 // losing resource.
 //
 // Rather than retrying after the fact, upsertSpamFilter now serializes
-// Create/Update/Delete calls per dataset (see lockSpamFilterDataset), so the
+// Create/Update/Delete calls per dataset (see lockDataset), so the
 // race never reaches the API in the first place. This test fires two
 // concurrent updates at the same dataset and asserts that the fake API never
 // observes more than one of them in flight at once, and that both succeed.
 func TestUpsertSpamFilter_ConcurrentWritesToSameDatasetAreSerialized(t *testing.T) {
-	const dataset = "shared-dataset"
+	const dataset = "upsert-same-dataset"
 	origins := []string{"tf_filter_a", "tf_filter_b"}
 
 	var attempts, inFlight, maxInFlight int32
@@ -105,6 +105,9 @@ func TestUpsertSpamFilter_ConcurrentWritesToSameDatasetAreSerialized(t *testing.
 // per-dataset lock added to fix the concurrent-409 bug is scoped to a single
 // dataset, not global: concurrent writes to unrelated datasets must still be
 // able to run at the same time.
+//
+// Note that the lock registry is process-wide (see lockDataset), so every test
+// in this package uses dataset names of its own rather than sharing one.
 func TestSpamFilterWrites_DifferentDatasetsAreNotSerialized(t *testing.T) {
 	var attempts, inFlight, maxInFlight int32
 	c := &dash0Client{inner: trackingSpamFilterFake(&attempts, &inFlight, &maxInFlight)}
@@ -113,7 +116,7 @@ func TestSpamFilterWrites_DifferentDatasetsAreNotSerialized(t *testing.T) {
 	var release sync.WaitGroup
 	release.Add(1)
 
-	datasets := []string{"dataset-a", "dataset-b"}
+	datasets := []string{"unrelated-dataset-a", "unrelated-dataset-b"}
 	for i, dataset := range datasets {
 		wg.Add(1)
 		go func(i int, dataset string) {
@@ -136,7 +139,7 @@ func TestSpamFilterWrites_DifferentDatasetsAreNotSerialized(t *testing.T) {
 // exactly the kind of concurrent write that raced the dataset version before
 // this fix.
 func TestDeleteSpamFilter_SerializedWithConcurrentUpdateToSameDataset(t *testing.T) {
-	const dataset = "shared-dataset"
+	const dataset = "delete-with-update-same-dataset"
 
 	var attempts, inFlight, maxInFlight int32
 	c := &dash0Client{inner: trackingSpamFilterFake(&attempts, &inFlight, &maxInFlight)}

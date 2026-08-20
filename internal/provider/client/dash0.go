@@ -2,7 +2,6 @@ package client
 
 import (
 	"fmt"
-	"sync"
 
 	dash0 "github.com/dash0hq/dash0-api-client-go"
 )
@@ -30,10 +29,6 @@ type dash0Client struct {
 	// version is the provider version. It is used as the OpenTelemetry
 	// instrumentation scope version on emitted telemetry.
 	version string
-	// spamFilterDatasetLocks holds one *sync.Mutex per dataset (map[string]*sync.Mutex),
-	// used to serialize spam filter Create/Update/Delete calls against the same
-	// dataset. See lockSpamFilterDataset in spam_filter.go for why.
-	spamFilterDatasetLocks sync.Map
 }
 
 // NewDash0Client creates a new Dash0 API client backed by the shared library.

@@ -19,6 +19,9 @@ subtext: |
   Terraform's default parallelism issues concurrent Create/Update/Delete calls for spam filters in the same
   dataset, racing the dataset's optimistic-concurrency version. The provider now serializes spam filter writes
   per dataset so the race never reaches the API, instead of surfacing the conflict as an unretried error.
+  The serialization covers every provider instance in a run, so aliased provider blocks writing the same
+  dataset are serialized against each other too. Writers outside the Terraform process — a concurrent
+  apply, the Dash0 web app, the CLI, or the Operator — are still able to race the dataset version.
 
 # If your change doesn't affect end users or the exported elements of any package,
 # you should instead start your pull request title with "chore" or use the "Skip Changelog" label.
