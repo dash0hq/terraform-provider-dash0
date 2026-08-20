@@ -6,6 +6,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.16.0
+
+
+### New Components
+
+
+- `actions`: Add the `dash0_deployment_event` and `dash0_log_event` actions for emitting deployment markers and arbitrary log events from Terraform (#157)
+  `dash0_deployment_event` emits a `dash0.deployment` event so a deploy driven by `terraform apply`
+  shows up as a dashboard annotation; `dash0_log_event` is its general-purpose counterpart, mirroring
+  the `dash0 logs send` CLI command. Attach either to a resource with a `lifecycle` `action_trigger`
+  block, or invoke it standalone with `terraform apply -invoke`. Actions require Terraform 1.14 or
+  later; the provider is unaffected on older versions.
+  
+  Both need the new optional `otlp_url` provider attribute (or the `DASH0_OTLP_URL` environment
+  variable, or a dash0 CLI profile's `otlpUrl`), which addresses the Dash0 OTLP ingress endpoint
+  rather than the API. Resources are unaffected and continue to work without it.
+  
+  Delivery failures (the event was well-formed but Dash0 could not be reached) are reported as
+  warnings rather than errors by default, so a transient ingestion problem cannot fail an apply or
+  block a resource an action is attached to. Set `fail_on_error = true` to opt into treating them as
+  errors. Configuration mistakes (missing `otlp_url`, an OAuth-enabled profile — the Dash0 OTLP
+  ingress endpoint does not accept OAuth access tokens even though the API does — an empty `body`, or
+  malformed `trace_id`/`span_id`) always fail regardless of `fail_on_error`, since none of them
+  survive a retry.
+  
+
+
+### Enhancements
+
+
+- `notification_channels`: Document that `spec.routing.assets` is a read-only, server-derived back-reference in the routing example and the import guide (#128)
+  The Dash0 API populates `spec.routing.assets` when a check rule or synthetic check binds to the
+  channel and discards any value supplied on write; the provider already warns when it is set and
+  excludes it from drift comparison. The routing example and the import guide now say so explicitly.
+  
+
+
+### Bug Fixes
+
+
+- `check_rules`: Merge a `check_rule_yaml` document's top-level `metadata.annotations` into the rule's own annotations, matching the Dash0 Kubernetes operator and CLI (#153)
+  Previously a setting defined once at the top level of a PrometheusRule document was dropped
+  rather than applied, so `dash0.com/notification-channel-ids` set there never reached the check
+  rule and notification routing did not happen. A rule's own annotations still take precedence
+  when the same key is set in both places. The example in
+  `examples/resources/dash0_check_rule/resource.tf` has used a top-level annotation since before
+  this fix, so configurations copied from it were affected.
+  
+
+- `provider`: Refresh OAuth access tokens throughout a plan or apply, and fix named OAuth profiles never refreshing (#161)
+  Credentials from an OAuth-enabled Dash0 CLI profile were captured once, when the provider
+  was configured, then reused for the rest of the run. A Dash0 OAuth access token lasts 15
+  minutes, so a plan or apply over a large configuration failed with 401 partway through. The
+  token is now refreshed as needed for the whole run, which is what the documentation already
+  described.
+  
+  A named profile, `provider "dash0" { profile = "production" }`, had it worse: it was never
+  refreshed, so it failed as soon as the stored token was over 15 minutes old. Only the active
+  profile was refreshed, and only at configure time. Named profiles now behave the same.
+  
+  Static credentials from `DASH0_AUTH_TOKEN` or the `auth_token` attribute are unaffected.
+  
+
 ## 1.15.0
 
 
