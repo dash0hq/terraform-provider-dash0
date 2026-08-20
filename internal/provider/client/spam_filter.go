@@ -46,6 +46,10 @@ func (c *dash0Client) upsertSpamFilter(ctx context.Context, origin, filterJSON, 
 		return fmt.Errorf("error parsing spam filter JSON: %w", err)
 	}
 
+	// Serialize writes to this dataset — see lockDataset for why.
+	unlock := lockDataset(dataset)
+	defer unlock()
+
 	if isV1Alpha2 {
 		filter, err := unmarshalSpamFilterV1Alpha2(filterJSON)
 		if err != nil {
@@ -104,6 +108,10 @@ func (c *dash0Client) GetSpamFilter(ctx context.Context, origin string, dataset 
 }
 
 func (c *dash0Client) DeleteSpamFilter(ctx context.Context, origin string, dataset string) error {
+	// Serialize writes to this dataset — see lockDataset for why.
+	unlock := lockDataset(dataset)
+	defer unlock()
+
 	err := c.inner.DeleteSpamFilter(ctx, origin, &dataset)
 	if err != nil {
 		return err
