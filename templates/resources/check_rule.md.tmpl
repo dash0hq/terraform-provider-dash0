@@ -25,6 +25,8 @@ A `dash0_check_rule` holds exactly one group containing exactly one rule, so thi
 It matters instead because a `PrometheusRule` document written for the [Dash0 Operator for Kubernetes](https://dash0.com/docs/dash0/monitoring/kubernetes/dash0-operator/managing-dash0-resources#managing-dash0-check-rules), or exported from Dash0, can be used here verbatim and its top-level settings still apply.
 To manage many rules, use `for_each` over the resource as in the example above, and keep the shared value in Terraform rather than in an annotation.
 
+!> **Warning:** The merge works per key, not per value. Where both set the same key, the rule's value replaces the inherited one. Dash0 does not combine lists, so a rule that names one channel in `dash0.com/notification-channel-ids` loses the ones it would have inherited. Repeat the inherited ids to keep them.
+
 Below, the rule declares no annotations of its own and is routed by the channel it inherits from the document:
 
 ```terraform

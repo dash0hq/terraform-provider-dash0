@@ -40,6 +40,12 @@ common:
     flags: [multiline]
     replace: "> [!NOTE]\n> \\1"
     required: false
+  - description: rewrite Terraform-registry !> Warning admonitions to GitHub-style [!WARNING] callouts, mirroring the ~> Note rule above
+    type: replace-regex
+    find: '^!> \*\*Warning:\*\* (.*)$'
+    flags: [multiline]
+    replace: "> [!WARNING]\n> \\1"
+    required: false
 
 coverage:
   # Every docs page matching `include` must appear as a `files[].source` below or be listed under
