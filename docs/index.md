@@ -13,7 +13,8 @@ The changelog for this provider can be found [on GitHub](https://github.com/dash
 
 ## Authentication
 
-The Dash0 provider supports three authentication sources. You can get the authentication credentials through [Dash0's settings screens](https://app.dash0.com/settings/auth-tokens).
+The Dash0 provider supports three authentication sources.
+You can get the authentication credentials through [Dash0's settings screens](https://app.dash0.com/goto/settings/auth-tokens).
 
 Credentials are resolved in this order:
 
@@ -21,21 +22,29 @@ Credentials are resolved in this order:
 2. The `url` and `auth_token` provider attributes.
 3. A [dash0 CLI](https://github.com/dash0hq/dash0-cli) profile — the one named by the `profile` provider attribute, or the active profile in the CLI configuration directory if `profile` is unset.
 
+~> **Note:** The OTLP endpoint (`otlp_url` / `DASH0_OTLP_URL` / the profile's `otlpUrl`) follows the same order but resolves independently of the credentials, so a provider configured without it stays valid — only the `dash0_log_event` and `dash0_deployment_event` actions require it.
+
 ### Option 1: Environment Variables (Recommended)
 
 ```sh
+# see https://app.dash0.com/goto/settings/endpoints?endpoint_type=api_http for the exact URL
 export DASH0_API_URL="https://api.us-west-2.aws.dash0.com"
 export DASH0_AUTH_TOKEN="auth_xxxx"
 export DASH0_MAX_RETRIES=3  # optional, default: 3, max: 5
+
+# only needed for the dash0_log_event and dash0_deployment_event actions
+# see https://app.dash0.com/goto/settings/endpoints?endpoint_type=otlp_http for the exact URL
+export DASH0_OTLP_URL="https://ingress.us-west-2.aws.dash0.com"
 ```
 
 The following environment variables are supported:
 
 | Variable | Required | Description | Default |
 |----------|----------|-------------|---------|
-| `DASH0_API_URL` | Yes | The base URL of the Dash0 API (e.g. `https://api.us-west-2.aws.dash0.com`). Overrides the `url` provider attribute. | — |
+| `DASH0_API_URL` | Yes | The base URL of the Dash0 API (e.g. `https://api.us-west-2.aws.dash0.com`). Find yours on the [API endpoint settings page](https://app.dash0.com/goto/settings/endpoints?endpoint_type=api_http). Overrides the `url` provider attribute. | — |
 | `DASH0_URL` | No | Deprecated alias for `DASH0_API_URL`. Used only when `DASH0_API_URL` is not set. | — |
 | `DASH0_AUTH_TOKEN` | Yes | The API auth token for Dash0. Must start with `auth_` or `dash0_at_`. Overrides the `auth_token` provider attribute. | — |
+| `DASH0_OTLP_URL` | No | The base URL of the Dash0 OTLP/HTTP ingress endpoint (e.g. `https://ingress.us-west-2.aws.dash0.com`). Find yours on the [OTLP endpoint settings page](https://app.dash0.com/goto/settings/endpoints?endpoint_type=otlp_http). Overrides the `otlp_url` provider attribute. Only needed by the `dash0_log_event` and `dash0_deployment_event` actions. | — |
 | `DASH0_CONFIG_DIR` | No | Directory containing the dash0 CLI configuration files (`activeProfile`, `profiles.json`). Used when loading credentials from a CLI profile. | `~/.dash0` |
 | `DASH0_MAX_RETRIES` | No | Maximum number of retries for failed API requests (0–5). Overrides the `max_retries` provider attribute. | `3` |
 
@@ -55,7 +64,8 @@ Environment variables take precedence over provider configuration attributes whe
 
 ### Option 3: dash0 CLI profile
 
-If the [dash0 CLI](https://github.com/dash0hq/dash0-cli) is installed and configured, the provider can load credentials from one of its profiles when neither environment variables nor provider attributes supply them. By default the active profile is used; the `profile` attribute selects a specific profile by name.
+If the [dash0 CLI](https://github.com/dash0hq/dash0-cli) is installed and configured, the provider can load credentials from one of its profiles when neither environment variables nor provider attributes supply them.
+By default the active profile is used; the `profile` attribute selects a specific profile by name.
 
 ```terraform
 terraform {
@@ -79,7 +89,9 @@ The CLI configuration directory defaults to `~/.dash0`; set `DASH0_CONFIG_DIR` t
 
 #### OAuth-enabled profiles
 
-Profiles authenticated via `dash0 auth login` (OAuth) are fully supported. The provider transparently refreshes the access token when it is close to expiry. If the refresh token itself has expired or been revoked, the provider emits a clear error asking you to re-authenticate:
+Profiles authenticated via `dash0 auth login` (OAuth) are supported for every resource and data source.
+The provider transparently refreshes the access token when it is close to expiry.
+If the refresh token itself has expired or been revoked, the provider emits a clear error asking you to re-authenticate:
 
 ```
 Error: OAuth re-authentication required
@@ -88,7 +100,12 @@ The OAuth session for your dash0 CLI profile has expired.
 Run `dash0 auth login` to re-authenticate, then re-run your Terraform command.
 ```
 
-**Note:** Provider versions before this feature was added reject OAuth-enabled profiles with an `Invalid Dash0 Auth Token` error because they require auth tokens to start with the `auth_` prefix. OAuth access tokens use the `dash0_at_` prefix instead. If you see this error, upgrade the provider to the latest version.
+**Note:** Provider versions before this feature was added reject OAuth-enabled profiles with an `Invalid Dash0 Auth Token` error because they require auth tokens to start with the `auth_` prefix.
+OAuth access tokens use the `dash0_at_` prefix instead.
+If you see this error, upgrade the provider to the latest version.
+
+**Note:** The `dash0_log_event` and `dash0_deployment_event` actions require a static token (`auth_` prefix, from [Dash0 Settings > Auth Tokens](https://app.dash0.com/goto/settings/auth-tokens)) — supplied via `auth_token`, `DASH0_AUTH_TOKEN`, or a non-OAuth profile.
+The Dash0 OTLP/HTTP ingress endpoint those actions send to does not accept OAuth access tokens, even though the Dash0 API does, so an OAuth-enabled profile fails those actions with an actionable error.
 
 ## Examples
 

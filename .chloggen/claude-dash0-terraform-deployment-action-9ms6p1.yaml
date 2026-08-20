@@ -1,0 +1,43 @@
+# Use this changelog template to create an entry for release notes.
+
+# One of 'breaking', 'deprecation', 'new_component', 'enhancement', 'bug_fix'
+change_type: new_component
+
+# The name of the component, or a single word describing the area of concern (e.g. dashboards, check_rules, views)
+component: actions
+
+# A brief description of the change. Surround your text with quotes ("") if it needs to start with a backtick (`).
+note: Add the `dash0_deployment_event` and `dash0_log_event` actions for emitting deployment markers and arbitrary log events from Terraform
+
+# Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
+issues: [157]
+
+# (Optional) One or more lines of additional information to render under the primary note.
+# These lines will be padded with 2 spaces and then inserted directly into the document.
+# Use pipe (|) for multiline entries.
+subtext: |
+  `dash0_deployment_event` emits a `dash0.deployment` event so a deploy driven by `terraform apply`
+  shows up as a dashboard annotation; `dash0_log_event` is its general-purpose counterpart, mirroring
+  the `dash0 logs send` CLI command. Attach either to a resource with a `lifecycle` `action_trigger`
+  block, or invoke it standalone with `terraform apply -invoke`. Actions require Terraform 1.14 or
+  later; the provider is unaffected on older versions.
+
+  Both need the new optional `otlp_url` provider attribute (or the `DASH0_OTLP_URL` environment
+  variable, or a dash0 CLI profile's `otlpUrl`), which addresses the Dash0 OTLP ingress endpoint
+  rather than the API. Resources are unaffected and continue to work without it.
+
+  Delivery failures (the event was well-formed but Dash0 could not be reached) are reported as
+  warnings rather than errors by default, so a transient ingestion problem cannot fail an apply or
+  block a resource an action is attached to. Set `fail_on_error = true` to opt into treating them as
+  errors. Configuration mistakes (missing `otlp_url`, an OAuth-enabled profile — the Dash0 OTLP
+  ingress endpoint does not accept OAuth access tokens even though the API does — an empty `body`, or
+  malformed `trace_id`/`span_id`) always fail regardless of `fail_on_error`, since none of them
+  survive a retry.
+
+# If your change doesn't affect end users or the exported elements of any package,
+# you should instead start your pull request title with "chore" or use the "Skip Changelog" label.
+# Optional: The change log or logs in which this entry should be included.
+# e.g. '[user]' or '[user, api]'
+# Include 'user' if the change is relevant to end users.
+# Default: '[user]'
+change_logs: []

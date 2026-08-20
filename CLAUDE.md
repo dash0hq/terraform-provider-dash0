@@ -20,7 +20,7 @@ Each test creates a resource via `tofu apply`, downloads it via the `dash0` CLI 
 - Run all: `make test-roundtrip`
 - Run one: `./test/roundtrip/run_all.sh test_dashboard.sh`
 - Locally: Docker running, dash0 CLI configured with an active profile (`~/.dash0/`)
-- CI: set `DASH0_API_URL`, `DASH0_AUTH_TOKEN`, and optionally `DASH0_DATASET` env vars (no CLI profile needed)
+- CI: set `DASH0_API_URL`, `DASH0_AUTH_TOKEN`, and optionally `DASH0_DATASET` env vars (no CLI profile needed). `DASH0_OTLP_URL` is also required for the actions test (`test_actions.sh`) — the OTLP ingress endpoint the `dash0_log_event`/`dash0_deployment_event` actions send to, distinct from the API URL.
 
 ### Structure
 

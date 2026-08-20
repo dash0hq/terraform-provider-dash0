@@ -331,8 +331,10 @@ func testAccCheckSyntheticCheckExists(resourceName string) resource.TestCheckFun
 		c, err := client.NewDash0Client(
 			os.Getenv("DASH0_URL"),
 			dash0.StaticAuthTokenProvider(os.Getenv("DASH0_AUTH_TOKEN")),
+			false,
 			"test",
 			3,
+			"",
 		)
 		if err != nil {
 			return fmt.Errorf("Error creating client: %s", err)

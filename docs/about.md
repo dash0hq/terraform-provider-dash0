@@ -16,6 +16,44 @@ Each Dash0 asset kind is exposed as a Terraform resource whose primary attribute
 - [`dash0_spam_filter`](resources/spam-filter) — ingestion-time telemetry filters.
 - [`dash0_team`](resources/team) — organization-level teams that group members and own assets.
 
+## Actions
+
+Not everything worth doing from Terraform is an asset to reconcile.
+Actions are point-in-time operations that hold no state, run only when invoked, and are available from Terraform 1.14 onward.
+
+The following actions allow you to send telemetry to Dash0 about changes you enact via Terraform:
+
+- [`dash0_deployment_event`](actions/deployment-event) — emits a `dash0.deployment` event marking when a service was deployed, so the deployment can be overlaid on charts as a [dashboard annotation](https://dash0.com/docs/dash0/dashboards/add-annotations).
+- [`dash0_log_event`](actions/log-event) — sends an arbitrary [log event](https://dash0.com/docs/dash0/telemetry/logging/understand-log-events) via OTLP, mirroring the [`dash0 logs send`](https://dash0.com/docs/dash0/miscellaneous/tooling/dash0-cli/commands#logs-send) CLI command.
+
+Both require the `otlp_url` provider attribute, which addresses the [Dash0 OTLP ingress endpoint](https://app.dash0.com/goto/settings/endpoints?endpoint_type=otlp_http&dataset=default) rather than the API.
+Attach an action to a resource with a `lifecycle` `action_trigger` block, or invoke it on its own with `terraform apply -invoke`:
+
+```terraform
+action "dash0_deployment_event" "release" {
+  config {
+    service_name                = "checkout-api"
+    service_version             = var.image_tag
+    deployment_environment_name = "production"
+    deployment_status           = "succeeded"
+    dataset                     = "production"
+  }
+}
+
+resource "kubernetes_deployment" "checkout_api" {
+  # ... deployment configuration ...
+
+  lifecycle {
+    action_trigger {
+      events  = [after_create, after_update]
+      actions = [action.dash0_deployment_event.release]
+    }
+  }
+}
+```
+
+See [`dash0_deployment_event`](actions/deployment-event) and [`dash0_log_event`](actions/log-event) for the full schema, more `action_trigger` patterns, and the required provider setup.
+
 ## Authentication
 
 The provider accepts credentials from three sources, checked in order:

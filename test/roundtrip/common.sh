@@ -12,7 +12,8 @@ set -euo pipefail
 : "${DASH0_AUTH_TOKEN:=}"
 : "${DASH0_DATASET:=default}"
 : "${DASH0_PROVIDER_PROFILE:=}"
-export DASH0_API_URL DASH0_AUTH_TOKEN DASH0_DATASET DASH0_PROVIDER_PROFILE
+: "${DASH0_OTLP_URL:=}"
+export DASH0_API_URL DASH0_AUTH_TOKEN DASH0_DATASET DASH0_PROVIDER_PROFILE DASH0_OTLP_URL
 
 # Use OpenTofu (tofu) as Terraform CLI.
 TF="tofu"
@@ -39,10 +40,12 @@ fail()  { echo -e "${RED}[FAIL]${NC}  $*"; exit 1; }
 # Write the provider configuration into the given working directory.
 # Usage: write_provider_tf <dir>
 #
-# Empty values for DASH0_API_URL, DASH0_AUTH_TOKEN, or DASH0_PROVIDER_PROFILE
-# omit the corresponding attribute from the generated provider block, so
-# callers can compose configurations that exercise the env-vars-only or
-# profile-only code paths.
+# Empty values for DASH0_API_URL, DASH0_AUTH_TOKEN, DASH0_PROVIDER_PROFILE, or
+# DASH0_OTLP_URL omit the corresponding attribute from the generated provider
+# block, so callers can compose configurations that exercise the
+# env-vars-only or profile-only code paths. DASH0_OTLP_URL is inert for every
+# test except the actions test (test_actions.sh), which is the only one that
+# sets it.
 write_provider_tf() {
   local dir="$1"
   {
@@ -61,6 +64,7 @@ EOF
     if [[ -n "${DASH0_API_URL}" ]];          then printf '  url        = "%s"\n' "${DASH0_API_URL}";          fi
     if [[ -n "${DASH0_AUTH_TOKEN}" ]];       then printf '  auth_token = "%s"\n' "${DASH0_AUTH_TOKEN}";       fi
     if [[ -n "${DASH0_PROVIDER_PROFILE}" ]]; then printf '  profile    = "%s"\n' "${DASH0_PROVIDER_PROFILE}"; fi
+    if [[ -n "${DASH0_OTLP_URL}" ]];         then printf '  otlp_url   = "%s"\n' "${DASH0_OTLP_URL}";         fi
     echo "}"
   } > "${dir}/provider.tf"
 }
@@ -113,6 +117,67 @@ tf_state_show() {
 tf_plan_detailed_exitcode() {
   local dir="$1"
   (cd "$dir" && TF_CLI_CONFIG_FILE="${dir}/.terraformrc" $TF plan -detailed-exitcode -input=false)
+}
+
+# ---------------------------------------------------------------------------
+# Real Terraform helpers, for actions.
+#
+# Terraform actions (`dash0_log_event`, `dash0_deployment_event`) are a
+# Terraform 1.14+ feature; OpenTofu does not implement the `action` block, so
+# tests that exercise actions cannot use $TF ("tofu") above and instead run
+# against the real `terraform` binary and its own filesystem-mirror namespace
+# (registry.terraform.io, vs. tofu's registry.opentofu.org).
+# ---------------------------------------------------------------------------
+
+TERRAFORM="terraform"
+
+# Run terraform init with the local mirror (registry.terraform.io namespace).
+tf_actions_init() {
+  local dir="$1"
+  (
+    cd "$dir"
+    cat > .terraformrc <<TFRC
+provider_installation {
+  filesystem_mirror {
+    path    = "${HOME}/terraform-provider-mirror"
+    include = ["registry.terraform.io/dash0hq/*"]
+  }
+  direct {
+    exclude = ["registry.terraform.io/dash0hq/*"]
+  }
+}
+TFRC
+    TF_CLI_CONFIG_FILE="${dir}/.terraformrc" $TERRAFORM init -input=false
+  )
+}
+
+# Invoke a standalone action, e.g. tf_actions_invoke "$dir" action.dash0_log_event.test
+tf_actions_invoke() {
+  local dir="$1" address="$2"
+  (cd "$dir" && TF_CLI_CONFIG_FILE="${dir}/.terraformrc" $TERRAFORM apply -invoke="$address" -auto-approve -input=false)
+}
+
+# require_terraform_actions_support [min_version]
+#
+# Fails fast with an actionable message when $TERRAFORM is missing, too old,
+# or not actually Terraform, instead of letting `terraform init`/`plan`
+# surface a confusing "Unsupported block type" error further down. Actions
+# require Terraform 1.14+; OpenTofu does not implement the `action` block at
+# all, at any version.
+require_terraform_actions_support() {
+  local min_version="${1:-1.14.0}"
+
+  local actual_version
+  actual_version="$($TERRAFORM version -json 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["terraform_version"])' 2>/dev/null)" \
+    || fail "Could not determine the '${TERRAFORM}' binary's version via '${TERRAFORM} version -json'. Actions require Terraform ${min_version}+ — is 'terraform' on PATH the real HashiCorp binary (not an OpenTofu shim, which does not implement actions at all)?"
+
+  python3 -c "
+import sys
+def parse(v): return tuple(int(p) for p in v.split('.')[:3])
+sys.exit(0 if parse('${actual_version}') >= parse('${min_version}') else 1)
+" || fail "Terraform ${actual_version} found on PATH, but actions require ${min_version}+ (OpenTofu does not implement the 'action' block at all, at any version)."
+
+  info "Terraform ${actual_version} supports actions (>= ${min_version})."
 }
 
 # ---------------------------------------------------------------------------
@@ -369,6 +434,50 @@ assert_yaml_equivalent_eventually() {
       fail "Uploaded and downloaded YAMLs are not equivalent (after ${max_retries} attempts)."
     fi
   done
+}
+
+# ---------------------------------------------------------------------------
+# Log record verification via `dash0 logs query`, with retry.
+# ---------------------------------------------------------------------------
+
+# assert_log_record_via_cli <dataset> <filter> <grep_pattern> [max_retries] [delay]
+#
+# Polls `dash0 logs query` with the given filter (e.g. "service.name is foo")
+# until output containing grep_pattern (case-insensitive) appears, tolerating
+# OTLP ingestion/indexing lag. Used to confirm delivery of log events and
+# deployment events sent by the dash0_log_event / dash0_deployment_event
+# actions, which have no state to read back via the API.
+#
+# Passes --precision disabled: the server's default "adaptive" sampling mode
+# can skip a real match on a narrow per-run filter like ours, which made this
+# check flaky. "disabled" trades query speed (irrelevant on our 30m window)
+# for returning every matching record deterministically.
+assert_log_record_via_cli() {
+  local dataset="$1" filter="$2" grep_pattern="$3"
+  local max_retries="${4:-10}" delay="${5:-3}"
+
+  for i in $(seq 1 "$max_retries"); do
+    set +e
+    local output
+    output="$(dash0 logs query --dataset "$dataset" --filter "$filter" --from now-30m \
+      --precision disabled \
+      --column time --column "otel.event.name" --column body -o csv --skip-header 2>&1)"
+    set -e
+
+    if echo "$output" | grep -qi -- "$grep_pattern"; then
+      info "Log record confirmed via CLI (attempt ${i})."
+      echo "$output"
+      return 0
+    fi
+
+    if [[ "$i" -lt "$max_retries" ]]; then
+      warn "Log record matching '${grep_pattern}' not yet visible via CLI (attempt ${i}/${max_retries}), retrying in ${delay}s..."
+      sleep "$delay"
+    fi
+  done
+
+  echo "$output"
+  fail "Log record matching filter '${filter}' and pattern '${grep_pattern}' not found via CLI after ${max_retries} attempts."
 }
 
 # ---------------------------------------------------------------------------

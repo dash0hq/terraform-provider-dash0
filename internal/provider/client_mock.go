@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/stretchr/testify/mock"
+
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
 
 // MockClient mocks the client.Client interface
@@ -209,4 +211,9 @@ func (m *MockClient) DeleteSpamFilter(ctx context.Context, origin string, datase
 func (m *MockClient) ResolveSpamFilter(ctx context.Context, origin string, dataset string) (string, error) {
 	args := m.Called(ctx, origin, dataset)
 	return args.String(0), args.Error(1)
+}
+
+func (m *MockClient) SendLogEvent(ctx context.Context, event client.LogEvent, dataset string) error {
+	args := m.Called(ctx, event, dataset)
+	return args.Error(0)
 }

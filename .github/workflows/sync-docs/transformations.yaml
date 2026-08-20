@@ -47,6 +47,7 @@ coverage:
   # resources or guides from being silently skipped when a maintainer forgets to declare them here.
   include:
     - docs/*.md
+    - docs/actions/*.md
     - docs/guides/*.md
     - docs/resources/*.md
   ignore:
@@ -62,6 +63,7 @@ nav:
   title: Dash0 Terraform Provider
   groupTitles:
     resources: Resources
+    actions: Actions
     guides: Guides
 
 files:
@@ -94,6 +96,16 @@ files:
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/guides/aws-cloudformation-integration.md
     title: AWS integration via CloudFormation
     description: Deploy the Dash0 AWS integration using Terraform's aws_cloudformation_stack resource with the official Dash0 CloudFormation template.
+
+  - source: docs/actions/deployment_event.md
+    target: dash0/miscellaneous/tooling/terraform-provider-dash0/actions/deployment-event.md
+    title: dash0_deployment_event
+    description: Terraform action that emits a dash0.deployment event, marking when a service was deployed so the deployment can be overlaid on charts as a dashboard annotation.
+
+  - source: docs/actions/log_event.md
+    target: dash0/miscellaneous/tooling/terraform-provider-dash0/actions/log-event.md
+    title: dash0_log_event
+    description: Terraform action that sends an arbitrary log event to Dash0 via OTLP — the general-purpose counterpart to dash0_deployment_event, mirroring the dash0 logs send CLI command.
 
   - source: docs/resources/check_rule.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/check-rule.md

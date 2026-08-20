@@ -70,12 +70,20 @@ func clearCredentialEnv(t *testing.T) {
 	t.Setenv("DASH0_API_URL", "")
 	t.Setenv("DASH0_URL", "")
 	t.Setenv("DASH0_AUTH_TOKEN", "")
+	t.Setenv("DASH0_OTLP_URL", "")
 	t.Setenv("DASH0_CONFIG_DIR", filepath.Join(t.TempDir(), "no-config-here"))
 }
 
 // providerTestConfig builds a tfsdk.Config for provider tests. Pass nil for
-// any value to leave it unset (null).
+// any value to leave it unset (null). The OTLP URL is left unset; use
+// providerTestConfigWithOtlpURL when it matters.
 func providerTestConfig(url, authToken, profile *string, maxRetries *int64) tfsdk.Config {
+	return providerTestConfigWithOtlpURL(url, authToken, profile, nil, maxRetries)
+}
+
+// providerTestConfigWithOtlpURL builds a tfsdk.Config including the otlp_url
+// attribute. Pass nil for any value to leave it unset (null).
+func providerTestConfigWithOtlpURL(url, authToken, profile, otlpURL *string, maxRetries *int64) tfsdk.Config {
 	stringVal := func(p *string) tftypes.Value {
 		if p == nil {
 			return tftypes.NewValue(tftypes.String, nil)
@@ -93,12 +101,14 @@ func providerTestConfig(url, authToken, profile *string, maxRetries *int64) tfsd
 			AttributeTypes: map[string]tftypes.Type{
 				"url":         tftypes.String,
 				"auth_token":  tftypes.String,
+				"otlp_url":    tftypes.String,
 				"profile":     tftypes.String,
 				"max_retries": tftypes.Number,
 			},
 		}, map[string]tftypes.Value{
 			"url":         stringVal(url),
 			"auth_token":  stringVal(authToken),
+			"otlp_url":    stringVal(otlpURL),
 			"profile":     stringVal(profile),
 			"max_retries": numberVal(maxRetries),
 		}),
@@ -601,6 +611,32 @@ func TestResolveAuthInfo_OAuth(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "auth_static_token", auth.token)
 		assert.False(t, auth.isOAuth)
+	})
+
+	t.Run("OAuth-prefixed token supplied directly via env sets isOAuth", func(t *testing.T) {
+		// Regression guard: an OAuth access token (`dash0_at_` prefix) is
+		// documented as a valid DASH0_AUTH_TOKEN/auth_token value in its own
+		// right, not just something that arrives via a CLI profile. isOAuth
+		// must reflect the resolved token's own prefix regardless of source.
+		clearCredentialEnv(t)
+		t.Setenv("DASH0_API_URL", "https://api.example.com")
+		t.Setenv("DASH0_AUTH_TOKEN", "dash0_at_pasted-directly")
+
+		auth, err := resolveAuthInfo(ctx, &providerConfigModel{})
+		require.NoError(t, err)
+		assert.Equal(t, "dash0_at_pasted-directly", auth.token)
+		assert.True(t, auth.isOAuth)
+	})
+
+	t.Run("OAuth-prefixed token supplied directly via attribute sets isOAuth", func(t *testing.T) {
+		clearCredentialEnv(t)
+
+		auth, err := resolveAuthInfo(ctx, &providerConfigModel{
+			URL:       types.StringValue("https://api.example.com"),
+			AuthToken: types.StringValue("dash0_at_pasted-directly"),
+		})
+		require.NoError(t, err)
+		assert.True(t, auth.isOAuth)
 	})
 }
 

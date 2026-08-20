@@ -210,7 +210,8 @@ YAML
 The `frequency` field in the notification channel `spec` controls how often reminder notifications are sent while an alert is firing.
 
 **Important behavior:**
-- If `frequency` is **not specified** in your YAML, the Dash0 API applies a default value of `10m`. This means you will receive reminder notifications every 10 minutes while the alert is active.
+- If `frequency` is **not specified** in your YAML, the Dash0 API applies a default value of `10m`.
+  This means you will receive reminder notifications every 10 minutes while the alert is active.
 - To **disable reminder notifications** (receive only the initial alert and resolution notification), explicitly set `frequency: 0s`.
 - Removing `frequency` from an existing configuration will not disable reminders — it will reset to the default `10m`.
 

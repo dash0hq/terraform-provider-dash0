@@ -11,18 +11,24 @@ RUN go mod download
 COPY . .
 RUN make build
 
-# Set up the filesystem mirror so tofu can find the locally-built provider.
-RUN mkdir -p /provider-mirror/registry.opentofu.org/dash0hq/dash0/0.0.1/linux_$(go env GOARCH)/ && \
+# Set up filesystem mirrors so both tofu and terraform can find the
+# locally-built provider. Two namespaces are needed: tofu resolves
+# dash0hq/dash0 under registry.opentofu.org, while terraform (required for
+# actions — see below) resolves it under registry.terraform.io.
+RUN mkdir -p /provider-mirror/registry.opentofu.org/dash0hq/dash0/0.0.1/linux_$(go env GOARCH)/ \
+             /provider-mirror/registry.terraform.io/dash0hq/dash0/0.0.1/linux_$(go env GOARCH)/ && \
     cp terraform-provider-dash0 \
-       /provider-mirror/registry.opentofu.org/dash0hq/dash0/0.0.1/linux_$(go env GOARCH)/terraform-provider-dash0_v0.0.1
+       /provider-mirror/registry.opentofu.org/dash0hq/dash0/0.0.1/linux_$(go env GOARCH)/terraform-provider-dash0_v0.0.1 && \
+    cp terraform-provider-dash0 \
+       /provider-mirror/registry.terraform.io/dash0hq/dash0/0.0.1/linux_$(go env GOARCH)/terraform-provider-dash0_v0.0.1
 
 # ---------------------------------------------------------------------------
 # Runtime image with all tools the tests need.
 # ---------------------------------------------------------------------------
 FROM python:3.13-alpine
 
-# Install bash and curl.
-RUN apk add --no-cache bash curl
+# Install bash, curl, and unzip (Terraform ships as a .zip, not .tar.gz).
+RUN apk add --no-cache bash curl unzip
 
 # Install OpenTofu.
 RUN ARCH="$(uname -m)" && \
@@ -34,6 +40,20 @@ RUN ARCH="$(uname -m)" && \
     TOFU_VERSION="1.11.5" && \
     curl -fsSL "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_linux_${TOFU_ARCH}.tar.gz" \
       | tar -xz -C /usr/local/bin tofu
+
+# Install real Terraform. Needed because Terraform actions (dash0_log_event,
+# dash0_deployment_event) require Terraform 1.14+; OpenTofu does not
+# implement the `action` block at all.
+RUN ARCH="$(uname -m)" && \
+    case "$ARCH" in \
+      x86_64)  TF_ARCH="amd64" ;; \
+      aarch64) TF_ARCH="arm64" ;; \
+      *)       echo "Unsupported arch: $ARCH" && exit 1 ;; \
+    esac && \
+    TERRAFORM_VERSION="1.15.7" && \
+    curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_${TF_ARCH}.zip" -o /tmp/terraform.zip && \
+    unzip -o /tmp/terraform.zip -d /usr/local/bin && \
+    rm /tmp/terraform.zip
 
 # Install PyYAML (the only Python dependency).
 RUN pip install --no-cache-dir PyYAML

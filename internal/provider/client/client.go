@@ -75,6 +75,13 @@ type Client interface {
 	// the given origin (no deep-link URL — the Dash0 web app does not expose
 	// a per-spam-filter page).
 	ResolveSpamFilter(ctx context.Context, origin string, dataset string) (string, error)
+
+	// SendLogEvent emits a single log record to the Dash0 OTLP/HTTP ingress
+	// endpoint. Unlike every other method on this interface it does not manage
+	// an asset: log events are point-in-time telemetry with no identity, no
+	// desired state, and nothing to read back or delete. It backs the
+	// dash0_log_event and dash0_deployment_event actions.
+	SendLogEvent(ctx context.Context, event LogEvent, dataset string) error
 }
 
 // Ensure dash0Client implements Client
