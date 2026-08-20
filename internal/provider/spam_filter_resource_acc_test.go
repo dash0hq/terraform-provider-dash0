@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
 
@@ -160,7 +161,7 @@ func testAccCheckSpamFilterExists(resourceName string) resource.TestCheckFunc {
 		// Create a new client to verify the spam filter exists
 		c, err := client.NewDash0Client(
 			os.Getenv("DASH0_URL"),
-			os.Getenv("DASH0_AUTH_TOKEN"),
+			dash0.StaticAuthTokenProvider(os.Getenv("DASH0_AUTH_TOKEN")),
 			"test",
 			3,
 		)
