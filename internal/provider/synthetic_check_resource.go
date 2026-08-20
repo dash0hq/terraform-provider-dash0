@@ -37,6 +37,9 @@ func NewSyntheticCheckResource() resource.Resource {
 // SyntheticCheckResource is the resource implementation.
 type SyntheticCheckResource struct {
 	client client.Client
+	// defaultDataset is the provider-level default dataset, inherited by this
+	// resource's `dataset` attribute when it is omitted from configuration.
+	defaultDataset string
 }
 
 // syntheticCheckModel is the Terraform state model for a synthetic check resource.
@@ -54,16 +57,17 @@ func (r *SyntheticCheckResource) Configure(_ context.Context, req resource.Confi
 		return
 	}
 
-	client, ok := req.ProviderData.(client.Client)
+	data, ok := req.ProviderData.(resourceProviderData)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected client.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected provider.resourceProviderData, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 		return
 	}
 
-	r.client = client
+	r.client = data.client
+	r.defaultDataset = data.defaultDataset
 }
 
 func (r *SyntheticCheckResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -89,10 +93,12 @@ func (r *SyntheticCheckResource) Schema(_ context.Context, _ resource.SchemaRequ
 				},
 			},
 			"dataset": schema.StringAttribute{
-				Description: "The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the synthetic check belongs to. Provide the dataset's identifier, which is immutable, not the 'name'. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.",
-				Required:    true,
+				Description: "The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the synthetic check belongs to. Provide the dataset's identifier, which is immutable, not the 'name'. Datasets are used to separate observability data within a Dash0 organization. If omitted, the provider-level `dataset` default is used (see the provider's `dataset` attribute). Changing this value forces the resource to be recreated.",
+				Optional:    true,
+				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"synthetic_check_yaml": schema.StringAttribute{
@@ -141,6 +147,9 @@ func (r *SyntheticCheckResource) Create(ctx context.Context, req resource.Create
 	}
 
 	model.Origin = types.StringValue("tf_" + uuid.New().String())
+	if model.Dataset.IsNull() || model.Dataset.IsUnknown() {
+		model.Dataset = types.StringValue(r.defaultDataset)
+	}
 
 	// Validate YAML format
 	var checkYaml interface{}

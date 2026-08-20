@@ -89,7 +89,7 @@ func TestNotificationChannelResource_Configure(t *testing.T) {
 	}{
 		{
 			name:         "valid client interface",
-			providerData: &MockClient{},
+			providerData: resourceProviderData{client: &MockClient{}},
 			expectError:  false,
 		},
 		{

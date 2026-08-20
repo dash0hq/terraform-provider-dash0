@@ -53,9 +53,11 @@ func TestSyntheticCheckResource_Schema(t *testing.T) {
 	originAttr := attrs["origin"].(schema.StringAttribute)
 	assert.True(t, originAttr.Computed)
 
-	// Check dataset is required
+	// Check dataset is optional, inherited from the provider default when omitted
 	datasetAttr := attrs["dataset"].(schema.StringAttribute)
-	assert.True(t, datasetAttr.Required)
+	assert.False(t, datasetAttr.Required)
+	assert.True(t, datasetAttr.Optional)
+	assert.True(t, datasetAttr.Computed)
 
 	// Check synthetic_check_yaml is required
 	checkYamlAttr := attrs["synthetic_check_yaml"].(schema.StringAttribute)

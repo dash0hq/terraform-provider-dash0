@@ -46,6 +46,7 @@ The following environment variables are supported:
 | `DASH0_AUTH_TOKEN` | Yes | The API auth token for Dash0. Must start with `auth_` or `dash0_at_`. Overrides the `auth_token` provider attribute. | — |
 | `DASH0_OTLP_URL` | No | The base URL of the Dash0 OTLP/HTTP ingress endpoint (e.g. `https://ingress.us-west-2.aws.dash0.com`). Find yours on the [OTLP endpoint settings page](https://app.dash0.com/goto/settings/endpoints?endpoint_type=otlp_http). Overrides the `otlp_url` provider attribute. Only needed by the `dash0_log_event` and `dash0_deployment_event` actions. | — |
 | `DASH0_CONFIG_DIR` | No | Directory containing the dash0 CLI configuration files (`activeProfile`, `profiles.json`). Used when loading credentials from a CLI profile. | `~/.dash0` |
+| `DASH0_DATASET` | No | Default dataset used by dataset-scoped resources that omit their own `dataset` attribute. Overrides the `dataset` provider attribute. | `"default"` |
 | `DASH0_MAX_RETRIES` | No | Maximum number of retries for failed API requests (0–5). Overrides the `max_retries` provider attribute. | `3` |
 
 ### Option 2: Provider Configuration
@@ -106,6 +107,47 @@ If you see this error, upgrade the provider to the latest version.
 
 **Note:** The `dash0_log_event` and `dash0_deployment_event` actions require a static token (`auth_` prefix, from [Dash0 Settings > Auth Tokens](https://app.dash0.com/goto/settings/auth-tokens)) — supplied via `auth_token`, `DASH0_AUTH_TOKEN`, or a non-OAuth profile.
 The Dash0 OTLP/HTTP ingress endpoint those actions send to does not accept OAuth access tokens, even though the Dash0 API does, so an OAuth-enabled profile fails those actions with an actionable error.
+
+## Default dataset
+
+Dataset-scoped resources (`dash0_dashboard`, `dash0_check_rule`, `dash0_recording_rule`, `dash0_spam_filter`, `dash0_synthetic_check`, `dash0_view`) accept an optional `dataset` attribute.
+When a resource omits it, the resource inherits a provider-level default resolved in this order:
+
+1. The `DASH0_DATASET` environment variable.
+2. The `dataset` provider attribute.
+3. The dataset configured on the resolved dash0 CLI profile.
+4. `"default"`.
+
+```terraform
+terraform {
+  required_providers {
+    dash0 = {
+      source  = "dash0hq/dash0"
+      version = "~> 1.6.0"
+    }
+  }
+}
+
+# The `dataset` attribute sets the default dataset for resources that omit
+# their own `dataset` attribute. DASH0_DATASET and the dash0 CLI profile's
+# dataset are consulted first; see the "Default dataset" section for the full
+# precedence order.
+provider "dash0" {
+  dataset = "production"
+}
+
+resource "dash0_dashboard" "checkout" {
+  # No dataset needed -- inherits "production" from the provider block.
+  dashboard_yaml = file("checkout.yaml")
+}
+
+resource "dash0_dashboard" "staging_canary" {
+  dataset        = "staging" # Still overridable per resource.
+  dashboard_yaml = file("canary.yaml")
+}
+```
+
+~> **Note:** A resource's inherited dataset is resolved once, at create time, and pinned into state. Changing the provider-level `dataset` afterward does not move existing resources. To move a resource, set its own `dataset` attribute, which forces the resource to be recreated as it always does.
 
 ## Examples
 

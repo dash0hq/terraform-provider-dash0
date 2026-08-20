@@ -48,7 +48,17 @@ type providerConfigModel struct {
 	AuthToken  types.String `tfsdk:"auth_token"`
 	OtlpURL    types.String `tfsdk:"otlp_url"`
 	Profile    types.String `tfsdk:"profile"`
+	Dataset    types.String `tfsdk:"dataset"`
 	MaxRetries types.Int64  `tfsdk:"max_retries"`
+}
+
+// resourceProviderData is what Configure stores as resp.ResourceData. It
+// bundles the API client with the provider-level default dataset so
+// dataset-scoped resources can inherit it when their own `dataset` attribute
+// is omitted, without every resource re-deriving the default itself.
+type resourceProviderData struct {
+	client         client.Client
+	defaultDataset string
 }
 
 // Metadata returns the provider type name.
@@ -77,6 +87,10 @@ func providerSchema() schema.Schema {
 			"profile": schema.StringAttribute{
 				Optional:    true,
 				Description: "The name of a [dash0 CLI](https://github.com/dash0hq/dash0-cli) profile to load credentials from when `url`/`auth_token`/`otlp_url` are not supplied via attributes or environment variables. If unset, the active profile in the dash0 CLI configuration directory is used. The directory defaults to `~/.dash0` and can be overridden with the DASH0_CONFIG_DIR environment variable.",
+			},
+			"dataset": schema.StringAttribute{
+				Optional:    true,
+				Description: "The default [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) used by dataset-scoped resources (dashboards, check rules, recording rules, spam filters, synthetic checks, and views) that omit their own `dataset` attribute. If omitted, the DASH0_DATASET environment variable is used, then the dataset configured on the resolved dash0 CLI profile, then \"default\". A resource can still override this per resource via its own `dataset` attribute.",
 			},
 			"max_retries": schema.Int64Attribute{
 				Optional:    true,
@@ -258,6 +272,47 @@ func resolveAuthInfo(ctx context.Context, cfg *providerConfigModel) (authInfo, e
 	return authInfo{url: url, token: authToken, otlpURL: otlpURL, isOAuth: isOAuthAccessToken(authToken), profileCfg: profileCfg}, nil
 }
 
+// resolveDataset computes the provider-level default dataset that
+// dataset-scoped resources inherit when their own `dataset` attribute is
+// omitted. Dataset is not an auth concern, so this is a sibling of
+// resolveAuthInfo rather than folded into it, and it follows the same
+// precedence pattern:
+//
+//  1. DASH0_DATASET environment variable.
+//  2. The `dataset` provider attribute.
+//  3. The dash0 CLI profile named by `profile` (or the active profile).
+//  4. "default".
+//
+// profileCfg is the configuration resolveAuthInfo already loaded, when
+// available, so the profile file is not read twice in the common case. It is
+// nil when resolveAuthInfo never consulted a profile (credentials were
+// already complete from env vars/attributes); a profile is then loaded here
+// as a best-effort second attempt. Unlike resolveAuthInfo, a profile load
+// failure here is silently ignored: dataset resolution never fails provider
+// configuration, it just falls through to "default".
+func resolveDataset(ctx context.Context, cfg *providerConfigModel, profileCfg *dash0Profiles.Configuration) string {
+	var attrDataset string
+	if !cfg.Dataset.IsNull() && !cfg.Dataset.IsUnknown() {
+		attrDataset = cfg.Dataset.ValueString()
+	}
+	if dataset := cmp.Or(os.Getenv("DASH0_DATASET"), attrDataset); dataset != "" {
+		return dataset
+	}
+
+	if profileCfg == nil {
+		var profileName string
+		if !cfg.Profile.IsNull() && !cfg.Profile.IsUnknown() {
+			profileName = cfg.Profile.ValueString()
+		}
+		profileCfg, _ = loadProfileConfiguration(ctx, profileName)
+	}
+	if profileCfg != nil && profileCfg.Dataset != "" {
+		return profileCfg.Dataset
+	}
+
+	return "default"
+}
+
 // isOAuthAccessToken reports whether token is an OAuth access token
 // (`dash0_at_` prefix) rather than a static token (`auth_` prefix). This is
 // the sole place that inspects the token's prefix; the Dash0 client trusts
@@ -352,6 +407,8 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 		return
 	}
 
+	defaultDataset := resolveDataset(ctx, &cfg, auth.profileCfg)
+
 	ctx = tflog.SetField(ctx, "dash0_url", auth.url)
 	ctx = tflog.SetField(ctx, "dash0_auth_token", auth.token)
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "dash0_auth_token")
@@ -384,7 +441,7 @@ func (p *dash0Provider) Configure(ctx context.Context, req provider.ConfigureReq
 	}
 
 	resp.DataSourceData = dash0Client
-	resp.ResourceData = dash0Client
+	resp.ResourceData = resourceProviderData{client: dash0Client, defaultDataset: defaultDataset}
 	resp.ActionData = dash0Client
 
 	tflog.Info(ctx, "Configured Dash0 client", map[string]any{"success": true})

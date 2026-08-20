@@ -88,10 +88,11 @@ func TestCheckRuleResource_Schema(t *testing.T) {
 	assert.True(t, originAttr.IsComputed())
 	assert.False(t, originAttr.IsRequired())
 
-	// Verify dataset is required
+	// Verify dataset is optional, inherited from the provider default when omitted
 	datasetAttr := resp.Schema.Attributes["dataset"]
-	assert.True(t, datasetAttr.IsRequired())
-	assert.False(t, datasetAttr.IsComputed())
+	assert.False(t, datasetAttr.IsRequired())
+	assert.True(t, datasetAttr.IsOptional())
+	assert.True(t, datasetAttr.IsComputed())
 
 	// Verify check_rule_yaml is required
 	yamlAttr := resp.Schema.Attributes["check_rule_yaml"]
@@ -113,7 +114,7 @@ func TestCheckRuleResource_Configure(t *testing.T) {
 	}{
 		{
 			name:         "valid client interface",
-			providerData: &MockClient{},
+			providerData: resourceProviderData{client: &MockClient{}, defaultDataset: "default"},
 			expectError:  false,
 		},
 		{

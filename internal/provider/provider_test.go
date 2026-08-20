@@ -13,6 +13,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	dash0Profiles "github.com/dash0hq/dash0-api-client-go/profiles"
 )
 
 // profilesFixture is a small set of profiles used by tests that exercise the
@@ -62,28 +64,38 @@ func setupCLIConfigDir(t *testing.T, activeProfile, profilesJSON string) string 
 	return dir
 }
 
-// clearCredentialEnv blanks out every env var that resolveAuthInfo reads, and
-// points DASH0_CONFIG_DIR at a non-existent path so the test never picks up
-// the developer's real ~/.dash0. Individual tests can override the config dir.
+// clearCredentialEnv blanks out every env var that resolveAuthInfo and
+// resolveDataset read, and points DASH0_CONFIG_DIR at a non-existent path so
+// the test never picks up the developer's real ~/.dash0. Individual tests can
+// override the config dir.
 func clearCredentialEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("DASH0_API_URL", "")
 	t.Setenv("DASH0_URL", "")
 	t.Setenv("DASH0_AUTH_TOKEN", "")
 	t.Setenv("DASH0_OTLP_URL", "")
+	t.Setenv("DASH0_DATASET", "")
 	t.Setenv("DASH0_CONFIG_DIR", filepath.Join(t.TempDir(), "no-config-here"))
 }
 
 // providerTestConfig builds a tfsdk.Config for provider tests. Pass nil for
-// any value to leave it unset (null). The OTLP URL is left unset; use
-// providerTestConfigWithOtlpURL when it matters.
+// any value to leave it unset (null). The OTLP URL and dataset are left
+// unset; use providerTestConfigWithOtlpURL or providerTestConfigFull when
+// they matter.
 func providerTestConfig(url, authToken, profile *string, maxRetries *int64) tfsdk.Config {
 	return providerTestConfigWithOtlpURL(url, authToken, profile, nil, maxRetries)
 }
 
 // providerTestConfigWithOtlpURL builds a tfsdk.Config including the otlp_url
-// attribute. Pass nil for any value to leave it unset (null).
+// attribute. Pass nil for any value to leave it unset (null). The dataset
+// attribute is left unset; use providerTestConfigFull when it matters.
 func providerTestConfigWithOtlpURL(url, authToken, profile, otlpURL *string, maxRetries *int64) tfsdk.Config {
+	return providerTestConfigFull(url, authToken, profile, otlpURL, nil, maxRetries)
+}
+
+// providerTestConfigFull builds a tfsdk.Config with every provider attribute
+// exposed for tests. Pass nil for any value to leave it unset (null).
+func providerTestConfigFull(url, authToken, profile, otlpURL, dataset *string, maxRetries *int64) tfsdk.Config {
 	stringVal := func(p *string) tftypes.Value {
 		if p == nil {
 			return tftypes.NewValue(tftypes.String, nil)
@@ -103,6 +115,7 @@ func providerTestConfigWithOtlpURL(url, authToken, profile, otlpURL *string, max
 				"auth_token":  tftypes.String,
 				"otlp_url":    tftypes.String,
 				"profile":     tftypes.String,
+				"dataset":     tftypes.String,
 				"max_retries": tftypes.Number,
 			},
 		}, map[string]tftypes.Value{
@@ -110,6 +123,7 @@ func providerTestConfigWithOtlpURL(url, authToken, profile, otlpURL *string, max
 			"auth_token":  stringVal(authToken),
 			"otlp_url":    stringVal(otlpURL),
 			"profile":     stringVal(profile),
+			"dataset":     stringVal(dataset),
 			"max_retries": numberVal(maxRetries),
 		}),
 		Schema: providerSchema(),
@@ -136,7 +150,7 @@ func TestDash0Provider_Schema(t *testing.T) {
 	assert.NotNil(t, resp.Schema)
 	assert.Contains(t, resp.Schema.Description, "observability platform")
 
-	for _, name := range []string{"url", "auth_token", "profile", "max_retries"} {
+	for _, name := range []string{"url", "auth_token", "profile", "dataset", "max_retries"} {
 		assert.Contains(t, resp.Schema.Attributes, name)
 	}
 
@@ -669,4 +683,131 @@ func TestDash0Provider_Configure_OAuthProfile(t *testing.T) {
 
 	assert.False(t, resp.Diagnostics.HasError(), "diagnostics: %v", resp.Diagnostics.Errors())
 	assert.NotNil(t, resp.ResourceData)
+}
+
+// TestResolveDataset_Precedence exercises resolveDataset directly, covering
+// the precedence chain documented on the function: DASH0_DATASET env var >
+// `dataset` attribute > CLI profile dataset > "default".
+func TestResolveDataset_Precedence(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("attribute is used when nothing else is set", func(t *testing.T) {
+		clearCredentialEnv(t)
+		cfg := &providerConfigModel{Dataset: types.StringValue("from-attribute")}
+		assert.Equal(t, "from-attribute", resolveDataset(ctx, cfg, nil))
+	})
+
+	t.Run("env var wins over attribute", func(t *testing.T) {
+		clearCredentialEnv(t)
+		t.Setenv("DASH0_DATASET", "from-env")
+		cfg := &providerConfigModel{Dataset: types.StringValue("from-attribute")}
+		assert.Equal(t, "from-env", resolveDataset(ctx, cfg, nil))
+	})
+
+	t.Run("already-loaded profile supplies the dataset when attribute and env are omitted", func(t *testing.T) {
+		clearCredentialEnv(t)
+		cfg := &providerConfigModel{}
+		profileCfg := &dash0Profiles.Configuration{Dataset: "from-profile"}
+		assert.Equal(t, "from-profile", resolveDataset(ctx, cfg, profileCfg))
+	})
+
+	t.Run("loads the profile itself when resolveAuthInfo never consulted one", func(t *testing.T) {
+		clearCredentialEnv(t)
+		setupCLIConfigDir(t, "test1", `{
+  "profiles": [
+    {
+      "name": "test1",
+      "configuration": {
+        "apiUrl": "https://api.example.com",
+        "authToken": "auth_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "dataset": "profile-dataset"
+      }
+    }
+  ]
+}`)
+		cfg := &providerConfigModel{}
+		assert.Equal(t, "profile-dataset", resolveDataset(ctx, cfg, nil))
+	})
+
+	t.Run("falls back to default when nothing resolves", func(t *testing.T) {
+		clearCredentialEnv(t)
+		cfg := &providerConfigModel{}
+		assert.Equal(t, "default", resolveDataset(ctx, cfg, nil))
+	})
+
+	t.Run("an unloadable profile is ignored, falling back to default", func(t *testing.T) {
+		clearCredentialEnv(t)
+		setupCLIConfigDir(t, "test1", `{"profiles": [{not valid json}]}`)
+		cfg := &providerConfigModel{}
+		assert.Equal(t, "default", resolveDataset(ctx, cfg, nil))
+	})
+}
+
+// TestDash0Provider_Configure_DefaultDataset verifies that Configure resolves
+// the provider-level default dataset and threads it through resp.ResourceData
+// for resources to inherit.
+func TestDash0Provider_Configure_DefaultDataset(t *testing.T) {
+	t.Run("profile has a dataset, provider config omits it", func(t *testing.T) {
+		clearCredentialEnv(t)
+		setupCLIConfigDir(t, "test1", `{
+  "profiles": [
+    {
+      "name": "test1",
+      "configuration": {
+        "apiUrl": "https://api.us-west-2.aws.dash0.com",
+        "authToken": "auth_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "dataset": "profile-dataset"
+      }
+    }
+  ]
+}`)
+
+		p := &dash0Provider{}
+		req := provider.ConfigureRequest{Config: providerTestConfig(nil, nil, nil, nil)}
+		resp := &provider.ConfigureResponse{}
+		p.Configure(context.Background(), req, resp)
+
+		require.False(t, resp.Diagnostics.HasError(), "diagnostics: %v", resp.Diagnostics.Errors())
+		data, ok := resp.ResourceData.(resourceProviderData)
+		require.True(t, ok, "resp.ResourceData should be a resourceProviderData, got %T", resp.ResourceData)
+		assert.Equal(t, "profile-dataset", data.defaultDataset)
+	})
+
+	t.Run("dataset attribute is honored", func(t *testing.T) {
+		clearCredentialEnv(t)
+
+		p := &dash0Provider{}
+		req := provider.ConfigureRequest{
+			Config: providerTestConfigFull(
+				strPtr("https://api.attr.com"),
+				strPtr("auth_attr_token"),
+				nil, nil,
+				strPtr("attr-dataset"),
+				nil,
+			),
+		}
+		resp := &provider.ConfigureResponse{}
+		p.Configure(context.Background(), req, resp)
+
+		require.False(t, resp.Diagnostics.HasError(), "diagnostics: %v", resp.Diagnostics.Errors())
+		data, ok := resp.ResourceData.(resourceProviderData)
+		require.True(t, ok, "resp.ResourceData should be a resourceProviderData, got %T", resp.ResourceData)
+		assert.Equal(t, "attr-dataset", data.defaultDataset)
+	})
+
+	t.Run("falls back to default when nothing resolves", func(t *testing.T) {
+		clearCredentialEnv(t)
+
+		p := &dash0Provider{}
+		req := provider.ConfigureRequest{
+			Config: providerTestConfig(strPtr("https://api.attr.com"), strPtr("auth_attr_token"), nil, nil),
+		}
+		resp := &provider.ConfigureResponse{}
+		p.Configure(context.Background(), req, resp)
+
+		require.False(t, resp.Diagnostics.HasError(), "diagnostics: %v", resp.Diagnostics.Errors())
+		data, ok := resp.ResourceData.(resourceProviderData)
+		require.True(t, ok, "resp.ResourceData should be a resourceProviderData, got %T", resp.ResourceData)
+		assert.Equal(t, "default", data.defaultDataset)
+	})
 }

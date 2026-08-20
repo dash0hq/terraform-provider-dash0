@@ -43,7 +43,8 @@ func TestDashboardResource_Schema(t *testing.T) {
 
 	// Check specific attribute properties
 	assert.True(t, resp.Schema.Attributes["origin"].(schema.StringAttribute).Computed)
-	assert.True(t, resp.Schema.Attributes["dataset"].(schema.StringAttribute).Required)
+	assert.True(t, resp.Schema.Attributes["dataset"].(schema.StringAttribute).Optional)
+	assert.True(t, resp.Schema.Attributes["dataset"].(schema.StringAttribute).Computed)
 	assert.True(t, resp.Schema.Attributes["dashboard_yaml"].(schema.StringAttribute).Required)
 	assert.True(t, resp.Schema.Attributes["url"].(schema.StringAttribute).Computed)
 }
@@ -60,8 +61,9 @@ func TestDashboardResource_Configure(t *testing.T) {
 
 	// Test with valid provider data
 	resp = &resource.ConfigureResponse{}
-	r.Configure(context.Background(), resource.ConfigureRequest{ProviderData: client}, resp)
+	r.Configure(context.Background(), resource.ConfigureRequest{ProviderData: resourceProviderData{client: client, defaultDataset: "default"}}, resp)
 	assert.Equal(t, client, r.client)
+	assert.Equal(t, "default", r.defaultDataset)
 	assert.False(t, resp.Diagnostics.HasError())
 
 	// Test with invalid provider data
@@ -140,6 +142,64 @@ func TestDashboardResource_Create(t *testing.T) {
 	diags := resp.State.Get(context.Background(), &resultState)
 	require.False(t, diags.HasError(), "state cannot be unmarshalled")
 	assert.Equal(t, testURL, resultState.URL.ValueString())
+}
+
+func TestDashboardResource_Create_InheritsDefaultDataset(t *testing.T) {
+	mockClient := new(MockClient)
+	r := &DashboardResource{client: mockClient, defaultDataset: "provider-default-dataset"}
+
+	testYaml := "kind: Dashboard\nmetadata:\n  name: system-overview\nspec:\n  title: System Overview"
+
+	datasetSchema := schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"origin": schema.StringAttribute{
+				Computed: true,
+			},
+			"id": schema.StringAttribute{
+				Computed: true,
+			},
+			"dataset": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+			},
+			"dashboard_yaml": schema.StringAttribute{
+				Required: true,
+			},
+			"url": schema.StringAttribute{
+				Computed: true,
+			},
+		},
+	}
+
+	// The `dataset` attribute is omitted from the plan (unknown, as it would be
+	// for a Computed attribute with no matching prior state), simulating a
+	// config that relies on the provider-level default.
+	plan := tfsdk.Plan{
+		Raw: tftypes.NewValue(tftypes.Object{}, map[string]tftypes.Value{
+			"origin":         tftypes.NewValue(tftypes.String, ""),
+			"id":             tftypes.NewValue(tftypes.String, nil),
+			"dataset":        tftypes.NewValue(tftypes.String, tftypes.UnknownValue),
+			"dashboard_yaml": tftypes.NewValue(tftypes.String, testYaml),
+			"url":            tftypes.NewValue(tftypes.String, nil),
+		}),
+		Schema: datasetSchema,
+	}
+
+	req := resource.CreateRequest{Plan: plan}
+	resp := resource.CreateResponse{State: tfsdk.State{Schema: datasetSchema}}
+
+	mockClient.On("CreateDashboard", mock.Anything, mock.Anything, mock.Anything, "provider-default-dataset").Return(nil)
+	mockClient.On("ResolveDashboard", mock.Anything, mock.Anything, "provider-default-dataset").Return("test-id", "", nil)
+
+	r.Create(context.Background(), req, &resp)
+
+	assert.False(t, resp.Diagnostics.HasError(), "diagnostics: %v", resp.Diagnostics.Errors())
+	mockClient.AssertExpectations(t)
+
+	var resultState dashboardModel
+	diags := resp.State.Get(context.Background(), &resultState)
+	require.False(t, diags.HasError(), "state cannot be unmarshalled")
+	assert.Equal(t, "provider-default-dataset", resultState.Dataset.ValueString())
 }
 
 func TestDashboardResource_Read(t *testing.T) {

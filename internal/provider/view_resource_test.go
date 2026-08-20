@@ -43,7 +43,8 @@ func TestViewResource_Schema(t *testing.T) {
 
 	// Check specific attribute properties
 	assert.True(t, resp.Schema.Attributes["origin"].(schema.StringAttribute).Computed)
-	assert.True(t, resp.Schema.Attributes["dataset"].(schema.StringAttribute).Required)
+	assert.True(t, resp.Schema.Attributes["dataset"].(schema.StringAttribute).Optional)
+	assert.True(t, resp.Schema.Attributes["dataset"].(schema.StringAttribute).Computed)
 	assert.True(t, resp.Schema.Attributes["view_yaml"].(schema.StringAttribute).Required)
 	assert.True(t, resp.Schema.Attributes["url"].(schema.StringAttribute).Computed)
 }
@@ -60,8 +61,9 @@ func TestViewResource_Configure(t *testing.T) {
 
 	// Test with valid provider data
 	resp = &resource.ConfigureResponse{}
-	r.Configure(context.Background(), resource.ConfigureRequest{ProviderData: client}, resp)
+	r.Configure(context.Background(), resource.ConfigureRequest{ProviderData: resourceProviderData{client: client, defaultDataset: "default"}}, resp)
 	assert.Equal(t, client, r.client)
+	assert.Equal(t, "default", r.defaultDataset)
 	assert.False(t, resp.Diagnostics.HasError())
 
 	// Test with invalid provider data
