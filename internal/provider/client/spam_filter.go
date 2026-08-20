@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -45,6 +46,10 @@ func (c *dash0Client) upsertSpamFilter(ctx context.Context, origin, filterJSON, 
 	if err != nil {
 		return fmt.Errorf("error parsing spam filter JSON: %w", err)
 	}
+
+	// Serialize writes to this dataset — see lockSpamFilterDataset for why.
+	unlock := c.lockSpamFilterDataset(dataset)
+	defer unlock()
 
 	if isV1Alpha2 {
 		filter, err := unmarshalSpamFilterV1Alpha2(filterJSON)
@@ -104,6 +109,10 @@ func (c *dash0Client) GetSpamFilter(ctx context.Context, origin string, dataset 
 }
 
 func (c *dash0Client) DeleteSpamFilter(ctx context.Context, origin string, dataset string) error {
+	// Serialize writes to this dataset — see lockSpamFilterDataset for why.
+	unlock := c.lockSpamFilterDataset(dataset)
+	defer unlock()
+
 	err := c.inner.DeleteSpamFilter(ctx, origin, &dataset)
 	if err != nil {
 		return err
@@ -111,6 +120,27 @@ func (c *dash0Client) DeleteSpamFilter(ctx context.Context, origin string, datas
 
 	tflog.Debug(ctx, fmt.Sprintf("Spam filter deleted with origin: %s", origin))
 	return nil
+}
+
+// lockSpamFilterDataset serializes spam filter Create/Update/Delete calls
+// against the given dataset and returns a function that releases the lock.
+//
+// The Dash0 API guards each dataset with an optimistic-concurrency "dataset
+// version". When a single `terraform apply` touches more than one spam
+// filter in the same dataset, Terraform's default parallelism issues those
+// Create/Update/Delete calls concurrently, and all but one of them race the
+// dataset version and come back as a 409 that nothing in the stack retries.
+// Serializing writes per dataset on the client instance (which is reused
+// across resource instances for a given provider configuration, see
+// NewDash0Client) prevents the race instead of retrying after the fact.
+//
+// The lock is keyed by dataset only, so writes to unrelated datasets are
+// never serialized against each other.
+func (c *dash0Client) lockSpamFilterDataset(dataset string) func() {
+	value, _ := c.spamFilterDatasetLocks.LoadOrStore(dataset, &sync.Mutex{})
+	mu := value.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
 }
 
 // ResolveSpamFilter looks up the server-assigned id of the spam filter with
