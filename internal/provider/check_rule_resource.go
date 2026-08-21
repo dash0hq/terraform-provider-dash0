@@ -100,8 +100,8 @@ More information on how Prometheus rules are mapped to Dash0 check rules can be 
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"check_rule_yaml": schema.StringAttribute{
