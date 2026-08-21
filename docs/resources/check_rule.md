@@ -214,7 +214,10 @@ Use one spelling throughout a document.
 ### Required
 
 - `check_rule_yaml` (String) The check rule definition in YAML format, following the [Prometheus alerting rule specification](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/). Must contain exactly one group with exactly one rule. The document's top-level `metadata.annotations` are merged into the rule's own annotations, and the rule's own annotations take precedence when the same key is set in both places, so a document written for the Dash0 Kubernetes operator can be used here verbatim. Setting `dash0.com/sharing` controls sharing, and changes to it trigger a resource update.
-- `dataset` (String) The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the check rule belongs to. Provide the dataset's identifier, which is immutable, not the 'name'. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
+
+### Optional
+
+- `dataset` (String) The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the check rule belongs to. Provide the dataset's identifier, which is immutable, not the 'name'. Datasets are used to separate observability data within a Dash0 organization. If omitted, the provider-level `dataset` default is used (see the provider's `dataset` attribute). Changing this value forces the resource to be recreated.
 
 ### Read-Only
 

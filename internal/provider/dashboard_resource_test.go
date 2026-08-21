@@ -43,7 +43,8 @@ func TestDashboardResource_Schema(t *testing.T) {
 
 	// Check specific attribute properties
 	assert.True(t, resp.Schema.Attributes["origin"].(schema.StringAttribute).Computed)
-	assert.True(t, resp.Schema.Attributes["dataset"].(schema.StringAttribute).Required)
+	assert.True(t, resp.Schema.Attributes["dataset"].(schema.StringAttribute).Optional)
+	assert.True(t, resp.Schema.Attributes["dataset"].(schema.StringAttribute).Computed)
 	assert.True(t, resp.Schema.Attributes["dashboard_yaml"].(schema.StringAttribute).Required)
 	assert.True(t, resp.Schema.Attributes["url"].(schema.StringAttribute).Computed)
 }
@@ -60,8 +61,9 @@ func TestDashboardResource_Configure(t *testing.T) {
 
 	// Test with valid provider data
 	resp = &resource.ConfigureResponse{}
-	r.Configure(context.Background(), resource.ConfigureRequest{ProviderData: client}, resp)
+	r.Configure(context.Background(), resource.ConfigureRequest{ProviderData: resourceProviderData{client: client, defaultDataset: "default"}}, resp)
 	assert.Equal(t, client, r.client)
+	assert.Equal(t, "default", r.defaultDataset)
 	assert.False(t, resp.Diagnostics.HasError())
 
 	// Test with invalid provider data
@@ -141,6 +143,11 @@ func TestDashboardResource_Create(t *testing.T) {
 	require.False(t, diags.HasError(), "state cannot be unmarshalled")
 	assert.Equal(t, testURL, resultState.URL.ValueString())
 }
+
+// Dataset default-inheritance and plan-modifier behavior (omitted dataset
+// pinning to prior state, explicit changes still requiring replacement) are
+// covered table-driven across all six dataset-scoped resources in
+// dataset_default_test.go, rather than per-resource here.
 
 func TestDashboardResource_Read(t *testing.T) {
 	mockClient := new(MockClient)

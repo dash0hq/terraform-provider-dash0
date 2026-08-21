@@ -87,7 +87,7 @@ func TestTeamResource_Configure(t *testing.T) {
 		expectError  bool
 		errorMessage string
 	}{
-		{name: "valid client interface", providerData: &MockClient{}, expectError: false},
+		{name: "valid client interface", providerData: resourceProviderData{client: &MockClient{}}, expectError: false},
 		{name: "nil provider data", providerData: nil, expectError: false},
 		{
 			name:         "invalid provider data type",
