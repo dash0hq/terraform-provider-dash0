@@ -100,6 +100,7 @@ else
     test_notification_channel.sh
     test_spam_filter_v1alpha1.sh
     test_spam_filter_v1alpha2.sh
+    test_spam_filter_concurrent.sh
     test_team.sh
     test_import_check_rule.sh
     test_import_dashboard.sh

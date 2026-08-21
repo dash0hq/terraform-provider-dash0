@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.16.1
+
+
+### Bug Fixes
+
+
+- `spam_filters`: Treat a 404 from `Read` as the spam filter no longer existing, removing it from state instead of failing `plan`/`apply`. (#164)
+
+- `spam_filters`: Fix `dash0_spam_filter` create/update/delete calls to the same dataset failing with an unretried 409 dataset version conflict when a single `terraform apply` changes more than one spam filter at once. (#165)
+  Terraform's default parallelism issues concurrent Create/Update/Delete calls for spam filters in the same
+  dataset, racing the dataset's optimistic-concurrency version. The provider now serializes spam filter writes
+  per dataset so the race never reaches the API, instead of surfacing the conflict as an unretried error.
+  The serialization covers every provider instance in a run, so aliased provider blocks writing the same
+  dataset are serialized against each other too. Writers outside the Terraform process — a concurrent
+  apply, the Dash0 web app, the CLI, or the Operator — are still able to race the dataset version.
+  
+
 ## 1.16.0
 
 
