@@ -87,6 +87,38 @@ createdAt: "2026-01-15T10:00:00Z"
 `,
 		},
 		{
+			// The documented limitation: with an element removed from the head
+			// of the list, "b" aligns against the reference's "a" and loses the
+			// quoting it would otherwise inherit.
+			name:        "aligns a shortened sequence by position",
+			apiResponse: `{"spec":{"actions":["b","c"]}}`,
+			referenceYAML: `spec:
+  actions:
+    - "a"
+    - "b"
+    - "c"
+`,
+			expected: `spec:
+  actions:
+    - b
+    - c
+`,
+		},
+		{
+			name:        "handles a sequence longer than the reference",
+			apiResponse: `{"spec":{"actions":["a","b","c"]}}`,
+			referenceYAML: `spec:
+  actions:
+    - "a"
+`,
+			expected: `spec:
+  actions:
+    - "a"
+    - b
+    - c
+`,
+		},
+		{
 			name:        "keeps the reference spelling for an unchanged scalar",
 			apiResponse: `{"spec":{"actions":["views:read","views:delete"],"title":"Web overview"}}`,
 			referenceYAML: `spec:

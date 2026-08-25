@@ -222,7 +222,7 @@ func TestDashboardResource_Read(t *testing.T) {
 
 	assert.Equal(t, testOrigin, resultState.Origin.ValueString())
 	assert.Equal(t, testDataset, resultState.Dataset.ValueString())
-	assertYAMLStateRefreshed(t, testYaml, resultState.DashboardYaml.ValueString())
+	assertYAMLStateRefreshed(t, testYaml, "old yaml", resultState.DashboardYaml.ValueString())
 	// URL is carried over from prior state (Read does not re-resolve it).
 	assert.Equal(t, testURL, resultState.URL.ValueString())
 

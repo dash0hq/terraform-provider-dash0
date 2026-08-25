@@ -216,15 +216,15 @@ func (r *SpamFilterResource) Read(ctx context.Context, req resource.ReadRequest,
 				"Spam Filter Comparison Error",
 				fmt.Sprintf("Error comparing spam filters: %s. Using API response as source of truth.", err),
 			)
-			state.SpamFilterYaml = types.StringValue(refreshedYAML(apiResponseJSON, stateYAML))
+			state.SpamFilterYaml = types.StringValue(refreshedYAML(ctx, apiResponseJSON, stateYAML))
 		} else if !equivalent {
 			tflog.Debug(ctx, "Spam filter has changed, updating state")
-			state.SpamFilterYaml = types.StringValue(refreshedYAML(apiResponseJSON, stateYAML))
+			state.SpamFilterYaml = types.StringValue(refreshedYAML(ctx, apiResponseJSON, stateYAML))
 		} else {
 			tflog.Debug(ctx, "Spam filter is equivalent, ignoring changes in metadata fields")
 		}
 	} else {
-		state.SpamFilterYaml = types.StringValue(refreshedYAML(apiResponseJSON, ""))
+		state.SpamFilterYaml = types.StringValue(refreshedYAML(ctx, apiResponseJSON, ""))
 	}
 
 	// Set refreshed state
@@ -327,7 +327,7 @@ func (r *SpamFilterResource) ImportState(ctx context.Context, req resource.Impor
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("spam_filter_yaml"), refreshedYAML(apiResponseJSON, ""))...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("spam_filter_yaml"), refreshedYAML(ctx, apiResponseJSON, ""))...)
 
 	// Resolve the id (best-effort).
 	model := spamFilterModel{Origin: types.StringValue(origin), Dataset: types.StringValue(dataset)}

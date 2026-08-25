@@ -203,15 +203,15 @@ func (r *RecordingRuleResource) Read(ctx context.Context, req resource.ReadReque
 				"Recording Rule Comparison Error",
 				fmt.Sprintf("Error comparing recording rules: %s. Using API response as source of truth.", err),
 			)
-			state.RecordingRuleYaml = types.StringValue(refreshedYAML(apiResponseJSON, stateYAML))
+			state.RecordingRuleYaml = types.StringValue(refreshedYAML(ctx, apiResponseJSON, stateYAML))
 		} else if !equivalent {
 			tflog.Debug(ctx, "Recording rule has changed, updating state")
-			state.RecordingRuleYaml = types.StringValue(refreshedYAML(apiResponseJSON, stateYAML))
+			state.RecordingRuleYaml = types.StringValue(refreshedYAML(ctx, apiResponseJSON, stateYAML))
 		} else {
 			tflog.Debug(ctx, "Recording rule is equivalent, ignoring changes in metadata fields")
 		}
 	} else {
-		state.RecordingRuleYaml = types.StringValue(refreshedYAML(apiResponseJSON, ""))
+		state.RecordingRuleYaml = types.StringValue(refreshedYAML(ctx, apiResponseJSON, ""))
 	}
 
 	// Set refreshed state
@@ -314,7 +314,7 @@ func (r *RecordingRuleResource) ImportState(ctx context.Context, req resource.Im
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("recording_rule_yaml"), refreshedYAML(apiResponseJSON, ""))...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("recording_rule_yaml"), refreshedYAML(ctx, apiResponseJSON, ""))...)
 
 	// Resolve the id (best-effort).
 	model := recordingRuleModel{Origin: types.StringValue(origin), Dataset: types.StringValue(dataset)}

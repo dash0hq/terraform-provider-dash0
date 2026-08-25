@@ -281,15 +281,15 @@ func (r *NotificationChannelResource) Read(ctx context.Context, req resource.Rea
 				"Notification Channel Comparison Error",
 				fmt.Sprintf("Error comparing notification channels: %s. Using API response as source of truth.", err),
 			)
-			state.NotificationChannelYaml = types.StringValue(refreshedYAML(apiResponseJSON, stateYAML))
+			state.NotificationChannelYaml = types.StringValue(refreshedYAML(ctx, apiResponseJSON, stateYAML))
 		} else if !equivalent {
 			tflog.Debug(ctx, "Notification channel has changed, updating state")
-			state.NotificationChannelYaml = types.StringValue(refreshedYAML(apiResponseJSON, stateYAML))
+			state.NotificationChannelYaml = types.StringValue(refreshedYAML(ctx, apiResponseJSON, stateYAML))
 		} else {
 			tflog.Debug(ctx, "Notification channel is equivalent, ignoring changes in metadata fields")
 		}
 	} else {
-		state.NotificationChannelYaml = types.StringValue(refreshedYAML(apiResponseJSON, ""))
+		state.NotificationChannelYaml = types.StringValue(refreshedYAML(ctx, apiResponseJSON, ""))
 	}
 
 	// Set refreshed state
@@ -383,7 +383,7 @@ func (r *NotificationChannelResource) ImportState(ctx context.Context, req resou
 	}
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("notification_channel_yaml"), refreshedYAML(apiResponseJSON, ""))...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("notification_channel_yaml"), refreshedYAML(ctx, apiResponseJSON, ""))...)
 
 	// Resolve the id and web app URL (best-effort).
 	model := notificationChannelModel{Origin: types.StringValue(origin)}

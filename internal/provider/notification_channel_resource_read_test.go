@@ -80,6 +80,25 @@ spec:
 			expectWarning:     false,
 		},
 		{
+			// The prior state value has to reach the converter as the reference,
+			// or the plan stops rendering line-level diffs. Only a response whose
+			// keys arrive in a different order than the state makes that
+			// observable: with matching orders, alignment is a no-op and a call
+			// site passing the wrong reference still produces the right bytes.
+			name: "reordered response - state keeps the prior key order",
+			apiResponseYaml: `
+spec:
+  config:
+    url: https://example.com/webhook/reordered
+  type: webhook
+metadata:
+  name: Webhook Alerts
+kind: Dash0NotificationChannel
+`,
+			expectYamlUpdated: true,
+			expectWarning:     false,
+		},
+		{
 			name:              "invalid YAML response - should update and warn",
 			apiResponseYaml:   "invalid: : yaml: that: will: fail",
 			expectYamlUpdated: true,
@@ -163,7 +182,7 @@ spec:
 			resp.State.Get(ctx, &resultState)
 
 			if tc.expectYamlUpdated {
-				assertYAMLStateRefreshed(t, tc.apiResponseYaml, resultState.NotificationChannelYaml.ValueString())
+				assertYAMLStateRefreshed(t, tc.apiResponseYaml, originalYaml, resultState.NotificationChannelYaml.ValueString())
 			} else {
 				assert.Equal(t, originalYaml, resultState.NotificationChannelYaml.ValueString())
 			}

@@ -100,6 +100,29 @@ spec:
 			expectWarning:     false,
 		},
 		{
+			// The prior state value has to reach the converter as the reference,
+			// or the plan stops rendering line-level diffs. Only a response whose
+			// keys arrive in a different order than the state makes that
+			// observable: with matching orders, alignment is a no-op and a call
+			// site passing the wrong reference still produces the right bytes.
+			name:         "reordered response - state keeps the prior key order",
+			currentState: baseYAML,
+			apiResponse: `
+spec:
+  plugin:
+    spec:
+      request:
+        url: https://reordered.example.com
+    kind: http
+  enabled: true
+metadata:
+  name: test-check
+kind: Dash0SyntheticCheck
+`,
+			expectStateUpdate: true,
+			expectWarning:     false,
+		},
+		{
 			name:              "invalid YAML response - should update and warn",
 			currentState:      baseYAML,
 			apiResponse:       "invalid: : : yaml",
@@ -170,7 +193,7 @@ spec:
 				resp.State.Get(ctx, &state)
 
 				if tt.expectStateUpdate {
-					assertYAMLStateRefreshed(t, tt.apiResponse, state.SyntheticCheckYaml.ValueString())
+					assertYAMLStateRefreshed(t, tt.apiResponse, tt.currentState, state.SyntheticCheckYaml.ValueString())
 				} else {
 					assert.Equal(t, tt.currentState, state.SyntheticCheckYaml.ValueString(),
 						"State should not have been updated")

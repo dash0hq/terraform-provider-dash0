@@ -95,9 +95,22 @@ func applyBlockStyle(node *yaml.Node) {
 // appear in reference, recursively. Keys that reference does not carry keep the
 // order the API sent them in and sort after every key it does carry.
 //
-// It also carries the reference's spelling over to any scalar whose value did
-// not change, so a value the user wrote as `"views:read"` is not rendered as
-// plain `views:read` and counted as a changed line by the plan.
+// It also carries the reference's spelling over to any scalar whose value and
+// resolved tag both match, so a value the user wrote as `"views:read"` is not
+// rendered as plain `views:read` and counted as a changed line by the plan.
+// Requiring the value and the tag to match is what makes it safe to take the
+// spelling from reference, which is arbitrary user-authored YAML: an inherited
+// style can only ever re-spell a scalar that already round-trips to the same
+// value.
+//
+// Known limitation. Sequences align by position, so an element inserted into or
+// removed from the middle of a list shifts every element after it against the
+// wrong reference sibling. Those elements then re-render in the API's key order
+// and spelling, and the plan shows them as changed even when their content did
+// not move. The noise lasts one apply, because the next Read aligns against the
+// value that apply stored. Aligning list elements by a stable identity would
+// avoid it, but the documents this handles have no field that reliably
+// identifies an element across all six resources.
 func alignKeyOrder(node, reference *yaml.Node) {
 	if node == nil || reference == nil {
 		return
@@ -117,9 +130,10 @@ func alignKeyOrder(node, reference *yaml.Node) {
 		if reference.Kind != yaml.SequenceNode {
 			return
 		}
-		// Sequences are aligned by position. The provider does not reorder
-		// lists, and the API returns them in the order they were written, so
-		// element i of the response corresponds to element i of the reference.
+		// Sequences align by position. The provider does not reorder lists, and
+		// the API returns them in the order they were written, so element i of
+		// the response usually corresponds to element i of the reference. See
+		// the limitation on this function for what a mid-list edit costs.
 		for i, child := range node.Content {
 			if i >= len(reference.Content) {
 				break

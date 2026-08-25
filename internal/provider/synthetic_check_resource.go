@@ -212,15 +212,15 @@ func (r *SyntheticCheckResource) Read(ctx context.Context, req resource.ReadRequ
 				"Synthetic Check Comparison Error",
 				fmt.Sprintf("Error comparing synthetic checks: %s. Using API response as source of truth.", err),
 			)
-			state.SyntheticCheckYaml = types.StringValue(refreshedYAML(apiResponseJSON, stateYAML))
+			state.SyntheticCheckYaml = types.StringValue(refreshedYAML(ctx, apiResponseJSON, stateYAML))
 		} else if !equivalent {
 			tflog.Debug(ctx, "Synthetic check has changed, updating state")
-			state.SyntheticCheckYaml = types.StringValue(refreshedYAML(apiResponseJSON, stateYAML))
+			state.SyntheticCheckYaml = types.StringValue(refreshedYAML(ctx, apiResponseJSON, stateYAML))
 		} else {
 			tflog.Debug(ctx, "Synthetic check is equivalent, ignoring changes in metadata fields")
 		}
 	} else {
-		state.SyntheticCheckYaml = types.StringValue(refreshedYAML(apiResponseJSON, ""))
+		state.SyntheticCheckYaml = types.StringValue(refreshedYAML(ctx, apiResponseJSON, ""))
 	}
 
 	// Set refreshed state
@@ -325,7 +325,7 @@ func (r *SyntheticCheckResource) ImportState(ctx context.Context, req resource.I
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("synthetic_check_yaml"), refreshedYAML(apiResponseJSON, ""))...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("synthetic_check_yaml"), refreshedYAML(ctx, apiResponseJSON, ""))...)
 
 	// Resolve the id and web app URL (best-effort).
 	model := syntheticCheckModel{Origin: types.StringValue(origin), Dataset: types.StringValue(dataset)}

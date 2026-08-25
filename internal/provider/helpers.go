@@ -1,7 +1,10 @@
 package provider
 
 import (
+	"context"
+
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 )
@@ -21,11 +24,17 @@ func stringOrNull(s string) types.String {
 // instead of a full-document replacement.
 //
 // The client wrappers build the input with json.Marshal, so it always parses.
-// Should that ever stop holding, keep the document as it arrived rather than
-// dropping the refresh.
-func refreshedYAML(apiResponse, priorYAML string) string {
+// If that ever stops holding, keep the document as it arrived rather than
+// dropping the refresh, and log it: the resource silently reverts to the
+// full-document plan diff this helper exists to prevent.
+func refreshedYAML(ctx context.Context, apiResponse, priorYAML string) string {
 	converted, err := converter.ConvertAPIResponseToYAML(apiResponse, priorYAML)
 	if err != nil {
+		tflog.Warn(
+			ctx,
+			"Unable to render the document returned by the Dash0 API as YAML; storing it unchanged. Plans for this resource will show a full-document replacement instead of a line-level diff.",
+			map[string]interface{}{"error": err.Error()},
+		)
 		return apiResponse
 	}
 	return converted

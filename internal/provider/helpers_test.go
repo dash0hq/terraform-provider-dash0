@@ -1,13 +1,12 @@
 package provider
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 )
@@ -40,6 +39,7 @@ func TestStringOrNull(t *testing.T) {
 func TestRefreshedYAML(t *testing.T) {
 	t.Run("renders the response as YAML ordered like the prior value", func(t *testing.T) {
 		refreshed := refreshedYAML(
+			context.Background(),
 			`{"spec":{"title":"Updated"},"kind":"View","metadata":{"name":"web"}}`,
 			"kind: View\nmetadata:\n  name: web\nspec:\n  title: Original\n",
 		)
@@ -47,31 +47,29 @@ func TestRefreshedYAML(t *testing.T) {
 	})
 
 	t.Run("returns the response unchanged when it does not parse", func(t *testing.T) {
-		assert.Equal(t, "invalid: : yaml", refreshedYAML("invalid: : yaml", "kind: View\n"))
+		assert.Equal(t, "invalid: : yaml", refreshedYAML(context.Background(), "invalid: : yaml", "kind: View\n"))
 	})
 }
 
-// assertYAMLStateRefreshed asserts that a refreshed `*_yaml` state value carries
-// the document that was read back, rendered as block YAML rather than as the
-// JSON string the client wrappers produce. The exact rendering is pinned by the
-// converter's own tests; this only checks the contract every Read has to honor.
+// assertYAMLStateRefreshed asserts that a refreshed `*_yaml` state value holds
+// exactly what the converter produces for this response and this prior value.
 //
-// A response that does not parse is stored as it arrived, so for that input the
-// assertion is pass-through.
-func assertYAMLStateRefreshed(t *testing.T, apiResponse, stateValue string) {
+// Equivalence alone is too weak here. A call site that passed the wrong
+// reference, an empty string instead of the prior state value, would still
+// store a semantically identical document, with the key order and quoting
+// scrambled and the line-level plan diff gone. Only exact equality catches that.
+// The converter's own tests pin the rendering; this pins the wiring.
+func assertYAMLStateRefreshed(t *testing.T, apiResponse, priorYAML, stateValue string) {
 	t.Helper()
 
-	var parsed map[string]interface{}
-	if yaml.Unmarshal([]byte(apiResponse), &parsed) != nil {
+	expected, err := converter.ConvertAPIResponseToYAML(apiResponse, priorYAML)
+	if err != nil {
+		// A response the converter cannot parse goes into state as it arrived.
 		assert.Equal(t, apiResponse, stateValue)
 		return
 	}
 
-	require.NotEmpty(t, stateValue)
+	assert.Equal(t, expected, stateValue)
 	assert.False(t, strings.HasPrefix(strings.TrimSpace(stateValue), "{"),
 		"state must hold block YAML, not a JSON string: %s", stateValue)
-
-	equivalent, err := converter.ResourceYAMLEquivalent(apiResponse, stateValue, nil, nil)
-	require.NoError(t, err)
-	assert.True(t, equivalent, "state must carry the document that was read back, got: %s", stateValue)
 }
