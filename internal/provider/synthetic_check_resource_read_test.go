@@ -170,8 +170,7 @@ spec:
 				resp.State.Get(ctx, &state)
 
 				if tt.expectStateUpdate {
-					assert.Equal(t, tt.apiResponse, state.SyntheticCheckYaml.ValueString(),
-						"State should have been updated with API response")
+					assertYAMLStateRefreshed(t, tt.apiResponse, state.SyntheticCheckYaml.ValueString())
 				} else {
 					assert.Equal(t, tt.currentState, state.SyntheticCheckYaml.ValueString(),
 						"State should not have been updated")

@@ -96,7 +96,7 @@ spec:
 		},
 		{
 			name:              "invalid YAML response - should update and warn",
-			apiResponseYaml:   `not valid yaml {`,
+			apiResponseYaml:   "invalid: : yaml: that: will: fail",
 			expectYamlUpdated: true,
 			expectWarning:     true,
 		},
@@ -164,7 +164,7 @@ spec:
 			resp.State.Get(ctx, &resultState)
 
 			if tc.expectYamlUpdated {
-				assert.Equal(t, tc.apiResponseYaml, resultState.RecordingRuleYaml.ValueString())
+				assertYAMLStateRefreshed(t, tc.apiResponseYaml, resultState.RecordingRuleYaml.ValueString())
 			} else {
 				assert.Equal(t, originalYaml, resultState.RecordingRuleYaml.ValueString())
 			}

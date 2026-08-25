@@ -212,15 +212,15 @@ func (r *ViewResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 				"View Comparison Error",
 				fmt.Sprintf("Error comparing views: %s. Using API response as source of truth.", err),
 			)
-			state.ViewYaml = types.StringValue(apiResponseJSON)
+			state.ViewYaml = types.StringValue(refreshedYAML(apiResponseJSON, stateYAML))
 		} else if !equivalent {
 			tflog.Debug(ctx, "View has changed, updating state")
-			state.ViewYaml = types.StringValue(apiResponseJSON)
+			state.ViewYaml = types.StringValue(refreshedYAML(apiResponseJSON, stateYAML))
 		} else {
 			tflog.Debug(ctx, "View is equivalent, ignoring changes in metadata fields")
 		}
 	} else {
-		state.ViewYaml = types.StringValue(apiResponseJSON)
+		state.ViewYaml = types.StringValue(refreshedYAML(apiResponseJSON, ""))
 	}
 
 	// Set refreshed state
@@ -324,7 +324,7 @@ func (r *ViewResource) ImportState(ctx context.Context, req resource.ImportState
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("view_yaml"), apiResponseJSON)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("view_yaml"), refreshedYAML(apiResponseJSON, ""))...)
 
 	// Resolve the id and web app URL (best-effort).
 	model := viewModel{Origin: types.StringValue(origin), Dataset: types.StringValue(dataset)}

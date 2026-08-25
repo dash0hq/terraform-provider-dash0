@@ -212,15 +212,15 @@ func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 				"Dashboard Comparison Error",
 				fmt.Sprintf("Error comparing dashboards: %s. Using API response as source of truth.", err),
 			)
-			state.DashboardYaml = types.StringValue(apiResponseJSON)
+			state.DashboardYaml = types.StringValue(refreshedYAML(apiResponseJSON, stateYAML))
 		} else if !equivalent {
 			tflog.Debug(ctx, "Dashboard has changed, updating state")
-			state.DashboardYaml = types.StringValue(apiResponseJSON)
+			state.DashboardYaml = types.StringValue(refreshedYAML(apiResponseJSON, stateYAML))
 		} else {
 			tflog.Debug(ctx, "Dashboard is equivalent, ignoring changes in metadata fields")
 		}
 	} else {
-		state.DashboardYaml = types.StringValue(apiResponseJSON)
+		state.DashboardYaml = types.StringValue(refreshedYAML(apiResponseJSON, ""))
 	}
 
 	// Set refreshed state
@@ -325,7 +325,7 @@ func (r *DashboardResource) ImportState(ctx context.Context, req resource.Import
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("origin"), origin)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dataset"), dataset)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dashboard_yaml"), apiResponseJSON)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dashboard_yaml"), refreshedYAML(apiResponseJSON, ""))...)
 
 	// Resolve the id and web app URL (best-effort).
 	model := dashboardModel{Origin: types.StringValue(origin), Dataset: types.StringValue(dataset)}

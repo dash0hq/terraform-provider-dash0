@@ -169,7 +169,7 @@ spec:
 
 			// Check if the result matches expectations
 			if tc.expectYamlUpdated {
-				assert.Equal(t, tc.apiResponseYaml, resultState.ViewYaml.ValueString())
+				assertYAMLStateRefreshed(t, tc.apiResponseYaml, resultState.ViewYaml.ValueString())
 			} else {
 				assert.Equal(t, originalYaml, resultState.ViewYaml.ValueString())
 			}

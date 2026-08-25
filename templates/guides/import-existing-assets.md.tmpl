@@ -152,7 +152,7 @@ terraform plan -generate-config-out=generated.tf
 ```
 
 Terraform writes matching `resource "dash0_dashboard" "…"` blocks into `generated.tf`, populated from what it read from Dash0.
-The `dashboard_yaml` attribute lands as an inline `jsonencode({...})` block rather than the `file()` sidecar pattern shown in the imperative flow — refactor it to `file(...)` after the import if you prefer YAML sidecars.
+The `dashboard_yaml` attribute lands as an inline heredoc carrying the YAML document rather than the `file()` sidecar pattern shown in the imperative flow — refactor it to `file(...)` after the import if you prefer YAML sidecars.
 
 The import blocks themselves are only *processed* by `terraform apply`, so:
 

@@ -215,7 +215,7 @@ func TestViewResource_Read(t *testing.T) {
 
 	assert.Equal(t, testOrigin, resultState.Origin.ValueString())
 	assert.Equal(t, testDataset, resultState.Dataset.ValueString())
-	assert.Equal(t, testYaml, resultState.ViewYaml.ValueString())
+	assertYAMLStateRefreshed(t, testYaml, resultState.ViewYaml.ValueString())
 	// URL is carried over from prior state (Read does not re-resolve it).
 	assert.Equal(t, testURL, resultState.URL.ValueString())
 

@@ -1,0 +1,15 @@
+change_type: bug_fix
+
+component: provider
+
+note: Refresh now stores the document read back from Dash0 as YAML instead of a JSON string, so a plan that reports drift renders a line-level diff
+
+issues: [170]
+
+subtext: |
+  Affects `dash0_view`, `dash0_dashboard`, `dash0_notification_channel`, `dash0_recording_rule`,
+  `dash0_spam_filter`, and `dash0_synthetic_check`. The refreshed document inherits the key order and
+  quoting of the value it replaces, so changing one label no longer renders as a full-document
+  replacement of `jsonencode({ ... })` with a YAML heredoc.
+
+change_logs: [user]
