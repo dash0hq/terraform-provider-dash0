@@ -8,8 +8,9 @@ issues: [170]
 
 subtext: |
   Affects `dash0_view`, `dash0_dashboard`, `dash0_notification_channel`, `dash0_recording_rule`,
-  `dash0_spam_filter`, and `dash0_synthetic_check`. The refreshed document inherits the key order and
-  quoting of the value it replaces, so changing one label no longer renders as a full-document
-  replacement of `jsonencode({ ... })` with a YAML heredoc.
+  `dash0_spam_filter`, and `dash0_synthetic_check`. The refreshed document inherits the key order,
+  the quoting, and the sequence indentation of the value it replaces, so a configuration written with
+  `yamlencode` diffs line by line instead of rendering as a full-document replacement of
+  `jsonencode({ ... })` with a YAML heredoc.
 
 change_logs: [user]
