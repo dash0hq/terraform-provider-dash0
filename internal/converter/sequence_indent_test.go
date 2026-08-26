@@ -118,8 +118,7 @@ func TestFlushSequences(t *testing.T) {
 			ok: true,
 		},
 		{
-			// A dash-prefixed line inside a block scalar is not treated as an
-			// item, because the line above it is not a key.
+			// A dash inside a block scalar is not an item: no key above it.
 			name: "block scalar content shifts with its owner",
 			encoded: `spec:
   rules:
@@ -153,16 +152,16 @@ func TestFlushSequences(t *testing.T) {
 }
 
 func TestConvertAPIResponseToYAMLMatchesReferenceSequenceIndent(t *testing.T) {
-	// The reporter's own state value on dash0hq/terraform-provider-dash0#170,
-	// produced by Terraform's yamlencode: quoted keys, sorted, flush sequences.
+	// The shape reported on #170: a yamlencode state value, and an API
+	// response whose permissions the platform rewrote.
 	reference := `"kind": "Dash0View"
 "metadata":
-  "name": "alb-logs"
+  "name": "request-logs"
 "spec":
   "filter":
   - "key": "service.name"
     "operator": "is"
-    "value": "alb-access-logs"
+    "value": "checkout-service"
   "permissions":
   - "actions":
     - "views:read"
@@ -171,20 +170,19 @@ func TestConvertAPIResponseToYAMLMatchesReferenceSequenceIndent(t *testing.T) {
   "type": "logs"
 `
 
-	// What the API returns: it rewrote the actions it does not honor.
-	apiResponse := `{"kind":"Dash0View","metadata":{"name":"alb-logs"},"spec":{"filter":[{"key":"service.name","operator":"is","value":"alb-access-logs"}],"permissions":[{"actions":["views:read"],"role":"basic_member"}],"type":"logs"}}`
+	apiResponse := `{"kind":"Dash0View","metadata":{"name":"request-logs"},"spec":{"filter":[{"key":"service.name","operator":"is","value":"checkout-service"}],"permissions":[{"actions":["views:read"],"role":"basic_member"}],"type":"logs"}}`
 
 	got, err := ConvertAPIResponseToYAML(apiResponse, reference)
 	require.NoError(t, err)
 
 	expected := `"kind": "Dash0View"
 "metadata":
-  "name": "alb-logs"
+  "name": "request-logs"
 "spec":
   "filter":
   - "key": "service.name"
     "operator": "is"
-    "value": "alb-access-logs"
+    "value": "checkout-service"
   "permissions":
   - "actions":
     - "views:read"
@@ -202,9 +200,8 @@ func TestConvertAPIResponseToYAMLKeepsEncoderIndentWithoutAFlushReference(t *tes
 	assert.Equal(t, "spec:\n  filter:\n    - key: a\n", got)
 }
 
-// A list of lists needs no special case: the inner sequence's mapping starts
-// after both dashes, so shifting the whole subtree keeps it valid. This is the
-// shape notification channels use for spec.routing.filters.
+// The inner mapping starts after both dashes, so shifting the whole subtree
+// stays valid. This is notification channels' spec.routing.filters shape.
 func TestConvertAPIResponseToYAMLFlushesListsOfLists(t *testing.T) {
 	apiResponse := `{"spec":{"filters":[[{"key":"team","operator":"is"}]]}}`
 	reference := `"spec":

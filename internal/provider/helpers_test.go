@@ -51,20 +51,15 @@ func TestRefreshedYAML(t *testing.T) {
 	})
 }
 
-// assertYAMLStateRefreshed asserts that a refreshed `*_yaml` state value holds
-// exactly what the converter produces for this response and this prior value.
-//
-// Equivalence alone is too weak here. A call site that passed the wrong
-// reference, an empty string instead of the prior state value, would still
-// store a semantically identical document, with the key order and quoting
-// scrambled and the line-level plan diff gone. Only exact equality catches that.
-// The converter's own tests pin the rendering; this pins the wiring.
+// Pins the Read wiring, not the rendering. Equivalence is too weak: a call site
+// passing the wrong reference still stores an equivalent document with its key
+// order scrambled. Only exact equality catches that.
 func assertYAMLStateRefreshed(t *testing.T, apiResponse, priorYAML, stateValue string) {
 	t.Helper()
 
 	expected, err := converter.ConvertAPIResponseToYAML(apiResponse, priorYAML)
 	if err != nil {
-		// A response the converter cannot parse goes into state as it arrived.
+		// An unrenderable response goes into state as it arrived.
 		assert.Equal(t, apiResponse, stateValue)
 		return
 	}

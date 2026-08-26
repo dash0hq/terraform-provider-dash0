@@ -15,9 +15,8 @@ func TestConvertAPIResponseToYAML(t *testing.T) {
 		expected      string
 	}{
 		{
-			// Regression for https://github.com/dash0hq/terraform-provider-dash0/issues/170.
-			// Storing the API's JSON verbatim made `terraform plan` render a
-			// changed label as a full-document replacement.
+			// Regression for #170: storing the API's JSON verbatim made a
+			// changed label render as a full-document replacement.
 			name:        "renders JSON as block YAML",
 			apiResponse: `{"kind":"View","metadata":{"name":"web"},"spec":{"title":"Web"}}`,
 			expected: `kind: View
@@ -87,9 +86,8 @@ createdAt: "2026-01-15T10:00:00Z"
 `,
 		},
 		{
-			// The documented limitation: with an element removed from the head
-			// of the list, "b" aligns against the reference's "a" and loses the
-			// quoting it would otherwise inherit.
+			// The documented limitation: with the head element gone, "b" aligns
+			// against the reference's "a" and loses its quoting.
 			name:        "aligns a shortened sequence by position",
 			apiResponse: `{"spec":{"actions":["b","c"]}}`,
 			referenceYAML: `spec:
@@ -214,9 +212,7 @@ func TestConvertAPIResponseToYAMLRejectsUnreadableResponses(t *testing.T) {
 	}
 }
 
-// The result has to survive being fed back into drift detection: a refreshed
-// state value that is not equivalent to the response it came from would make
-// every subsequent plan report drift that no apply can settle.
+// Drift no apply can settle, if this ever stops holding.
 func TestConvertAPIResponseToYAMLPreservesEquivalence(t *testing.T) {
 	apiResponse := `{"kind":"View","metadata":{"labels":{"dash0.com/id":"abc"},"name":"web"},` +
 		`"spec":{"enabled":true,"retries":0,"title":"Web","thresholds":[1,2.5]}}`
@@ -229,12 +225,8 @@ func TestConvertAPIResponseToYAMLPreservesEquivalence(t *testing.T) {
 	assert.True(t, equivalent, "converted YAML must stay equivalent to the API response: %s", converted)
 }
 
-// Regression for review finding #1 on the pull request for
-// dash0hq/terraform-provider-dash0#170. A state value written before this
-// function existed holds raw JSON, in which every scalar is double-quoted.
-// Inheriting that spelling stored a permanently double-quoted document, and
-// because the stored value becomes the next refresh's reference, the quoting
-// carried forward instead of settling.
+// Legacy state holds raw JSON, where every scalar is double-quoted. Inheriting
+// that stuck, since the stored value is the next refresh's reference.
 func TestConvertAPIResponseToYAMLIgnoresTheSpellingOfAJSONReference(t *testing.T) {
 	jsonState := `{"kind":"Dash0View","metadata":{"name":"web"},"spec":{"title":"Old","type":"logs"}}`
 	apiResponse := `{"kind":"Dash0View","metadata":{"name":"web"},"spec":{"title":"New","type":"logs"}}`
@@ -243,21 +235,14 @@ func TestConvertAPIResponseToYAMLIgnoresTheSpellingOfAJSONReference(t *testing.T
 	require.NoError(t, err)
 	assert.Equal(t, "kind: Dash0View\nmetadata:\n  name: web\nspec:\n  title: New\n  type: logs\n", first)
 
-	// Feeding the result back in must not reintroduce the quoting.
 	second, err := ConvertAPIResponseToYAML(apiResponse, first)
 	require.NoError(t, err)
 	assert.Equal(t, first, second)
 }
 
-// TestSameDocument covers the predicate behind the guard in
-// ConvertAPIResponseToYAML, which refuses to return a rendering that changed the
-// document.
-//
-// No in-contract input is known to reach that guard's error branch: every
-// candidate tried (keys spelled `true`, `null`, `1`, `- x`, `#c`, values that
-// look like numbers, dates, anchors, or padded strings) is quoted correctly by
-// the encoder. The guard is there for a future change to the alignment or
-// indentation code, which is why the predicate is tested directly.
+// No in-contract input is known to reach the guard that uses this: keys spelled
+// `true`, `null`, `- x`, `#c`, and number-, date- or anchor-looking values are
+// all quoted correctly. The guard is for future changes, so test the predicate.
 func TestSameDocument(t *testing.T) {
 	tests := []struct {
 		name  string

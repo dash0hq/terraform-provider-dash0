@@ -2,21 +2,15 @@ package converter
 
 import "strings"
 
-// gopkg.in/yaml.v3 always indents block sequence items one level under their
-// mapping key, and offers no option to do otherwise. Terraform's yamlencode does
-// the opposite, putting items flush with the key. When state holds one
-// convention and the configuration holds the other, `terraform plan` marks every
-// sequence line as changed, which is the noise this package exists to remove.
+// yaml.v3 always indents block sequence items under their mapping key, with no
+// option not to; Terraform's yamlencode puts them flush. Mixing the two makes
+// every sequence line read as changed.
 //
-// The rewrite below is textual, because the encoder gives no hook for it. What
-// keeps it honest is the caller: it only runs when the reference clearly uses
-// the flush style, and the result is discarded unless it parses back to the same
-// data. Anything this code gets wrong costs an indented diff, never a wrong
-// document.
+// The rewrite is textual because the encoder exposes no hook. The caller runs it
+// only for a flush reference and discards the result unless it parses back to
+// the same data, so a mistake costs an indented diff, not a wrong document.
 
-// referenceUsesFlushSequences reports whether reference puts block sequence
-// items flush with their mapping key. It answers false when reference indents
-// them, and when it holds no block sequence to learn from.
+// Returns false for a reference with no block sequence to learn from.
 func referenceUsesFlushSequences(reference string) bool {
 	lines := strings.Split(reference, "\n")
 	for i, line := range lines {
@@ -41,15 +35,13 @@ func referenceUsesFlushSequences(reference string) bool {
 	return false
 }
 
-// flushSequences moves every block sequence the encoder indented under a mapping
-// key back to that key's own indentation, along with everything nested inside
-// it. It reports false when a shift would run past the start of a line.
+// Moves each sequence the encoder indented under a key back to that key's
+// indentation, with everything nested inside it.
 func flushSequences(encoded string) (string, bool) {
 	lines := strings.Split(encoded, "\n")
 	out := make([]string, 0, len(lines))
 
-	// Indents of the enclosing sequences that a mapping key introduced. Only
-	// those are the ones the encoder pushed a level deeper than flush style.
+	// Enclosing sequences a key introduced, the only ones pushed a level deep.
 	var open []int
 	previousKeyIndent := -1
 
@@ -71,8 +63,7 @@ func flushSequences(encoded string) (string, bool) {
 			break
 		}
 
-		// A sequence at the document root already matches flush style, so only
-		// one hanging off a key at the level above gets moved.
+		// A root sequence already matches, so only one hanging off a key moves.
 		if item && (len(open) == 0 || indent > open[len(open)-1]) &&
 			previousKeyIndent >= 0 && indent == previousKeyIndent+encoderIndent {
 			open = append(open, indent)
@@ -102,13 +93,9 @@ func isSequenceItem(content string) bool {
 	return content == "-" || strings.HasPrefix(content, "- ")
 }
 
-// keyWithNoValue reports whether a line is a mapping key whose value follows on
-// later lines, which is the only shape a block sequence can hang from, and where
-// that value starts.
-//
-// A key can also open on a sequence item's own line, as in `- actions:`. The
-// item's later keys sit where the text after the dash begins, so that is the
-// indentation a sequence hanging off this key is measured against.
+// Reports whether a line is a key whose value follows, and where it starts. A
+// key can open on an item's line, `- actions:`, where later keys sit after the
+// dash.
 func keyWithNoValue(line string) (indent int, ok bool) {
 	indent, content := splitIndent(line)
 	for strings.HasPrefix(content, "- ") {

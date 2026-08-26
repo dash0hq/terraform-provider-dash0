@@ -8,13 +8,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// FuzzConvertAPIResponseToYAML pins the one invariant the whole conversion rests
-// on: the value stored in state must carry the same data the API returned. Key
-// order, quoting, and indentation may change. Nothing else may.
-//
-// This is what stops a subtle bug in the key-order walk or the sequence-indent
-// rewrite from silently changing a document, which would send the wrong body on
-// the next apply.
+// The invariant the conversion rests on: the stored value carries the same data
+// the API returned. Order, quoting, and indentation may change; nothing else.
+// Otherwise a bug in the key walk or indent rewrite changes the next apply.
 func FuzzConvertAPIResponseToYAML(f *testing.F) {
 	seeds := []struct {
 		apiResponse string
@@ -35,15 +31,13 @@ func FuzzConvertAPIResponseToYAML(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, apiResponse, reference string) {
-		// The client wrappers build this input with json.Marshal, so only valid
-		// JSON is in contract. Fuzzing wider than that reports differences YAML
-		// allows and the API can never produce, such as a null mapping key.
+		// Only valid JSON is in contract: the wrappers use json.Marshal. Wider
+		// inputs report YAML-only cases the API cannot produce.
 		if !json.Valid([]byte(apiResponse)) {
 			return
 		}
 
-		// Parse both sides with the same parser, so the comparison is about the
-		// data and not about how two libraries spell an integer.
+		// One parser on both sides, so this compares data, not integer spelling.
 		var want interface{}
 		if err := yaml.Unmarshal([]byte(apiResponse), &want); err != nil {
 			return

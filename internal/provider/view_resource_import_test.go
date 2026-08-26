@@ -12,14 +12,10 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// TestViewResource_ImportStateStoresYAML covers the ImportState half of
-// dash0hq/terraform-provider-dash0#170. Import has no prior state value to align
-// against, so it renders with the package's own spelling, but it must still
-// store YAML rather than the JSON string the client wrapper returns. Otherwise
-// `terraform plan -generate-config-out` emits a jsonencode block and the first
-// plan after an import shows a full-document replacement.
-//
-// All six resources share this wiring line by line; view stands in for them.
+// Import has no prior value to align to, but must still store YAML rather than
+// the wrapper's JSON string. Otherwise `terraform plan -generate-config-out`
+// emits a jsonencode block and the first plan after import shows a
+// full-document replacement. All six resources share this line; view stands in.
 func TestViewResource_ImportStateStoresYAML(t *testing.T) {
 	mockClient := &MockClient{}
 	r := &ViewResource{client: mockClient}

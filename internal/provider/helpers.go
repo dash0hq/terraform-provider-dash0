@@ -9,8 +9,7 @@ import (
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 )
 
-// stringOrNull returns a null types.String for an empty input and a value-bearing
-// types.String otherwise.
+// stringOrNull returns a null types.String for an empty input.
 func stringOrNull(s string) types.String {
 	if s == "" {
 		return types.StringNull()
@@ -18,15 +17,10 @@ func stringOrNull(s string) types.String {
 	return types.StringValue(s)
 }
 
-// refreshedYAML renders a document read back from Dash0 as the YAML to store in
-// a resource's `*_yaml` attribute, keeping the key order of priorYAML (the value
-// it replaces, empty when there is none) so a plan renders a line-level diff
-// instead of a full-document replacement.
-//
-// The client wrappers build the input with json.Marshal, so it always parses.
-// If that ever stops holding, keep the document as it arrived rather than
-// dropping the refresh, and log it: the resource silently reverts to the
-// full-document plan diff this helper exists to prevent.
+// refreshedYAML renders a document read back from Dash0 as YAML for a `*_yaml`
+// attribute, aligned to priorYAML (the value it replaces, "" for none) so a plan
+// shows a line-level diff. On failure it keeps the document as it arrived and
+// logs, since the resource reverts to the diff this exists to prevent.
 func refreshedYAML(ctx context.Context, apiResponse, priorYAML string) string {
 	converted, err := converter.ConvertAPIResponseToYAML(apiResponse, priorYAML)
 	if err != nil {

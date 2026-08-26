@@ -10,48 +10,31 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// encoderIndent is the indentation width this package encodes with.
-// flushSequences depends on knowing it.
 const encoderIndent = 2
 
-// ConvertAPIResponseToYAML converts a document read back from Dash0 into the
-// YAML that belongs in a resource's `*_yaml` state attribute.
-//
-// The api-client returns typed definitions, but this provider's client wrappers
-// re-serialize them with marshalToJSON, so a resource's Read sees a JSON
-// string. Storing that string in an attribute whose configuration side is YAML
-// makes every refresh that detects drift render as a full-document replacement
-// in `terraform plan`, jsonencode on one side and a YAML heredoc on the other.
-//
-// referenceYAML is the document the new value replaces, normally the current
-// state value. Its key order, quoting, and sequence indentation carry over to
-// the result, so the plan shows only the fields that changed. Pass an empty
-// string when there is nothing to align against.
-//
-// JSON is a subset of YAML, so a document that is already YAML is accepted.
+// ConvertAPIResponseToYAML renders a document read back from Dash0 as the YAML
+// to store in a resource's `*_yaml` attribute. The client wrappers hand Read a
+// JSON string, and storing that in a YAML attribute makes `terraform plan`
+// render every refresh as a full-document replacement. referenceYAML, normally
+// the value being replaced, supplies the key order, quoting, and sequence
+// indentation that keep the plan to a line-level diff; pass "" for none.
 func ConvertAPIResponseToYAML(apiResponse, referenceYAML string) (string, error) {
 	root, err := parseDocumentNode(apiResponse)
 	if err != nil {
 		return "", fmt.Errorf("error parsing API response: %w", err)
 	}
 
-	// Drop the flow style and mandatory double quoting the JSON spelling carries
-	// into the node tree, so the result reads as block YAML with plain scalars.
 	applyBlockStyle(root)
 
 	var reference *yaml.Node
 	if referenceYAML != "" {
-		// A reference that does not parse is not an error. It only means there is
-		// nothing to inherit, so fall through with the API's own order.
+		// A reference that does not parse just leaves nothing to inherit.
 		if parsed, refErr := parseDocumentNode(referenceYAML); refErr == nil {
 			reference = parsed
 			if json.Valid([]byte(referenceYAML)) {
-				// A JSON reference is not anybody's spelling of the document. It
-				// is a state value written before this function existed, or this
-				// function's own fallback. Every scalar in it is double-quoted,
-				// so inheriting that would store a permanently double-quoted
-				// document and the quoting would carry into the next refresh.
-				// Take the key order and nothing else.
+				// JSON is nobody's spelling, and every scalar in it is quoted.
+				// Inheriting that sticks, since the stored value is the next
+				// reference. Take key order only.
 				applyBlockStyle(reference)
 			}
 			alignKeyOrder(root, reference)
@@ -75,18 +58,14 @@ func ConvertAPIResponseToYAML(apiResponse, referenceYAML string) (string, error)
 		}
 	}
 
-	// Reordering, re-quoting, and re-indenting must not change the document. A
-	// value that lost a field would be sent back to the API on the next apply,
-	// so verify before returning. Callers treat the error as "keep what the API
-	// returned".
+	// Reordering and re-spelling must not change the document, or the next apply
+	// sends a different one. Callers treat the error as "keep the API's copy".
 	if !sameDocument(apiResponse, result) {
 		return "", fmt.Errorf("rendering the document as YAML would have changed it")
 	}
 	return result, nil
 }
 
-// parseDocumentNode parses a single YAML or JSON document and returns its root
-// content node.
 func parseDocumentNode(document string) (*yaml.Node, error) {
 	var doc yaml.Node
 	if err := yaml.Unmarshal([]byte(document), &doc); err != nil {
@@ -98,8 +77,8 @@ func parseDocumentNode(document string) (*yaml.Node, error) {
 	return doc.Content[0], nil
 }
 
-// applyBlockStyle clears the styles on a node tree so the encoder emits block
-// YAML and picks its own scalar spelling.
+// applyBlockStyle drops the flow style and forced quoting a JSON source carries,
+// leaving the encoder to pick its own spelling.
 func applyBlockStyle(node *yaml.Node) {
 	if node == nil {
 		return
@@ -110,23 +89,18 @@ func applyBlockStyle(node *yaml.Node) {
 	}
 }
 
-// alignKeyOrder reorders the mapping keys of node to follow the order they
-// appear in reference, recursively. Keys reference does not carry keep the order
-// the API sent them in and sort after every key it does carry.
+// alignKeyOrder reorders node's mapping keys to follow reference, recursively.
+// Keys reference does not carry sort last, in the order the API sent them.
 //
-// It also carries the reference's spelling over to any key or scalar whose value
-// and resolved tag both match, so a `"views:read"` the user quoted is not
-// re-rendered as plain `views:read` and counted as a changed line. Requiring the
-// value and tag to match is what makes that safe on arbitrary user YAML: an
-// inherited style can only re-spell a scalar that already means the same thing.
+// It also copies reference's spelling onto any key or scalar whose value and tag
+// both match, so a `"views:read"` the user quoted does not re-render as plain.
+// Matching on both keeps that safe: the style can only re-spell a scalar that
+// already means the same thing.
 //
-// Known limitation. Sequences align by position, so an element inserted into or
-// removed from the middle of a list shifts every element after it against the
-// wrong reference sibling. Those re-render in the API's spelling and show as
-// changed even when their content did not move. It lasts one apply, because the
-// next Read aligns against what that apply stored. Aligning by identity would
-// avoid it, but these documents have no field that identifies an element across
-// all six resources.
+// Known limitation: sequences align by position, so inserting or removing a
+// middle element shifts the rest against the wrong sibling for one apply. No
+// field identifies an element across all six resources, so identity-based
+// alignment is not available.
 func alignKeyOrder(node, reference *yaml.Node) {
 	if node == nil || reference == nil {
 		return
@@ -195,7 +169,8 @@ func alignMappingKeyOrder(node, reference *yaml.Node) {
 	}
 }
 
-// sameDocument reports whether two YAML texts parse to the same data.
+// sameDocument reports whether two texts parse to identical data. Unlike
+// ResourceYAMLEquivalent it strips nothing: it guards against a lost field.
 func sameDocument(a, b string) bool {
 	var parsedA, parsedB interface{}
 	if yaml.Unmarshal([]byte(a), &parsedA) != nil || yaml.Unmarshal([]byte(b), &parsedB) != nil {

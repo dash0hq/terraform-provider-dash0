@@ -12,10 +12,9 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// TestSpamFilterResource_ReadKeepsPriorKeyOrder guards the same Read wiring the
-// other five resources cover in their own ReadWithDiffs tables. The response
-// arrives with its keys in a different order than state, which is the only
-// shape that shows whether Read passed the prior state value to the converter.
+// Spam filters have no ReadWithDiffs table, so this guards the same wiring. Only
+// a response whose keys differ in order from state shows whether Read passed the
+// prior value.
 func TestSpamFilterResource_ReadKeepsPriorKeyOrder(t *testing.T) {
 	stateYAML := `kind: Dash0SpamFilter
 metadata:
