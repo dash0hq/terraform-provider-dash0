@@ -228,3 +228,57 @@ func TestConvertAPIResponseToYAMLPreservesEquivalence(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, equivalent, "converted YAML must stay equivalent to the API response: %s", converted)
 }
+
+// Regression for review finding #1 on the pull request for
+// dash0hq/terraform-provider-dash0#170. A state value written before this
+// function existed holds raw JSON, in which every scalar is double-quoted.
+// Inheriting that spelling stored a permanently double-quoted document, and
+// because the stored value becomes the next refresh's reference, the quoting
+// carried forward instead of settling.
+func TestConvertAPIResponseToYAMLIgnoresTheSpellingOfAJSONReference(t *testing.T) {
+	jsonState := `{"kind":"Dash0View","metadata":{"name":"web"},"spec":{"title":"Old","type":"logs"}}`
+	apiResponse := `{"kind":"Dash0View","metadata":{"name":"web"},"spec":{"title":"New","type":"logs"}}`
+
+	first, err := ConvertAPIResponseToYAML(apiResponse, jsonState)
+	require.NoError(t, err)
+	assert.Equal(t, "kind: Dash0View\nmetadata:\n  name: web\nspec:\n  title: New\n  type: logs\n", first)
+
+	// Feeding the result back in must not reintroduce the quoting.
+	second, err := ConvertAPIResponseToYAML(apiResponse, first)
+	require.NoError(t, err)
+	assert.Equal(t, first, second)
+}
+
+// TestSameDocument covers the predicate behind the guard in
+// ConvertAPIResponseToYAML, which refuses to return a rendering that changed the
+// document.
+//
+// No in-contract input is known to reach that guard's error branch: every
+// candidate tried (keys spelled `true`, `null`, `1`, `- x`, `#c`, values that
+// look like numbers, dates, anchors, or padded strings) is quoted correctly by
+// the encoder. The guard is there for a future change to the alignment or
+// indentation code, which is why the predicate is tested directly.
+func TestSameDocument(t *testing.T) {
+	tests := []struct {
+		name  string
+		a, b  string
+		equal bool
+	}{
+		{name: "identical", a: "a: 1\n", b: "a: 1\n", equal: true},
+		{name: "same data, different spelling", a: `{"a":1}`, b: "a: 1\n", equal: true},
+		{name: "same data, different key order", a: "a: 1\nb: 2\n", b: "b: 2\na: 1\n", equal: true},
+		{name: "same data, different sequence indent", a: "a:\n  - 1\n", b: "a:\n- 1\n", equal: true},
+		{name: "a dropped field", a: "a: 1\nb: 2\n", b: "a: 1\n", equal: false},
+		{name: "a changed value", a: "a: 1\n", b: "a: 2\n", equal: false},
+		{name: "a quoted number is not the number", a: `{"a":"1"}`, b: "a: 1\n", equal: false},
+		{name: "reordered sequence elements", a: "a: [1, 2]\n", b: "a: [2, 1]\n", equal: false},
+		{name: "left side does not parse", a: "invalid: : yaml", b: "a: 1\n", equal: false},
+		{name: "right side does not parse", a: "a: 1\n", b: "invalid: : yaml", equal: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.equal, sameDocument(tc.a, tc.b))
+		})
+	}
+}

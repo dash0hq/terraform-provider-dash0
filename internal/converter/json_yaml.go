@@ -1,6 +1,7 @@
 package converter
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"sort"
@@ -44,6 +45,15 @@ func ConvertAPIResponseToYAML(apiResponse, referenceYAML string) (string, error)
 		// nothing to inherit, so fall through with the API's own order.
 		if parsed, refErr := parseDocumentNode(referenceYAML); refErr == nil {
 			reference = parsed
+			if json.Valid([]byte(referenceYAML)) {
+				// A JSON reference is not anybody's spelling of the document. It
+				// is a state value written before this function existed, or this
+				// function's own fallback. Every scalar in it is double-quoted,
+				// so inheriting that would store a permanently double-quoted
+				// document and the quoting would carry into the next refresh.
+				// Take the key order and nothing else.
+				applyBlockStyle(reference)
+			}
 			alignKeyOrder(root, reference)
 		}
 	}
