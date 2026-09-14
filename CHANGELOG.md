@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.17.0
+
+
+### New Components
+
+
+- `slos`: Add a new `dash0_slo` resource for managing Dash0 Service Level Objectives (SLOs) as code. (#140)
+  SLOs are defined as OpenSLO v1 documents (`apiVersion: openslo.com/v1`, `kind: SLO`) supplied through the
+  `slo_yaml` content attribute. The resource is dataset-scoped, exposes a computed `url` deep link into
+  the Dash0 web app, and supports `terraform import` via a `dataset,origin` identifier. The feature is
+  Private BETA and supports a constrained subset of OpenSLO: a single objective, an inline `ratioMetric`
+  indicator, `Occurrences` budgeting, and a rolling 28d window.
+  
+
+
+### Enhancements
+
+
+- `provider`: Add a provider-level `dataset` default and make the per-resource `dataset` attribute optional on dashboards, check rules, recording rules, spam filters, synthetic checks, and views (#158)
+  The default resolves from the `DASH0_DATASET` environment variable, then the provider's `dataset`
+  attribute, then the dash0 CLI profile's dataset, then "default". Existing configurations that set
+  `dataset` explicitly on every resource keep working unchanged.
+  
+
 ## 1.16.1
 
 
