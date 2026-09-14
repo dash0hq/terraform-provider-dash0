@@ -256,6 +256,149 @@ func TestSLOResource_Delete(t *testing.T) {
 	mockClient.AssertExpectations(t)
 }
 
+func TestSLOResource_ReadError(t *testing.T) {
+	ctx := context.Background()
+	mockClient := new(MockClient)
+
+	r := &SLOResource{
+		client: mockClient,
+	}
+
+	req := resource.ReadRequest{
+		State: tfsdk.State{
+			Raw: tftypes.NewValue(tftypes.Object{
+				AttributeTypes: map[string]tftypes.Type{
+					"origin":   tftypes.String,
+					"id":       tftypes.String,
+					"dataset":  tftypes.String,
+					"slo_yaml": tftypes.String,
+					"url":      tftypes.String,
+				},
+			}, map[string]tftypes.Value{
+				"origin":   tftypes.NewValue(tftypes.String, "test-origin"),
+				"id":       tftypes.NewValue(tftypes.String, "test-id"),
+				"dataset":  tftypes.NewValue(tftypes.String, "test-dataset"),
+				"slo_yaml": tftypes.NewValue(tftypes.String, basicSLOYaml),
+				"url":      tftypes.NewValue(tftypes.String, nil),
+			}),
+			Schema: testSLOSchema(),
+		},
+	}
+
+	resp := &resource.ReadResponse{
+		State: tfsdk.State{
+			Schema: testSLOSchema(),
+		},
+	}
+
+	mockClient.On("GetSLO", ctx, "test-origin", "test-dataset").Return("", errors.New("not found"))
+
+	r.Read(ctx, req, resp)
+
+	assert.True(t, resp.Diagnostics.HasError())
+	mockClient.AssertExpectations(t)
+}
+
+func TestSLOResource_UpdateError(t *testing.T) {
+	ctx := context.Background()
+	mockClient := new(MockClient)
+
+	r := &SLOResource{
+		client: mockClient,
+	}
+
+	req := resource.UpdateRequest{
+		State: tfsdk.State{
+			Raw: tftypes.NewValue(tftypes.Object{
+				AttributeTypes: map[string]tftypes.Type{
+					"origin":   tftypes.String,
+					"id":       tftypes.String,
+					"dataset":  tftypes.String,
+					"slo_yaml": tftypes.String,
+					"url":      tftypes.String,
+				},
+			}, map[string]tftypes.Value{
+				"origin":   tftypes.NewValue(tftypes.String, "test-origin"),
+				"id":       tftypes.NewValue(tftypes.String, "test-id"),
+				"dataset":  tftypes.NewValue(tftypes.String, "test-dataset"),
+				"slo_yaml": tftypes.NewValue(tftypes.String, "old-yaml"),
+				"url":      tftypes.NewValue(tftypes.String, nil),
+			}),
+			Schema: testSLOSchema(),
+		},
+		Plan: tfsdk.Plan{
+			Raw: tftypes.NewValue(tftypes.Object{
+				AttributeTypes: map[string]tftypes.Type{
+					"origin":   tftypes.String,
+					"id":       tftypes.String,
+					"dataset":  tftypes.String,
+					"slo_yaml": tftypes.String,
+					"url":      tftypes.String,
+				},
+			}, map[string]tftypes.Value{
+				"origin":   tftypes.NewValue(tftypes.String, "test-origin"),
+				"id":       tftypes.NewValue(tftypes.String, "test-id"),
+				"dataset":  tftypes.NewValue(tftypes.String, "test-dataset"),
+				"slo_yaml": tftypes.NewValue(tftypes.String, basicSLOYaml),
+				"url":      tftypes.NewValue(tftypes.String, nil),
+			}),
+			Schema: testSLOSchema(),
+		},
+	}
+
+	resp := &resource.UpdateResponse{
+		State: tfsdk.State{
+			Schema: testSLOSchema(),
+		},
+	}
+
+	mockClient.On("UpdateSLO", ctx, "test-origin", mock.Anything, "test-dataset").Return(errors.New("API error"))
+
+	r.Update(ctx, req, resp)
+
+	assert.True(t, resp.Diagnostics.HasError())
+	mockClient.AssertExpectations(t)
+}
+
+func TestSLOResource_DeleteError(t *testing.T) {
+	ctx := context.Background()
+	mockClient := new(MockClient)
+
+	r := &SLOResource{
+		client: mockClient,
+	}
+
+	req := resource.DeleteRequest{
+		State: tfsdk.State{
+			Raw: tftypes.NewValue(tftypes.Object{
+				AttributeTypes: map[string]tftypes.Type{
+					"origin":   tftypes.String,
+					"id":       tftypes.String,
+					"dataset":  tftypes.String,
+					"slo_yaml": tftypes.String,
+					"url":      tftypes.String,
+				},
+			}, map[string]tftypes.Value{
+				"origin":   tftypes.NewValue(tftypes.String, "test-origin"),
+				"id":       tftypes.NewValue(tftypes.String, nil),
+				"dataset":  tftypes.NewValue(tftypes.String, "test-dataset"),
+				"slo_yaml": tftypes.NewValue(tftypes.String, "test-yaml"),
+				"url":      tftypes.NewValue(tftypes.String, nil),
+			}),
+			Schema: testSLOSchema(),
+		},
+	}
+
+	resp := &resource.DeleteResponse{}
+
+	mockClient.On("DeleteSLO", ctx, "test-origin", "test-dataset").Return(errors.New("API error"))
+
+	r.Delete(ctx, req, resp)
+
+	assert.True(t, resp.Diagnostics.HasError())
+	mockClient.AssertExpectations(t)
+}
+
 // Helper function to create test schema
 func testSLOSchema() schema.Schema {
 	return schema.Schema{
