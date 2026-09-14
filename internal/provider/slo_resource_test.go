@@ -93,9 +93,11 @@ func TestSLOResource_Schema(t *testing.T) {
 	idAttr := attrs["id"].(schema.StringAttribute)
 	assert.True(t, idAttr.Computed)
 
-	// Check dataset is required
+	// Check dataset is optional with a provider-level default
 	datasetAttr := attrs["dataset"].(schema.StringAttribute)
-	assert.True(t, datasetAttr.Required)
+	assert.False(t, datasetAttr.Required)
+	assert.True(t, datasetAttr.Optional)
+	assert.True(t, datasetAttr.Computed)
 
 	// Check slo_yaml is required
 	sloYamlAttr := attrs["slo_yaml"].(schema.StringAttribute)
