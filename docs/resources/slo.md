@@ -67,8 +67,11 @@ YAML
 
 ### Required
 
-- `dataset` (String) The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the SLO belongs to. Provide the dataset's identifier, which is immutable, not the 'name'. Datasets are used to separate observability data within a Dash0 organization. Changing this value forces the resource to be recreated.
 - `slo_yaml` (String) The SLO definition in [OpenSLO](https://openslo.com) v1 YAML format (`apiVersion: openslo.com/v1`, `kind: SLO`), specifying the objective target, service level indicator, budgeting method, and time window. See [Create SLOs](https://dash0.com/docs/dash0/monitoring/alerting/create-slos) for the available options. The `dash0.com/sharing` metadata annotation is supported to control sharing settings; changes to it trigger a resource update. All other metadata annotations are managed by the server and ignored during drift detection.
+
+### Optional
+
+- `dataset` (String) The identifier of the [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) that the SLO belongs to. Provide the dataset's identifier, which is immutable, not the 'name'. Datasets are used to separate observability data within a Dash0 organization. If omitted, the provider-level `dataset` default is used (see the provider's `dataset` attribute). Changing this value forces the resource to be recreated.
 
 ### Read-Only
 
