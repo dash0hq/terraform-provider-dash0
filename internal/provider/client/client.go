@@ -82,6 +82,12 @@ type Client interface {
 	// desired state, and nothing to read back or delete. It backs the
 	// dash0_log_event and dash0_deployment_event actions.
 	SendLogEvent(ctx context.Context, event LogEvent, dataset string) error
+
+	CreateSLO(ctx context.Context, origin string, sloJSON string, dataset string) error
+	GetSLO(ctx context.Context, origin string, dataset string) (string, error)
+	UpdateSLO(ctx context.Context, origin string, sloJSON string, dataset string) error
+	DeleteSLO(ctx context.Context, origin string, dataset string) error
+	ResolveSLO(ctx context.Context, origin string, dataset string) (string, string, error)
 }
 
 // Ensure dash0Client implements Client
@@ -155,6 +161,15 @@ func unmarshalSyntheticCheck(jsonStr string) (*dash0.SyntheticCheckDefinition, e
 // unmarshalView parses a JSON string into a ViewDefinition.
 func unmarshalView(jsonStr string) (*dash0.ViewDefinition, error) {
 	var def dash0.ViewDefinition
+	if err := json.Unmarshal([]byte(jsonStr), &def); err != nil {
+		return nil, err
+	}
+	return &def, nil
+}
+
+// unmarshalSLO parses a JSON string into a SloDefinition.
+func unmarshalSLO(jsonStr string) (*dash0.SloDefinition, error) {
+	var def dash0.SloDefinition
 	if err := json.Unmarshal([]byte(jsonStr), &def); err != nil {
 		return nil, err
 	}

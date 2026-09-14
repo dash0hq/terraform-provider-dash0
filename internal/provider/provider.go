@@ -463,6 +463,7 @@ func (p *dash0Provider) Resources(_ context.Context) []func() resource.Resource 
 		NewNotificationChannelResource,
 		NewSpamFilterResource,
 		NewTeamResource,
+		NewSLOResource,
 	}
 }
 

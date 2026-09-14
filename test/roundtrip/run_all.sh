@@ -96,6 +96,7 @@ else
     test_dashboard.sh
     test_recording_rule.sh
     test_synthetic_check.sh
+    test_slo.sh
     test_view.sh
     test_notification_channel.sh
     test_spam_filter_v1alpha1.sh
@@ -106,6 +107,7 @@ else
     test_import_dashboard.sh
     test_import_notification_channel.sh
     test_import_recording_rule.sh
+    test_import_slo.sh
     test_import_spam_filter.sh
     test_import_synthetic_check.sh
     test_import_team.sh

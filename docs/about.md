@@ -15,6 +15,7 @@ Each Dash0 asset kind is exposed as a Terraform resource whose primary attribute
 - [`dash0_notification_channel`](resources/notification-channel) — Slack, email, PagerDuty, Opsgenie, webhook, Microsoft Teams, Discord, and Google Chat destinations.
 - [`dash0_spam_filter`](resources/spam-filter) — ingestion-time telemetry filters.
 - [`dash0_team`](resources/team) — organization-level teams that group members and own assets.
+- [`dash0_slo`](resources/slo) — service level objectives defined using [OpenSLO](https://openslo.com) v1 YAML.
 
 ## Actions
 

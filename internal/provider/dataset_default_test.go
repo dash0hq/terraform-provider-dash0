@@ -137,6 +137,17 @@ spec:
 			m.On("ResolveView", mock.Anything, mock.Anything, dataset).Return("test-id", "", nil)
 		},
 	},
+	{
+		name:        "slo",
+		newResource: NewSLOResource,
+		yamlAttr:    "slo_yaml",
+		yamlValue:   "apiVersion: openslo.com/v1\nkind: SLO\nmetadata:\n  name: example-slo\nspec:\n  description: Example SLO",
+		hasURL:      true,
+		mockSetup: func(m *MockClient, dataset string) {
+			m.On("CreateSLO", mock.Anything, mock.Anything, mock.Anything, dataset).Return(nil)
+			m.On("ResolveSLO", mock.Anything, mock.Anything, dataset).Return("test-id", "", nil)
+		},
+	},
 }
 
 // buildOmittedDatasetCreatePlan builds a minimal Create plan for a
@@ -175,11 +186,11 @@ func buildOmittedDatasetCreatePlan(yamlAttr, yamlValue string, hasURL bool) tfsd
 }
 
 // TestDatasetScopedResources_Create_InheritsProviderDefaultDataset covers all
-// six dataset-scoped resources, verifying each resource's own Create path
+// seven dataset-scoped resources, verifying each resource's own Create path
 // falls back to the provider-level default dataset when the resource omits
 // its own `dataset` attribute. Each resource has a distinct client call, so
 // this cannot be collapsed into a single shared code path -- the table
-// exists precisely to exercise all six independently.
+// exists precisely to exercise all seven independently.
 func TestDatasetScopedResources_Create_InheritsProviderDefaultDataset(t *testing.T) {
 	const providerDefault = "provider-default-dataset"
 
@@ -230,6 +241,7 @@ var datasetSchemaCases = []datasetSchemaCase{
 	{"spam_filter", NewSpamFilterResource},
 	{"synthetic_check", NewSyntheticCheckResource},
 	{"view", NewViewResource},
+	{"slo", NewSLOResource},
 }
 
 // nonNullEmptyObject returns a known (non-null), attribute-less object value,
@@ -263,7 +275,7 @@ func runStringPlanModifiers(ctx context.Context, modifiers []planmodifier.String
 
 // TestDatasetScopedResources_DatasetPlanModifiers exercises the `dataset`
 // attribute's real plan modifiers -- UseStateForUnknown then RequiresReplace
-// -- for all six dataset-scoped resources, at the planning stage rather than
+// -- for all seven dataset-scoped resources, at the planning stage rather than
 // through Create. This is deliberately independent of any provider-level
 // default: plan modifiers never see the provider configuration, so a
 // resource's own prior state is the only thing an omitted `dataset` can pin
