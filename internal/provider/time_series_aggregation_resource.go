@@ -177,40 +177,64 @@ func (r *TimeSeriesAggregationResource) ValidateConfig(ctx context.Context, req 
 		return
 	}
 
+	parsed := parseAndValidateTimeSeriesAggregationYAML(model.TimeSeriesAggregationYaml.ValueString(), &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	warnIfCustomLabelsSet(parsed, &resp.Diagnostics)
+}
+
+// parseAndValidateTimeSeriesAggregationYAML parses the user's document and
+// enforces every invariant the provider depends on, appending errors to diags.
+// It returns nil when any of them fails.
+//
+// This is shared by ValidateConfig, Create, and Update rather than living in
+// ValidateConfig alone. ValidateConfig cannot see a value that is unknown at
+// plan time — the ordinary case when the YAML interpolates another resource's
+// computed attribute, e.g. via templatefile() — and returns early. Create and
+// Update always have a known value, so they are the backstop that an unknown
+// cannot slip past. Without it an omitted spec.enabled reaches the API as
+// false, is stripped from drift comparison as an absent zero value, and leaves
+// a permanently disabled aggregation with a permanently clean plan.
+func parseAndValidateTimeSeriesAggregationYAML(document string, diags *diag.Diagnostics) map[string]interface{} {
 	var parsed map[string]interface{}
-	if err := yaml.Unmarshal([]byte(model.TimeSeriesAggregationYaml.ValueString()), &parsed); err != nil {
-		resp.Diagnostics.AddAttributeError(
+	if err := yaml.Unmarshal([]byte(document), &parsed); err != nil {
+		diags.AddAttributeError(
 			path.Root("time_series_aggregation_yaml"),
 			"Invalid YAML in time_series_aggregation_yaml",
 			fmt.Sprintf("time_series_aggregation_yaml is not valid YAML: %s", err),
 		)
-		return
+		return nil
 	}
 
 	// An empty, whitespace-only, or explicitly null document unmarshals into a
 	// nil map without error (a scalar or sequence errors above instead), so
 	// guard before the shape check.
 	if parsed == nil {
-		resp.Diagnostics.AddAttributeError(
+		diags.AddAttributeError(
 			path.Root("time_series_aggregation_yaml"),
 			"time_series_aggregation_yaml is empty or not a YAML mapping",
 			"time_series_aggregation_yaml must be a YAML mapping following the Dash0TimeSeriesAggregation CRD envelope (kind, metadata, spec).",
 		)
-		return
+		return nil
 	}
 
 	if kind, _ := parsed["kind"].(string); kind != "Dash0TimeSeriesAggregation" {
-		resp.Diagnostics.AddAttributeError(
+		diags.AddAttributeError(
 			path.Root("time_series_aggregation_yaml"),
 			"time_series_aggregation_yaml is missing or has the wrong kind",
 			fmt.Sprintf("time_series_aggregation_yaml must declare `kind: Dash0TimeSeriesAggregation`; got %q. The "+
 				"dash0_time_series_aggregation resource only manages the Dash0TimeSeriesAggregation CRD kind.", kind),
 		)
-		return
+		return nil
 	}
 
-	errorIfEnabledAbsent(parsed, &resp.Diagnostics)
-	warnIfCustomLabelsSet(parsed, &resp.Diagnostics)
+	errorIfEnabledAbsent(parsed, diags)
+	if diags.HasError() {
+		return nil
+	}
+	return parsed
 }
 
 // errorIfEnabledAbsent requires the user's YAML to declare spec.enabled.
@@ -322,14 +346,11 @@ func (r *TimeSeriesAggregationResource) Create(ctx context.Context, req resource
 		model.Dataset = types.StringValue(r.defaultDataset)
 	}
 
-	// Validate YAML format
-	var tsaYaml interface{}
-	err := yaml.Unmarshal([]byte(model.TimeSeriesAggregationYaml.ValueString()), &tsaYaml)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Invalid YAML",
-			fmt.Sprintf("Time series aggregation definition is not valid YAML: %s", err),
-		)
+	// Re-validate here, not just in ValidateConfig: the value is always known by
+	// Create, so this is the point an unknown-at-plan-time document cannot slip
+	// past. See parseAndValidateTimeSeriesAggregationYAML.
+	parseAndValidateTimeSeriesAggregationYAML(model.TimeSeriesAggregationYaml.ValueString(), &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -435,14 +456,10 @@ func (r *TimeSeriesAggregationResource) Update(ctx context.Context, req resource
 		return
 	}
 
-	// Validate YAML format
-	var tsaYaml interface{}
-	err := yaml.Unmarshal([]byte(plan.TimeSeriesAggregationYaml.ValueString()), &tsaYaml)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Invalid YAML",
-			fmt.Sprintf("Time series aggregation definition is not valid YAML: %s", err),
-		)
+	// Re-validate here for the same reason as in Create: ValidateConfig cannot
+	// see a document that was unknown at plan time.
+	parseAndValidateTimeSeriesAggregationYAML(plan.TimeSeriesAggregationYaml.ValueString(), &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 

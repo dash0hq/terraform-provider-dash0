@@ -783,6 +783,81 @@ spec:
 	assert.False(t, resp.Diagnostics.HasError(), "an explicit spec.enabled: false is valid")
 }
 
+// tsaYamlEnabledAbsent omits spec.enabled. ValidateConfig rejects it, but the
+// tests below exercise the apply-time backstop, which is what actually protects
+// a config whose YAML is unknown at plan time.
+const tsaYamlEnabledAbsent = `kind: Dash0TimeSeriesAggregation
+metadata:
+  name: rollup
+spec:
+  match:
+    metricNameMatcher:
+      operator: is
+      value: http.server.request.duration
+  sample:
+    interval: 5m
+`
+
+// The spec.enabled requirement must hold at apply time, not only at plan time.
+// ValidateConfig returns early whenever time_series_aggregation_yaml is unknown
+// — the ordinary case when it interpolates another resource's computed
+// attribute — so Create is the only place the invariant can still be enforced.
+// Without this the document reaches the API with enabled=false, which
+// normalization then strips as an absent zero value, leaving a disabled
+// aggregation whose plan stays clean forever.
+func TestTimeSeriesAggregationResource_Create_EnabledAbsentIsRejectedAtApply(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &TimeSeriesAggregationResource{client: mockClient, defaultDataset: "default"}
+
+	req := resource.CreateRequest{Plan: tsaPlan(nil, nil, nil, strPtr(tsaYamlEnabledAbsent))}
+	resp := resource.CreateResponse{State: tfsdk.State{Schema: tsaTestSchema()}}
+
+	r.Create(context.Background(), req, &resp)
+
+	require.True(t, resp.Diagnostics.HasError(), "an omitted spec.enabled must not reach the API")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "spec.enabled")
+	assert.True(t, resp.State.Raw.IsNull(), "no state may be written when the invariant fails")
+	mockClient.AssertNotCalled(t, "CreateTimeSeriesAggregation", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestTimeSeriesAggregationResource_Update_EnabledAbsentIsRejectedAtApply(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &TimeSeriesAggregationResource{client: mockClient}
+
+	req := resource.UpdateRequest{
+		State: tsaState(strPtr("tf_origin"), strPtr("state-id"), strPtr("test-dataset"), strPtr(tsaValidYaml)),
+		Plan:  tsaPlan(nil, nil, strPtr("test-dataset"), strPtr(tsaYamlEnabledAbsent)),
+	}
+	resp := resource.UpdateResponse{State: tfsdk.State{Schema: tsaTestSchema()}}
+
+	r.Update(context.Background(), req, &resp)
+
+	require.True(t, resp.Diagnostics.HasError(), "an omitted spec.enabled must not reach the API")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "spec.enabled")
+	mockClient.AssertNotCalled(t, "UpdateTimeSeriesAggregation", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+// The backstop keys on absence, not on falsiness: an explicit
+// spec.enabled: false must still apply cleanly.
+func TestTimeSeriesAggregationResource_Create_EnabledFalseAppliesAtApply(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &TimeSeriesAggregationResource{client: mockClient, defaultDataset: "default"}
+
+	yamlEnabledFalse := strings.Replace(tsaValidYaml, "enabled: true", "enabled: false", 1)
+	require.Contains(t, yamlEnabledFalse, "enabled: false", "fixture must actually declare spec.enabled: false")
+
+	mockClient.On("CreateTimeSeriesAggregation", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockClient.On("ResolveTimeSeriesAggregation", mock.Anything, mock.Anything, mock.Anything).Return("an-id", nil)
+
+	req := resource.CreateRequest{Plan: tsaPlan(nil, nil, nil, strPtr(yamlEnabledFalse))}
+	resp := resource.CreateResponse{State: tfsdk.State{Schema: tsaTestSchema()}}
+
+	r.Create(context.Background(), req, &resp)
+
+	assert.False(t, resp.Diagnostics.HasError(), "an explicit spec.enabled: false is a valid declaration")
+	mockClient.AssertCalled(t, "CreateTimeSeriesAggregation", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
 // TestTimeSeriesAggregationResource_ValidateConfig_ResourceContextIsNotValidated
 // pins a deliberate, user-settled decision: resource-level attribute context is
 // passed through unvalidated because the sibling Dash0 CLI validates nothing
