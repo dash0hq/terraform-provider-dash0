@@ -213,6 +213,31 @@ func (m *MockClient) ResolveSpamFilter(ctx context.Context, origin string, datas
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockClient) CreateTimeSeriesAggregation(ctx context.Context, origin string, tsaJSON string, dataset string) error {
+	args := m.Called(ctx, origin, tsaJSON, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) GetTimeSeriesAggregation(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockClient) UpdateTimeSeriesAggregation(ctx context.Context, origin string, tsaJSON string, dataset string) error {
+	args := m.Called(ctx, origin, tsaJSON, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteTimeSeriesAggregation(ctx context.Context, origin string, dataset string) error {
+	args := m.Called(ctx, origin, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) ResolveTimeSeriesAggregation(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
+}
+
 func (m *MockClient) SendLogEvent(ctx context.Context, event client.LogEvent, dataset string) error {
 	args := m.Called(ctx, event, dataset)
 	return args.Error(0)
