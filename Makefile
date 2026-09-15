@@ -79,9 +79,9 @@ $(LYCHEE):
 			linux-aarch64) target="aarch64-unknown-linux-gnu" ;; \
 			*) echo "lint-links-install: unsupported OS/arch: $$os-$$arch" >&2; exit 1 ;; \
 		esac; \
-		url="https://github.com/lycheeverse/lychee/releases/download/$(LYCHEE_VERSION)/lychee-$$target.tar.gz"; \
+		url="https://github.com/lycheeverse/lychee/releases/download/lychee-$(LYCHEE_VERSION)/lychee-$$target.tar.gz"; \
 		echo "Installing lychee $(LYCHEE_VERSION) from $$url"; \
-		curl -fsSL "$$url" | tar -xz -C $(TOOLS_BIN_DIR) lychee; \
+		curl -fsSL "$$url" | tar -xz -C $(TOOLS_BIN_DIR) --strip-components=1 "lychee-$$target/lychee"; \
 	fi
 
 lint: lint-go lint-sh lint-links
