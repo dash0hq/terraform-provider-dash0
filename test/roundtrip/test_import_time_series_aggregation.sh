@@ -90,17 +90,22 @@ info "Aggregation created via CLI."
 # ---------------------------------------------------------------------------
 info "Step 2: Discovering identifier via dash0 CLI..."
 
+# The display name is passed as argv, not interpolated into the program text:
+# it round-trips through an API response, and any quote in it would surface as
+# a confusing python SyntaxError instead of a clear assertion failure.
+# assert_yaml_equivalent in common.sh uses the same quoted-heredoc + argv shape.
 IDENTIFIER="$(dash0 time-series-aggregations list --dataset "$DATASET" -o json --limit 500 \
-  | python3 -c "
+  | python3 -c '
 import json, sys
 data = json.load(sys.stdin)
-items = data.get('items', data) if isinstance(data, dict) else data
+items = data.get("items", data) if isinstance(data, dict) else data
+target = sys.argv[1]
 for it in items:
-    if it.get('spec', {}).get('display', {}).get('name') == '''${DISPLAY_NAME}''':
-        labels = it.get('metadata', {}).get('labels', {}) or {}
-        print(labels.get('dash0.com/origin') or '')
+    if it.get("spec", {}).get("display", {}).get("name") == target:
+        labels = it.get("metadata", {}).get("labels", {}) or {}
+        print(labels.get("dash0.com/origin") or "")
         break
-")"
+' "$DISPLAY_NAME")"
 [[ -n "$IDENTIFIER" ]] || fail "Could not discover identifier for '${DISPLAY_NAME}'"
 info "Identifier: ${IDENTIFIER}"
 

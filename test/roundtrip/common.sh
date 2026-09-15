@@ -565,30 +565,69 @@ assert_tsa_deleted_via_list() {
   local origin="$1"
   local dataset="$2"
   local gone=""
-  local i found
+  local i listing stderr_file cli_rc found
+  # Overridable so the helper's own negative tests do not sleep through the
+  # full retry budget; real tests always use the default.
+  local attempts="${TSA_DELETED_LIST_ATTEMPTS:-10}"
 
-  for i in $(seq 1 10); do
+  stderr_file="$(mktemp)"
+  # shellcheck disable=SC2064  # expand stderr_file now, not at trap time
+  trap "rm -f '${stderr_file}'" RETURN
+
+  for i in $(seq 1 "$attempts"); do
+    # The CLI call is captured and checked on its own. Folding it into a
+    # pipeline would make its failure indistinguishable from "the aggregation
+    # is absent": common.sh runs under `set -o pipefail`, which `set +e` does
+    # not disable, so a failed list — an expired token, a 5xx, or exactly the
+    # 403 this asset kind raises without organization-admin — would surface as
+    # a non-zero pipeline status and read as proof of deletion. That is the
+    # same unfailable-assertion class this helper exists to replace.
+    #
+    # stderr is kept separate rather than merged with 2>&1: a warning printed
+    # by an otherwise successful call would corrupt the JSON.
     set +e
-    dash0 time-series-aggregations list --dataset "$dataset" -o json --limit 500 \
-      | python3 -c "
+    listing="$(dash0 time-series-aggregations list --dataset "$dataset" -o json --limit 500 2>"$stderr_file")"
+    cli_rc=$?
+    set -e
+    if [[ $cli_rc -ne 0 ]]; then
+      fail "Could not verify deletion of '${origin}': 'dash0 time-series-aggregations list' failed (exit ${cli_rc}): $(cat "$stderr_file")"
+    fi
+
+    # 0 = still present, 1 = definitively absent, 2 = could not decide.
+    set +e
+    printf '%s' "$listing" | python3 -c '
 import json, sys
-data = json.load(sys.stdin)
-items = data.get('items', data) if isinstance(data, dict) else data
-target = '${origin}'
-sys.exit(0 if any((it.get('metadata', {}).get('labels', {}) or {}).get('dash0.com/origin') == target for it in items) else 1)
-"
+try:
+    data = json.load(sys.stdin)
+except Exception as exc:
+    print("could not parse list output: %s" % exc, file=sys.stderr)
+    sys.exit(2)
+items = data.get("items", data) if isinstance(data, dict) else data
+if not isinstance(items, list):
+    print("unexpected list payload shape: %r" % type(items), file=sys.stderr)
+    sys.exit(2)
+if len(items) >= 500:
+    print("list returned a full page (>=500); absence is not provable", file=sys.stderr)
+    sys.exit(2)
+target = sys.argv[1]
+sys.exit(0 if any((it.get("metadata", {}).get("labels", {}) or {}).get("dash0.com/origin") == target for it in items) else 1)
+' "$origin"
     found=$?
     set -e
-    if [[ $found -ne 0 ]]; then
+
+    if [[ $found -eq 2 ]]; then
+      fail "Could not verify deletion of '${origin}': the list response could not be interpreted."
+    fi
+    if [[ $found -eq 1 ]]; then
       info "Server-side deletion confirmed via list (attempt ${i})."
       gone="yes"
       break
     fi
-    if [[ $i -lt 10 ]]; then
-      warn "Aggregation still in list (attempt ${i}/10), retrying in 3s..."
+    if [[ $i -lt $attempts ]]; then
+      warn "Aggregation still in list (attempt ${i}/${attempts}), retrying in 3s..."
       sleep 3
     fi
   done
 
-  [[ "$gone" == "yes" ]] || fail "Time series aggregation '${origin}' still returned by list after 10 attempts"
+  [[ "$gone" == "yes" ]] || fail "Time series aggregation '${origin}' still returned by list after ${attempts} attempts"
 }

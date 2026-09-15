@@ -91,6 +91,8 @@ if [[ $# -gt 0 ]]; then
   TESTS=("$@")
 else
   TESTS=(
+    # Harness self-check: stubs the CLI, needs no credentials, never skips.
+    test_assert_tsa_deleted_via_list.sh
     test_provider_empty_attributes.sh
     test_provider_with_profile_attribute_and_env_overrides.sh
     test_check_rule.sh
@@ -197,7 +199,9 @@ if [[ $SKIPPED -gt 0 ]]; then
   echo -e "${GREEN}All roundtrip tests that ran passed${NC}, but ${YELLOW}${SKIPPED} were skipped and did not run.${NC}"
   # Opt-in strictness: set ROUNDTRIP_REQUIRE_NO_SKIPS=1 (e.g. once CI has a
   # credential with the organization-admin role) to make a skip fail the run.
-  if [[ -n "${ROUNDTRIP_REQUIRE_NO_SKIPS:-}" ]]; then
+  # Gated on the value, not on presence: with -n, setting it to 0 to turn
+  # strictness off would have turned it on.
+  if [[ "${ROUNDTRIP_REQUIRE_NO_SKIPS:-0}" == "1" ]]; then
     echo -e "${RED}ROUNDTRIP_REQUIRE_NO_SKIPS is set: ${SKIPPED} skipped test(s) fail this run.${NC}" >&2
     exit 1
   fi
