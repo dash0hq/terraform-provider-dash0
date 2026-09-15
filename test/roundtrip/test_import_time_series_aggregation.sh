@@ -170,6 +170,10 @@ info "Identifier preservation check PASSED."
 # ---------------------------------------------------------------------------
 # Step 7: Modify + apply — mutate the sample interval, which the provider
 # manages and the CLI surfaces verbatim, so it is easy to grep for.
+#
+# The API rejects anything outside 10s–10m ("The sample interval must be a
+# valid duration between 10s and 10m", 400), so the updated value has to stay
+# inside that window: 5m -> 10m is a real change and still legal.
 # ---------------------------------------------------------------------------
 info "Step 7: Modifying + applying to prove the imported resource is manageable..."
 
@@ -178,7 +182,7 @@ import sys, yaml
 path = sys.argv[1]
 with open(path) as f:
     doc = yaml.safe_load(f)
-doc["spec"]["sample"]["interval"] = "15m"
+doc["spec"]["sample"]["interval"] = "10m"
 with open(path, "w") as f:
     yaml.safe_dump(doc, f, sort_keys=False)
 PYEOF
@@ -187,7 +191,7 @@ TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
 
 CLI_OUTPUT="$(dash0 time-series-aggregations get "$IDENTIFIER" --dataset "$DATASET" -o yaml 2>&1)"
 echo "$CLI_OUTPUT"
-echo "$CLI_OUTPUT" | grep -q "15m" \
+echo "$CLI_OUTPUT" | grep -q "10m" \
   || fail "CLI output does not reflect the post-import update"
 info "Update-after-import verified via CLI."
 
