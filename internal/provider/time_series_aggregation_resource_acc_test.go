@@ -48,7 +48,8 @@ spec:
       operator: is
       value: http.server.request.duration
   sample:
-    interval: 30m`
+    # The API accepts only 10s-10m; 30m is rejected with a 400.
+    interval: 10m`
 
 // TestAccTimeSeriesAggregationResource exercises the resource against a real
 // Dash0 API. Note that every time series aggregation endpoint requires the
