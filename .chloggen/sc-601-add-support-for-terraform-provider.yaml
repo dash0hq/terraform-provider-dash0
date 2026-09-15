@@ -1,0 +1,32 @@
+# Use this changelog template to create an entry for release notes.
+
+# One of 'breaking', 'deprecation', 'new_component', 'enhancement', 'bug_fix'
+change_type: new_component
+
+# The name of the component, or a single word describing the area of concern (e.g. dashboards, check_rules, views)
+component: time_series_aggregations
+
+# A brief description of the change. Surround your text with quotes ("") if it needs to start with a backtick (`).
+note: "Add the `dash0_time_series_aggregation` resource for managing metric rollups as code"
+
+# Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
+issues: [176]
+
+# (Optional) One or more lines of additional information to render under the primary note.
+# These lines will be padded with 2 spaces and then inserted directly into the document.
+# Use pipe (|) for multiline entries.
+subtext: |
+  Time series aggregations pre-aggregate raw metric data points, cutting cardinality and query cost.
+  The resource takes the aggregation definition as YAML, supports the full CRUD lifecycle and
+  `terraform import` with a `dataset,origin` identifier, and mirrors the Dash0 CLI's behavior.
+  Every time series aggregation API call requires the organization-admin role. `spec.enabled` must be
+  declared explicitly: the provider always sends a value for it, so an omitted field would silently
+  create a disabled aggregation and later switch off one enabled outside Terraform.
+
+# If your change doesn't affect end users or the exported elements of any package,
+# you should instead start your pull request title with "chore" or use the "Skip Changelog" label.
+# Optional: The change log or logs in which this entry should be included.
+# e.g. '[user]' or '[user, api]'
+# Include 'user' if the change is relevant to end users.
+# Default: '[user]'
+change_logs: []
