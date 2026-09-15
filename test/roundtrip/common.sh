@@ -493,3 +493,102 @@ assert_log_record_via_cli() {
 # Cleanup helper — removes a temp directory on EXIT.
 # Usage: at the top of each test:  WORK_DIR=$(mktemp -d) ; trap "rm -rf $WORK_DIR" EXIT
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# tsa_preflight — guards the time series aggregation tests.
+#
+# Every time series aggregation API endpoint requires the organization-admin
+# role, which is stricter than any other asset kind in this suite. Rather than
+# turning the whole suite red on one under-privileged credential, skip loudly
+# with exit code 77, which run_all.sh counts and names separately so it can
+# never read as a pass.
+#
+# Any other failure (unknown command, network, 5xx) is a real failure.
+#
+# Usage: tsa_preflight "<what did not run>"
+# ---------------------------------------------------------------------------
+tsa_preflight() {
+  local what="$1"
+  local output rc
+  set +e
+  output="$(dash0 time-series-aggregations list --dataset "$DATASET" -o json 2>&1)"
+  rc=$?
+  set -e
+
+  if [[ "$rc" -eq 0 ]]; then
+    info "Preflight: TSA API reachable with the configured credentials."
+    return 0
+  fi
+
+  if echo "$output" | grep -qiE 'admin role within organization|organization-admin'; then
+    echo ""
+    echo "############################################################################"
+    echo "## SKIPPED — this test did NOT run:"
+    echo "##   ${what}"
+    echo "##"
+    echo "## The configured DASH0_AUTH_TOKEN lacks the ORGANIZATION-ADMIN role,"
+    echo "## which every time series aggregation API endpoint requires."
+    echo "##"
+    echo "## This is a KNOWN COVERAGE GAP, not a pass. It has NOT been exercised"
+    echo "## against the real Dash0 API by this run."
+    echo "##"
+    echo "## Do not fix this by escalating the shared roundtrip token — it drives"
+    echo "## every other test in this suite. Use a separate, TSA-only credential."
+    echo "############################################################################"
+    echo ""
+    echo "Preflight command output was:"
+    echo "$output"
+    echo ""
+    exit 77 # skip: counted separately by run_all.sh
+  fi
+
+  echo "$output"
+  fail "Preflight 'dash0 time-series-aggregations list' failed for a reason other than missing permissions (exit ${rc})."
+}
+
+# ---------------------------------------------------------------------------
+# assert_tsa_deleted_via_list — confirms a time series aggregation is gone.
+#
+# Time series aggregation deletes are soft: `get` by origin returns 200 with a
+# `dash0.com/deleted-at` annotation rather than a 404, so a get-based check
+# would never fire. `list` does exclude tombstones, so it is the only CLI signal
+# that actually proves server-side deletion.
+#
+# Note this deliberately does NOT use assert_deleted_via_tf: that helper only
+# runs `terraform plan` against the state `tf_destroy` just emptied, which
+# always reports a pending create and therefore passes whether or not the
+# server deleted anything.
+#
+# Usage: assert_tsa_deleted_via_list "<origin>" "<dataset>"
+# ---------------------------------------------------------------------------
+assert_tsa_deleted_via_list() {
+  local origin="$1"
+  local dataset="$2"
+  local gone=""
+  local i found
+
+  for i in $(seq 1 10); do
+    set +e
+    dash0 time-series-aggregations list --dataset "$dataset" -o json --limit 500 \
+      | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+items = data.get('items', data) if isinstance(data, dict) else data
+target = '${origin}'
+sys.exit(0 if any((it.get('metadata', {}).get('labels', {}) or {}).get('dash0.com/origin') == target for it in items) else 1)
+"
+    found=$?
+    set -e
+    if [[ $found -ne 0 ]]; then
+      info "Server-side deletion confirmed via list (attempt ${i})."
+      gone="yes"
+      break
+    fi
+    if [[ $i -lt 10 ]]; then
+      warn "Aggregation still in list (attempt ${i}/10), retrying in 3s..."
+      sleep 3
+    fi
+  done
+
+  [[ "$gone" == "yes" ]] || fail "Time series aggregation '${origin}' still returned by list after 10 attempts"
+}

@@ -18,6 +18,7 @@ REPO_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
 NC='\033[0m'
 
 IMAGE_NAME="dash0-roundtrip-tests"
@@ -103,6 +104,7 @@ else
     test_spam_filter_v1alpha2.sh
     test_spam_filter_concurrent.sh
     test_team.sh
+    test_time_series_aggregation.sh
     test_import_check_rule.sh
     test_import_dashboard.sh
     test_import_notification_channel.sh
@@ -112,6 +114,7 @@ else
     test_import_synthetic_check.sh
     test_import_team.sh
     test_import_view.sh
+    test_import_time_series_aggregation.sh
     test_actions.sh
   )
 fi
@@ -122,6 +125,19 @@ fi
 PASSED=0
 FAILED=0
 FAILED_NAMES=()
+# A test exits SKIP_EXIT_CODE when it cannot run at all — today only the time
+# series aggregation tests do, when the credential lacks the organization-admin
+# role their endpoints require. Skips are counted and named separately so they
+# never read as passes in the summary.
+SKIP_EXIT_CODE=77
+SKIPPED=0
+SKIPPED_NAMES=()
+# Only these tests may skip. Any other script exiting 77 is treated as a
+# failure, so a future test cannot go quiet by picking the same exit code.
+SKIPPABLE_TESTS=(
+  test_time_series_aggregation.sh
+  test_import_time_series_aggregation.sh
+)
 
 for test in "${TESTS[@]}"; do
   echo "========================================================"
@@ -141,7 +157,10 @@ for test in "${TESTS[@]}"; do
   set -e
   echo ""
 
-  if [[ $rc -eq 0 ]]; then
+  if [[ $rc -eq $SKIP_EXIT_CODE ]] && printf '%s\n' "${SKIPPABLE_TESTS[@]}" | grep -qxF "$test"; then
+    SKIPPED=$((SKIPPED + 1))
+    SKIPPED_NAMES+=("$test")
+  elif [[ $rc -eq 0 ]]; then
     PASSED=$((PASSED + 1))
   else
     FAILED=$((FAILED + 1))
@@ -154,6 +173,15 @@ echo "RESULTS"
 echo "========================================================"
 echo -e "${GREEN}Passed: ${PASSED}${NC}"
 echo -e "${RED}Failed: ${FAILED}${NC}"
+echo -e "${YELLOW}Skipped: ${SKIPPED}${NC}"
+
+if [[ ${#SKIPPED_NAMES[@]} -gt 0 ]]; then
+  echo ""
+  echo "Skipped tests (NOT run — coverage gap, not a pass):"
+  for name in "${SKIPPED_NAMES[@]}"; do
+    echo -e "  ${YELLOW}- ${name}${NC}"
+  done
+fi
 
 if [[ ${#FAILED_NAMES[@]} -gt 0 ]]; then
   echo ""
@@ -165,4 +193,14 @@ if [[ ${#FAILED_NAMES[@]} -gt 0 ]]; then
 fi
 
 echo ""
-echo -e "${GREEN}All roundtrip tests passed!${NC}"
+if [[ $SKIPPED -gt 0 ]]; then
+  echo -e "${GREEN}All roundtrip tests that ran passed${NC}, but ${YELLOW}${SKIPPED} were skipped and did not run.${NC}"
+  # Opt-in strictness: set ROUNDTRIP_REQUIRE_NO_SKIPS=1 (e.g. once CI has a
+  # credential with the organization-admin role) to make a skip fail the run.
+  if [[ -n "${ROUNDTRIP_REQUIRE_NO_SKIPS:-}" ]]; then
+    echo -e "${RED}ROUNDTRIP_REQUIRE_NO_SKIPS is set: ${SKIPPED} skipped test(s) fail this run.${NC}" >&2
+    exit 1
+  fi
+else
+  echo -e "${GREEN}All roundtrip tests passed!${NC}"
+fi
