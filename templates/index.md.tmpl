@@ -94,7 +94,7 @@ The Dash0 OTLP/HTTP ingress endpoint those actions send to does not accept OAuth
 
 ## Default dataset
 
-Dataset-scoped resources (`dash0_dashboard`, `dash0_check_rule`, `dash0_recording_rule`, `dash0_spam_filter`, `dash0_synthetic_check`, `dash0_view`) accept an optional `dataset` attribute.
+Dataset-scoped resources (`dash0_dashboard`, `dash0_check_rule`, `dash0_recording_rule`, `dash0_spam_filter`, `dash0_synthetic_check`, `dash0_time_series_aggregation`, `dash0_view`) accept an optional `dataset` attribute.
 When a resource omits it, the resource inherits a provider-level default resolved in this order:
 
 1. The `DASH0_DATASET` environment variable.
