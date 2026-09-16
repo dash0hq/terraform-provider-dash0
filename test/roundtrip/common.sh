@@ -610,7 +610,30 @@ if len(items) >= 500:
     print("list returned a full page (>=500); absence is not provable", file=sys.stderr)
     sys.exit(2)
 target = sys.argv[1]
-sys.exit(0 if any((it.get("metadata", {}).get("labels", {}) or {}).get("dash0.com/origin") == target for it in items) else 1)
+# Absence is only proved if every item could be read. An item whose shape we do
+# not understand is undecidable (exit 2), never absence: tolerating it would
+# mean a payload change that moved or dropped the origin label silently
+# reported every aggregation as deleted. Every TSA carries
+# metadata.labels["dash0.com/origin"] — the CLI refuses to create one without
+# it — so a missing or null level here is a real anomaly, not a normal shape.
+try:
+    present = False
+    for it in items:
+        if not isinstance(it, dict):
+            raise TypeError("list item is %s, not an object" % type(it).__name__)
+        metadata = it.get("metadata")
+        if not isinstance(metadata, dict):
+            raise TypeError("item metadata is %s, not an object" % type(metadata).__name__)
+        labels = metadata.get("labels")
+        if not isinstance(labels, dict):
+            raise TypeError("item metadata.labels is %s, not an object" % type(labels).__name__)
+        if labels.get("dash0.com/origin") == target:
+            present = True
+            break
+except Exception as exc:
+    print("unexpected item shape: %s" % exc, file=sys.stderr)
+    sys.exit(2)
+sys.exit(0 if present else 1)
 ' "$origin"
     found=$?
     set -e
