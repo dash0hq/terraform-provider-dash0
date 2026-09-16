@@ -349,10 +349,13 @@ func (r *TimeSeriesAggregationResource) Create(ctx context.Context, req resource
 	// Re-validate here, not just in ValidateConfig: the value is always known by
 	// Create, so this is the point an unknown-at-plan-time document cannot slip
 	// past. See parseAndValidateTimeSeriesAggregationYAML.
-	parseAndValidateTimeSeriesAggregationYAML(model.TimeSeriesAggregationYaml.ValueString(), &resp.Diagnostics)
+	parsed := parseAndValidateTimeSeriesAggregationYAML(model.TimeSeriesAggregationYaml.ValueString(), &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// The warning is emitted here too, for the same reason: a document that was
+	// unknown at plan time never reached the ValidateConfig call site.
+	warnIfCustomLabelsSet(parsed, &resp.Diagnostics)
 
 	// Convert YAML to JSON for the API
 	jsonBody, err := converter.ConvertYAMLToJSON(model.TimeSeriesAggregationYaml.ValueString())
@@ -458,10 +461,11 @@ func (r *TimeSeriesAggregationResource) Update(ctx context.Context, req resource
 
 	// Re-validate here for the same reason as in Create: ValidateConfig cannot
 	// see a document that was unknown at plan time.
-	parseAndValidateTimeSeriesAggregationYAML(plan.TimeSeriesAggregationYaml.ValueString(), &resp.Diagnostics)
+	parsed := parseAndValidateTimeSeriesAggregationYAML(plan.TimeSeriesAggregationYaml.ValueString(), &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	warnIfCustomLabelsSet(parsed, &resp.Diagnostics)
 
 	// Convert YAML to JSON for the API
 	jsonBody, err := converter.ConvertYAMLToJSON(plan.TimeSeriesAggregationYaml.ValueString())
