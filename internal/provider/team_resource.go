@@ -248,7 +248,7 @@ func (r *TeamResource) resolveTeamID(ctx context.Context, model *teamModel, diag
 	if err != nil {
 		diags.AddWarning(
 			"Unable to resolve team id",
-			fmt.Sprintf("The team was saved successfully, but its id could not be determined: %s", err),
+			fmt.Sprintf("The team's id could not be determined: %s. It is left null; the team itself is unaffected.", err),
 		)
 		model.ID = types.StringNull()
 		return

@@ -304,7 +304,7 @@ func (r *TimeSeriesAggregationResource) resolveTimeSeriesAggregation(ctx context
 	if err != nil {
 		diags.AddWarning(
 			"Unable to resolve time series aggregation metadata",
-			fmt.Sprintf("The time series aggregation was saved successfully, but its id could not be determined: %s", err),
+			fmt.Sprintf("The time series aggregation's id could not be determined: %s. It is left null; the time series aggregation itself is unaffected.", err),
 		)
 		model.ID = types.StringNull()
 		return

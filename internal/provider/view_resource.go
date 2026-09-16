@@ -128,7 +128,7 @@ func (r *ViewResource) resolveView(ctx context.Context, model *viewModel, diags 
 	if err != nil {
 		diags.AddWarning(
 			"Unable to resolve view metadata",
-			fmt.Sprintf("The view was saved successfully, but its id and URL could not be determined: %s", err),
+			fmt.Sprintf("The view's id and URL could not be determined: %s. They are left null; the view itself is unaffected.", err),
 		)
 		model.ID = types.StringNull()
 		model.URL = types.StringNull()

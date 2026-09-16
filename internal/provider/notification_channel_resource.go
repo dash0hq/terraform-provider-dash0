@@ -199,7 +199,7 @@ func (r *NotificationChannelResource) resolveNotificationChannel(ctx context.Con
 	if err != nil {
 		diags.AddWarning(
 			"Unable to resolve notification channel metadata",
-			fmt.Sprintf("The notification channel was saved successfully, but its id and URL could not be determined: %s", err),
+			fmt.Sprintf("The notification channel's id and URL could not be determined: %s. They are left null; the notification channel itself is unaffected.", err),
 		)
 		model.ID = types.StringNull()
 		model.URL = types.StringNull()

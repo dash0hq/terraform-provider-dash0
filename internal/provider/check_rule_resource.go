@@ -131,7 +131,7 @@ func (r *CheckRuleResource) resolveCheckRule(ctx context.Context, model *checkRu
 	if err != nil {
 		diags.AddWarning(
 			"Unable to resolve check rule metadata",
-			fmt.Sprintf("The check rule was saved successfully, but its id and URL could not be determined: %s", err),
+			fmt.Sprintf("The check rule's id and URL could not be determined: %s. They are left null; the check rule itself is unaffected.", err),
 		)
 		model.ID = types.StringNull()
 		model.URL = types.StringNull()

@@ -129,7 +129,7 @@ func (r *SpamFilterResource) resolveSpamFilter(ctx context.Context, model *spamF
 	if err != nil {
 		diags.AddWarning(
 			"Unable to resolve spam filter metadata",
-			fmt.Sprintf("The spam filter was saved successfully, but its id could not be determined: %s", err),
+			fmt.Sprintf("The spam filter's id could not be determined: %s. It is left null; the spam filter itself is unaffected.", err),
 		)
 		model.ID = types.StringNull()
 		return
