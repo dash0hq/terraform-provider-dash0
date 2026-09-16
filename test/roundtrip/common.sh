@@ -565,14 +565,10 @@ assert_tsa_deleted_via_list() {
   local origin="$1"
   local dataset="$2"
   local gone=""
-  local i listing stderr_file cli_rc found
+  local i listing stderr_file cli_rc cli_stderr found
   # Overridable so the helper's own negative tests do not sleep through the
   # full retry budget; real tests always use the default.
   local attempts="${TSA_DELETED_LIST_ATTEMPTS:-10}"
-
-  stderr_file="$(mktemp)"
-  # shellcheck disable=SC2064  # expand stderr_file now, not at trap time
-  trap "rm -f '${stderr_file}'" RETURN
 
   for i in $(seq 1 "$attempts"); do
     # The CLI call is captured and checked on its own. Folding it into a
@@ -585,12 +581,22 @@ assert_tsa_deleted_via_list() {
     #
     # stderr is kept separate rather than merged with 2>&1: a warning printed
     # by an otherwise successful call would corrupt the JSON.
+    #
+    # The scratch file is read into a variable and deleted in the same breath,
+    # before anything can call `fail`. A RETURN trap would not cover that: fail
+    # exits the shell rather than returning, so the trap never runs. An EXIT
+    # trap is not an option either, since every caller already registers one to
+    # clean up its own work directory and the second would replace the first.
+    stderr_file="$(mktemp)"
     set +e
     listing="$(dash0 time-series-aggregations list --dataset "$dataset" -o json --limit 500 2>"$stderr_file")"
     cli_rc=$?
     set -e
+    cli_stderr="$(cat "$stderr_file")"
+    rm -f "$stderr_file"
+
     if [[ $cli_rc -ne 0 ]]; then
-      fail "Could not verify deletion of '${origin}': 'dash0 time-series-aggregations list' failed (exit ${cli_rc}): $(cat "$stderr_file")"
+      fail "Could not verify deletion of '${origin}': 'dash0 time-series-aggregations list' failed (exit ${cli_rc}): ${cli_stderr}"
     fi
 
     # 0 = still present, 1 = definitively absent, 2 = could not decide.
