@@ -15,11 +15,16 @@
 #   3. CLI exits non-zero                   -> helper fails     (the regression)
 #   4. CLI succeeds but emits non-JSON      -> helper fails
 #   5. list returns a full page (>= 500)    -> helper fails     (absence unprovable)
-#   6. an item has null metadata            -> helper fails     (shape unreadable)
+#   6. a list item is not an object         -> helper fails     (fatal per item)
+#   7. the only item has null metadata      -> helper fails     (no origin seen)
+#   8. the only item has non-object labels  -> helper fails     (no origin seen)
+#   9. no item carries an origin label      -> helper fails     (key renamed)
+#  10. unreadable item beside a readable one-> helper succeeds   (tolerance)
 #
 # Each failing scenario asserts on the helper's message as well as its exit
 # status. Without that, any non-zero exit satisfies the assertion, so a scenario
-# could pass without reaching the branch it names.
+# could pass without reaching the branch it names. Scenario 10 is the other
+# half of that: it pins that one unreadable record does not fail the run.
 #
 # Scenario 3 is the one worth keeping: before it was fixed, `set -o pipefail`
 # meant a failed CLI call produced a non-zero pipeline status, which the helper
@@ -55,11 +60,30 @@ dash0() {
       python3 -c 'import json; print(json.dumps([{"metadata":{"labels":{"dash0.com/origin":"tf_x%d" % i}}} for i in range(500)]))'
       ;;
     null_metadata)
-      # Valid JSON, unexpected shape: metadata is present but null. The chained
-      # lookup raises on it. Uncaught, python exits 1, which is the code for
-      # "definitively absent", so the destroy step passed without proving
-      # anything.
+      # Valid JSON, unexpected shape: metadata is present but null, and it is
+      # the only item. Unreadable records are skipped, so nothing exposes an
+      # origin label and absence is not provable.
       echo '[{"metadata":null}]'
+      ;;
+    item_not_object)
+      # The one shape that is fatal per item rather than skipped: the list
+      # holds something that is not a record at all.
+      echo '["not-an-object"]'
+      ;;
+    labels_not_object)
+      echo '[{"metadata":{"labels":"not-an-object"}}]'
+      ;;
+    labels_without_origin)
+      # Well formed all the way down, but no origin label anywhere. This is
+      # what a renamed or moved key looks like, and it must not read as
+      # absence.
+      echo '[{"metadata":{"labels":{"team":"platform"}}}]'
+      ;;
+    unreadable_plus_readable)
+      # One skipped record next to a readable one that is not the target. The
+      # origin label was seen, so absence is provable and the unreadable
+      # neighbour must not fail the run.
+      echo '[{"metadata":null},{"metadata":{"labels":{"dash0.com/origin":"tf_some-other-origin"}}}]'
       ;;
     *)
       # A mistyped or renamed mode is a bug in this test, not a scenario. Exit
@@ -82,6 +106,12 @@ run_helper() {
   HELPER_OUTPUT="$( ( STUB_MODE="$mode" assert_tsa_deleted_via_list "$TARGET_ORIGIN" "test-dataset" ) 2>&1 )"
   HELPER_RC=$?
   set -e
+  # A mode that fell through to the stub's default branch never exercised the
+  # scenario it claims to. Caught here rather than per assertion, so no future
+  # scenario can inherit the hole.
+  if grep -qF -- "test bug: unknown STUB_MODE" <<<"$HELPER_OUTPUT"; then
+    fail "STUB_MODE '${mode}' is not a scenario the stub implements. Output: ${HELPER_OUTPUT}"
+  fi
 }
 
 expect_helper_succeeds() {
@@ -117,17 +147,30 @@ expect_helper_fails() {
 
 info "=== Negative tests: assert_tsa_deleted_via_list ==="
 
-expect_helper_succeeds absent    "origin absent from the list"
-expect_helper_fails    present       "origin still present in the list" \
+expect_helper_succeeds absent                 "origin absent from the list"
+expect_helper_succeeds unreadable_plus_readable \
+  "an unreadable neighbour does not break an otherwise provable absence"
+
+# cli_error asserts on the stub's own stderr, not on the helper's wrapper text.
+# The wrapper says "'dash0 time-series-aggregations list' failed" for any
+# non-zero exit, including the stub's unknown-mode branch, so asserting on that
+# would let a mistyped mode pass as a covered case.
+expect_helper_fails    present                "origin still present in the list" \
   "still returned by list"
-expect_helper_fails    cli_error     "CLI exits non-zero (the 403 / expired-token case)" \
-  "'dash0 time-series-aggregations list' failed"
-expect_helper_fails    garbage       "CLI succeeds but emits non-JSON" \
+expect_helper_fails    cli_error              "CLI exits non-zero (the 403 / expired-token case)" \
+  "User must have admin role within organization"
+expect_helper_fails    garbage                "CLI succeeds but emits non-JSON" \
   "could not parse list output"
-expect_helper_fails    full_page     "list returns a full page, so absence is not provable" \
+expect_helper_fails    full_page              "list returns a full page, so absence is not provable" \
   "list returned a full page"
-expect_helper_fails    null_metadata "an item has null metadata, so its shape cannot be read" \
-  "unexpected item shape"
+expect_helper_fails    item_not_object        "a list item is not an object at all" \
+  "list item is str, not an object"
+expect_helper_fails    null_metadata          "the only item has null metadata" \
+  "no item exposed the dash0.com/origin label"
+expect_helper_fails    labels_not_object      "the only item has non-object labels" \
+  "no item exposed the dash0.com/origin label"
+expect_helper_fails    labels_without_origin  "no item carries an origin label, as after a key rename" \
+  "no item exposed the dash0.com/origin label"
 
 if [[ "$FAILURES" -gt 0 ]]; then
   fail "${FAILURES} assertion(s) about assert_tsa_deleted_via_list did not hold."
