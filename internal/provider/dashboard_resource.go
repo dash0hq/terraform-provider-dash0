@@ -128,7 +128,7 @@ func (r *DashboardResource) resolveDashboard(ctx context.Context, model *dashboa
 	if err != nil {
 		diags.AddWarning(
 			"Unable to resolve dashboard metadata",
-			fmt.Sprintf("The dashboard was saved successfully, but its id and URL could not be determined: %s", err),
+			fmt.Sprintf("The dashboard's id and URL could not be determined: %s. They are left null; the dashboard itself is unaffected.", err),
 		)
 		model.ID = types.StringNull()
 		model.URL = types.StringNull()

@@ -121,7 +121,7 @@ func (r *RecordingRuleResource) resolveRecordingRule(ctx context.Context, model 
 	if err != nil {
 		diags.AddWarning(
 			"Unable to resolve recording rule metadata",
-			fmt.Sprintf("The recording rule was saved successfully, but its id could not be determined: %s", err),
+			fmt.Sprintf("The recording rule's id could not be determined: %s. It is left null; the recording rule itself is unaffected.", err),
 		)
 		model.ID = types.StringNull()
 		return

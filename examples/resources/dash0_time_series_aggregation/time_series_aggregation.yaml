@@ -1,0 +1,23 @@
+apiVersion: dash0.com/v1alpha1
+kind: Dash0TimeSeriesAggregation
+metadata:
+  name: http-server-request-duration
+spec:
+  # Without this, the aggregation is created disabled and produces no rollups.
+  enabled: true
+  display:
+    name: HTTP server request duration
+  match:
+    metricNameMatcher:
+      operator: is
+      value: http.server.request.duration
+  sample:
+    interval: 5m
+  attributeModifications:
+    # Drop a high-cardinality data point attribute before rolling up.
+    - kind: drop_attributes
+      spec:
+        context: datapoint
+        keyMatcher:
+          operator: is
+          value: url.path

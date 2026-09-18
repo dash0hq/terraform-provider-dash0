@@ -76,6 +76,15 @@ type Client interface {
 	// a per-spam-filter page).
 	ResolveSpamFilter(ctx context.Context, origin string, dataset string) (string, error)
 
+	CreateTimeSeriesAggregation(ctx context.Context, origin string, tsaJSON string, dataset string) error
+	GetTimeSeriesAggregation(ctx context.Context, origin string, dataset string) (string, error)
+	UpdateTimeSeriesAggregation(ctx context.Context, origin string, tsaJSON string, dataset string) error
+	DeleteTimeSeriesAggregation(ctx context.Context, origin string, dataset string) error
+	// ResolveTimeSeriesAggregation returns the server-assigned id of the time
+	// series aggregation with the given origin (no deep-link URL — the Dash0
+	// web app does not expose a per-aggregation page).
+	ResolveTimeSeriesAggregation(ctx context.Context, origin string, dataset string) (string, error)
+
 	// SendLogEvent emits a single log record to the Dash0 OTLP/HTTP ingress
 	// endpoint. Unlike every other method on this interface it does not manage
 	// an asset: log events are point-in-time telemetry with no identity, no

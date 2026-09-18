@@ -493,3 +493,182 @@ assert_log_record_via_cli() {
 # Cleanup helper — removes a temp directory on EXIT.
 # Usage: at the top of each test:  WORK_DIR=$(mktemp -d) ; trap "rm -rf $WORK_DIR" EXIT
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# tsa_preflight — guards the time series aggregation tests.
+#
+# Every time series aggregation API endpoint requires the organization-admin
+# role, which is stricter than any other asset kind in this suite. Rather than
+# turning the whole suite red on one under-privileged credential, skip loudly
+# with exit code 77, which run_all.sh counts and names separately so it can
+# never read as a pass.
+#
+# Any other failure (unknown command, network, 5xx) is a real failure.
+#
+# Usage: tsa_preflight "<what did not run>"
+# ---------------------------------------------------------------------------
+tsa_preflight() {
+  local what="$1"
+  local output rc
+  set +e
+  output="$(dash0 time-series-aggregations list --dataset "$DATASET" -o json 2>&1)"
+  rc=$?
+  set -e
+
+  if [[ "$rc" -eq 0 ]]; then
+    info "Preflight: TSA API reachable with the configured credentials."
+    return 0
+  fi
+
+  if echo "$output" | grep -qiE 'admin role within organization|organization-admin'; then
+    echo ""
+    echo "############################################################################"
+    echo "## SKIPPED — this test did NOT run:"
+    echo "##   ${what}"
+    echo "##"
+    echo "## The configured DASH0_AUTH_TOKEN lacks the ORGANIZATION-ADMIN role,"
+    echo "## which every time series aggregation API endpoint requires."
+    echo "##"
+    echo "## This is a KNOWN COVERAGE GAP, not a pass. It has NOT been exercised"
+    echo "## against the real Dash0 API by this run."
+    echo "##"
+    echo "## Do not fix this by escalating the shared roundtrip token — it drives"
+    echo "## every other test in this suite. Use a separate, TSA-only credential."
+    echo "############################################################################"
+    echo ""
+    echo "Preflight command output was:"
+    echo "$output"
+    echo ""
+    exit 77 # skip: counted separately by run_all.sh
+  fi
+
+  echo "$output"
+  fail "Preflight 'dash0 time-series-aggregations list' failed for a reason other than missing permissions (exit ${rc})."
+}
+
+# ---------------------------------------------------------------------------
+# assert_tsa_deleted_via_list — confirms a time series aggregation is gone.
+#
+# Time series aggregation deletes are soft: `get` by origin returns 200 with a
+# `dash0.com/deleted-at` annotation rather than a 404, so a get-based check
+# would never fire. `list` does exclude tombstones, so it is the only CLI signal
+# that actually proves server-side deletion.
+#
+# Note this deliberately does NOT use assert_deleted_via_tf: that helper only
+# runs `terraform plan` against the state `tf_destroy` just emptied, which
+# always reports a pending create and therefore passes whether or not the
+# server deleted anything.
+#
+# Usage: assert_tsa_deleted_via_list "<origin>" "<dataset>"
+# ---------------------------------------------------------------------------
+assert_tsa_deleted_via_list() {
+  local origin="$1"
+  local dataset="$2"
+  local gone=""
+  local i listing stderr_file cli_rc cli_stderr found
+  # Overridable so the helper's own negative tests do not sleep through the
+  # full retry budget; real tests always use the default.
+  local attempts="${TSA_DELETED_LIST_ATTEMPTS:-10}"
+
+  for i in $(seq 1 "$attempts"); do
+    # The CLI call is captured and checked on its own. Folding it into a
+    # pipeline would make its failure indistinguishable from "the aggregation
+    # is absent": common.sh runs under `set -o pipefail`, which `set +e` does
+    # not disable, so a failed list — an expired token, a 5xx, or exactly the
+    # 403 this asset kind raises without organization-admin — would surface as
+    # a non-zero pipeline status and read as proof of deletion. That is the
+    # same unfailable-assertion class this helper exists to replace.
+    #
+    # stderr is kept separate rather than merged with 2>&1: a warning printed
+    # by an otherwise successful call would corrupt the JSON.
+    #
+    # The scratch file is read into a variable and deleted in the same breath,
+    # before anything can call `fail`. A RETURN trap would not cover that: fail
+    # exits the shell rather than returning, so the trap never runs. An EXIT
+    # trap is not an option either, since every caller already registers one to
+    # clean up its own work directory and the second would replace the first.
+    stderr_file="$(mktemp)"
+    set +e
+    listing="$(dash0 time-series-aggregations list --dataset "$dataset" -o json --limit 500 2>"$stderr_file")"
+    cli_rc=$?
+    set -e
+    cli_stderr="$(cat "$stderr_file")"
+    rm -f "$stderr_file"
+
+    if [[ $cli_rc -ne 0 ]]; then
+      fail "Could not verify deletion of '${origin}': 'dash0 time-series-aggregations list' failed (exit ${cli_rc}): ${cli_stderr}"
+    fi
+
+    # 0 = still present, 1 = definitively absent, 2 = could not decide.
+    set +e
+    printf '%s' "$listing" | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except Exception as exc:
+    print("could not parse list output: %s" % exc, file=sys.stderr)
+    sys.exit(2)
+items = data.get("items", data) if isinstance(data, dict) else data
+if not isinstance(items, list):
+    print("unexpected list payload shape: %r" % type(items), file=sys.stderr)
+    sys.exit(2)
+if len(items) >= 500:
+    print("list returned a full page (>=500); absence is not provable", file=sys.stderr)
+    sys.exit(2)
+target = sys.argv[1]
+# Tolerant per item, strict about the payload as a whole.
+#
+# Per item: a record we cannot read is skipped, not fatal. Failing on the first
+# one would let a single foreign aggregation in the dataset break every TSA
+# delete assertion, including runs whose own record is perfectly readable.
+#
+# Payload-wide: absence only means something if the origin label was found at
+# all. A page that exposes none of them has changed shape — the key renamed or
+# moved — and under a per-item-only check every aggregation would read as
+# deleted. That is the silent pass this helper exists to prevent, so it is
+# undecidable (exit 2) instead.
+try:
+    present = False
+    saw_origin_key = False
+    for it in items:
+        if not isinstance(it, dict):
+            raise TypeError("list item is %s, not an object" % type(it).__name__)
+        metadata = it.get("metadata")
+        if not isinstance(metadata, dict):
+            continue
+        labels = metadata.get("labels")
+        if not isinstance(labels, dict):
+            continue
+        if "dash0.com/origin" not in labels:
+            continue
+        saw_origin_key = True
+        if labels["dash0.com/origin"] == target:
+            present = True
+            break
+except Exception as exc:
+    print("unexpected item shape: %s" % exc, file=sys.stderr)
+    sys.exit(2)
+if not present and items and not saw_origin_key:
+    print("no item exposed the dash0.com/origin label; absence is not provable", file=sys.stderr)
+    sys.exit(2)
+sys.exit(0 if present else 1)
+' "$origin"
+    found=$?
+    set -e
+
+    if [[ $found -eq 2 ]]; then
+      fail "Could not verify deletion of '${origin}': the list response could not be interpreted."
+    fi
+    if [[ $found -eq 1 ]]; then
+      info "Server-side deletion confirmed via list (attempt ${i})."
+      gone="yes"
+      break
+    fi
+    if [[ $i -lt $attempts ]]; then
+      warn "Aggregation still in list (attempt ${i}/${attempts}), retrying in 3s..."
+      sleep 3
+    fi
+  done
+
+  [[ "$gone" == "yes" ]] || fail "Time series aggregation '${origin}' still returned by list after ${attempts} attempts"
+}

@@ -128,7 +128,7 @@ func (r *SyntheticCheckResource) resolveSyntheticCheck(ctx context.Context, mode
 	if err != nil {
 		diags.AddWarning(
 			"Unable to resolve synthetic check metadata",
-			fmt.Sprintf("The synthetic check was saved successfully, but its id and URL could not be determined: %s", err),
+			fmt.Sprintf("The synthetic check's id and URL could not be determined: %s. They are left null; the synthetic check itself is unaffected.", err),
 		)
 		model.ID = types.StringNull()
 		model.URL = types.StringNull()

@@ -128,7 +128,7 @@ func (r *SLOResource) resolveSLO(ctx context.Context, model *sloModel, diags *di
 	if err != nil {
 		diags.AddWarning(
 			"Unable to resolve SLO metadata",
-			fmt.Sprintf("The SLO was saved successfully, but its id and URL could not be determined: %s", err),
+			fmt.Sprintf("The SLO's id and URL could not be determined: %s. They are left null; the SLO itself is unaffected.", err),
 		)
 		model.ID = types.StringNull()
 		model.URL = types.StringNull()
