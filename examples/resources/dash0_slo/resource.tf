@@ -3,9 +3,9 @@ resource "dash0_slo" "checkout_availability" {
   slo_yaml = file("${path.module}/slo.yaml")
 }
 
-# Inline OpenSLO v1 document. SLOs are Private BETA and support a constrained
-# subset of OpenSLO: a single objective, an inline `ratioMetric` indicator,
-# `Occurrences` budgeting, and a rolling 28d (4w) window.
+# Inline OpenSLO v1 document. Dash0 supports a constrained subset of OpenSLO:
+# a single objective, an inline `ratioMetric` indicator, `Occurrences`
+# budgeting, and a rolling 28d (4w) window.
 resource "dash0_slo" "checkout_latency" {
   dataset = "default"
 
