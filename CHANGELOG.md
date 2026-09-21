@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.18.0
+
+
+### New Components
+
+
+- `time_series_aggregations`: Add the `dash0_time_series_aggregation` resource for managing metric rollups as code (#176)
+  Time series aggregations pre-aggregate raw metric data points, cutting cardinality and query cost.
+  The resource takes the aggregation definition as YAML, supports the full CRUD lifecycle and
+  `terraform import` with a `dataset,origin` identifier, and mirrors the Dash0 CLI's behavior.
+  Every time series aggregation API call requires the organization-admin role. `spec.enabled` must be
+  declared explicitly: the provider always sends a value for it, so an omitted field would silently
+  create a disabled aggregation and later switch off one enabled outside Terraform.
+  
+
+
+### Bug Fixes
+
+
+- `provider`: Stop claiming a write succeeded when the id/URL resolution warning is raised during a refresh or import (#176)
+  The warning is raised whenever the id and URL cannot be resolved, which includes
+  `terraform plan` refreshes and `terraform import`, not only writes. It nonetheless
+  read "was saved successfully", which is false on those paths. The text is now
+  operation-neutral and states that the affected attributes are left null.
+  
+
 ## 1.17.0
 
 

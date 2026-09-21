@@ -2,7 +2,7 @@
 page_title: "Guide: Import existing Dash0 assets into Terraform"
 subcategory: ""
 description: |-
-  Adopt dashboards, check rules, views, synthetic checks, recording rules, notification channels, spam filters, teams, and SLOs that already exist in Dash0 into Terraform state, without recreating them.
+  Adopt dashboards, check rules, views, synthetic checks, recording rules, notification channels, spam filters, teams, SLOs, and time series aggregations that already exist in Dash0 into Terraform state, without recreating them.
 ---
 
 # Import existing Dash0 assets into Terraform
@@ -23,6 +23,7 @@ Under the JSON list output, the exact field varies by asset kind:
 | Recording rules | `.metadata.labels["dash0.com/id"]` |
 | Check rules | `.id` (top-level; check rules have no `metadata` field in the list response) |
 | Notification channels | `.metadata.labels["dash0.com/id"]` |
+| Time series aggregations | `.metadata.labels["dash0.com/origin"]` (always set; the origin label is mandatory on every aggregation) |
 | Teams | `.id` (top-level; teams have no `metadata` wrapper in the list response) |
 
 For assets created by the Terraform Provider the identifier is a `tf_`-prefixed value; for assets created via the Dash0 UI or CLI it is a UUID (sometimes prefixed `api-`).
@@ -51,7 +52,7 @@ dash0 dashboards list --dataset "$DATASET" -o wide --limit 500
 The default `--limit` is 50, so bump it (or paginate) for any organization with more assets than that.
 Use the value in the `ORIGIN` column when it is populated; when it is empty (typical for assets originally created in the Dash0 UI), use the `ID` column instead — the API accepts either.
 
-The same pattern works for every dataset-scoped asset kind — `dash0 views list`, `dash0 check-rules list`, `dash0 synthetic-checks list`, `dash0 recording-rules list`, `dash0 slos list`, and `dash0 -X spam-filters list` (experimental commands need `-X` or `--experimental`).
+The same pattern works for every dataset-scoped asset kind — `dash0 views list`, `dash0 check-rules list`, `dash0 synthetic-checks list`, `dash0 recording-rules list`, `dash0 slos list`, `dash0 -X spam-filters list` (experimental commands need `-X` or `--experimental`), and `dash0 tsa list` (the alias for `dash0 time-series-aggregations list`; every time series aggregation command requires the organization-admin role).
 Notification channels are organization-scoped, do not accept `--limit`, and do not offer `-o wide`; use `-o json` or `-o table` instead.
 
 For scripting, the identifier field varies by asset kind (see the table in the previous section).
@@ -186,7 +187,7 @@ terraform import dash0_notification_channel.slack_alerts "<identifier>"
 terraform import dash0_team.backend "<identifier>"
 ```
 
-Every other asset kind — dashboards, check rules, views, synthetic checks, recording rules, spam filters, and SLOs — uses the `dataset,identifier` shape.
+Every other asset kind — dashboards, check rules, views, synthetic checks, recording rules, spam filters, SLOs, and time series aggregations — uses the `dataset,identifier` shape.
 
 ## Verifying imported resources
 

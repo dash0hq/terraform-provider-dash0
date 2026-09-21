@@ -540,6 +540,116 @@ resource "dash0_notification_channel" "test" {
 	assert.NotEmpty(t, deletes, "expected at least one DELETE to /api/notification-channels/")
 }
 
+// --- Time Series Aggregation Integration Tests ---
+
+const tsaIntegrationYaml = `    kind: Dash0TimeSeriesAggregation
+    metadata:
+      name: integration-rollup
+    spec:
+      enabled: true
+      match:
+        metricNameMatcher:
+          operator: is
+          value: http.server.request.duration
+      sample:
+        interval: 5m`
+
+const tsaIntegrationUpdatedYaml = `    kind: Dash0TimeSeriesAggregation
+    metadata:
+      name: integration-rollup
+    spec:
+      enabled: true
+      match:
+        metricNameMatcher:
+          operator: is
+          value: http.server.request.duration
+      sample:
+        interval: 30m`
+
+func tsaIntegrationConfig(body string) string {
+	return fmt.Sprintf(`
+provider "dash0" {}
+resource "dash0_time_series_aggregation" "test" {
+  dataset = "terraform-test"
+  time_series_aggregation_yaml = <<-EOT
+%s
+  EOT
+}`, body)
+}
+
+func TestIntegration_TimeSeriesAggregation_CRUD(t *testing.T) {
+	mock, factories := setupIntegrationTest(t)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: factories,
+		Steps: []resource.TestStep{
+			// Create
+			{
+				Config: tsaIntegrationConfig(tsaIntegrationYaml),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("dash0_time_series_aggregation.test", "dataset", "terraform-test"),
+					resource.TestCheckResourceAttrSet("dash0_time_series_aggregation.test", "origin"),
+					func(s *terraform.State) error {
+						puts := mock.getRequests(http.MethodPut, "/api/time-series-aggregations/")
+						if len(puts) == 0 {
+							return fmt.Errorf("expected at least one PUT to /api/time-series-aggregations/, got none")
+						}
+						lastPut := puts[len(puts)-1]
+						if !strings.Contains(lastPut.Query, "dataset=terraform-test") {
+							return fmt.Errorf("expected dataset=terraform-test in query, got %s", lastPut.Query)
+						}
+						// Creation goes through PUT-to-origin, never POST: POST
+						// rejects an origin that already exists.
+						if posts := mock.getRequests(http.MethodPost, "/api/time-series-aggregations"); len(posts) > 0 {
+							return fmt.Errorf("expected no POST to /api/time-series-aggregations, got %d", len(posts))
+						}
+						var body map[string]interface{}
+						if err := json.Unmarshal([]byte(lastPut.Body), &body); err != nil {
+							return fmt.Errorf("PUT body is not valid JSON: %s", err)
+						}
+						if body["kind"] != "Dash0TimeSeriesAggregation" {
+							return fmt.Errorf("expected kind=Dash0TimeSeriesAggregation, got %v", body["kind"])
+						}
+						// The provider must not stamp a dash0.com/origin label
+						// the user did not write; the server derives it from
+						// the URL path.
+						metadata, _ := body["metadata"].(map[string]interface{})
+						if _, ok := metadata["labels"]; ok {
+							return fmt.Errorf("PUT body must not carry a metadata.labels block, got %v", metadata["labels"])
+						}
+						return nil
+					},
+				),
+			},
+			// Re-apply the same config: the plan must be empty.
+			{
+				Config:   tsaIntegrationConfig(tsaIntegrationYaml),
+				PlanOnly: true,
+			},
+			// Update
+			{
+				Config: tsaIntegrationConfig(tsaIntegrationUpdatedYaml),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("dash0_time_series_aggregation.test", "dataset", "terraform-test"),
+					func(s *terraform.State) error {
+						puts := mock.getRequests(http.MethodPut, "/api/time-series-aggregations/")
+						if len(puts) < 2 {
+							return fmt.Errorf("expected a second PUT for the update, got %d", len(puts))
+						}
+						if !strings.Contains(puts[len(puts)-1].Body, `"interval":"30m"`) {
+							return fmt.Errorf("expected the updated interval in the PUT body, got %s", puts[len(puts)-1].Body)
+						}
+						return nil
+					},
+				),
+			},
+		},
+	})
+
+	deletes := mock.getRequests(http.MethodDelete, "/api/time-series-aggregations/")
+	assert.NotEmpty(t, deletes, "expected at least one DELETE to /api/time-series-aggregations/")
+}
+
 // --- Dataset Change Forces Recreation ---
 
 func TestIntegration_Dashboard_DatasetChangeRecreates(t *testing.T) {

@@ -147,6 +147,11 @@ files:
     title: dash0_team
     description: Terraform resource for Dash0 teams — declaratively manage the technical name, display attributes, and membership of a team via the Dash0Team CRD envelope.
 
+  - source: docs/resources/time_series_aggregation.md
+    target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/time-series-aggregation.md
+    title: dash0_time_series_aggregation
+    description: Terraform resource for Dash0 time series aggregations — metric rollups that reduce cardinality and query cost while keeping the dimensions you care about.
+
   - source: docs/resources/view.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/view.md
     title: dash0_view

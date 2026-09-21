@@ -124,7 +124,7 @@ Run `dash0 auth login` to re-authenticate, then re-run your Terraform command.
 
 ## Default dataset
 
-Every dataset-scoped resource (`dash0_dashboard`, `dash0_check_rule`, `dash0_recording_rule`, `dash0_spam_filter`, `dash0_synthetic_check`, `dash0_view`) accepts its own `dataset` attribute.
+Every dataset-scoped resource (`dash0_dashboard`, `dash0_check_rule`, `dash0_recording_rule`, `dash0_spam_filter`, `dash0_synthetic_check`, `dash0_time_series_aggregation`, `dash0_view`) accepts its own `dataset` attribute.
 That attribute is optional: when a resource omits it, the resource inherits the provider-level default instead.
 
 The default resolves in this order and stops at the first source that supplies it:

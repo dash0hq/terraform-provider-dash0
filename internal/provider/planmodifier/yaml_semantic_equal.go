@@ -44,9 +44,26 @@ func YAMLSemanticEqualNormalizing(normalize func(string) string, preservedAnnota
 	}
 }
 
+// YAMLSemanticEqualConditionally returns a plan modifier like
+// YAMLSemanticEqual, but uses the caller's conditionally-ignored field list
+// instead of the shared converter.ConditionallyIgnoredFields global. Use it
+// when a resource has server-defaulted fields that only it should ignore —
+// widening the global would silently disable drift detection for every other
+// resource that reads it.
+func YAMLSemanticEqualConditionally(conditionallyIgnoredFields []string, preservedAnnotationKeys ...string) planmodifier.String {
+	return yamlSemanticEqualModifier{
+		preservedAnnotationKeys:    preservedAnnotationKeys,
+		conditionallyIgnoredFields: conditionallyIgnoredFields,
+	}
+}
+
 type yamlSemanticEqualModifier struct {
 	preservedAnnotationKeys []string
 	alwaysIgnoredFields     []string
+
+	// conditionallyIgnoredFields, when set, replaces the shared
+	// converter.ConditionallyIgnoredFields global for this modifier instance.
+	conditionallyIgnoredFields []string
 
 	// normalize, when set, is applied to both sides before comparing. Opt-in
 	// per resource: this modifier is shared, and a reconciliation that one
@@ -84,7 +101,11 @@ func (m yamlSemanticEqualModifier) PlanModifyString(_ context.Context, req planm
 
 	// Conditionally ignore API-managed fields that the user didn't include in their config.
 	// e.g., spec.permissions is enriched by the API on retrieval but users may optionally manage it.
-	additionalIgnored := converter.FieldsAbsentFromYAML(configYAML, converter.ConditionallyIgnoredFields)
+	conditionallyIgnored := converter.ConditionallyIgnoredFields
+	if m.conditionallyIgnoredFields != nil {
+		conditionallyIgnored = m.conditionallyIgnoredFields
+	}
+	additionalIgnored := converter.FieldsAbsentFromYAML(configYAML, conditionallyIgnored)
 	additionalIgnored = append(additionalIgnored, m.alwaysIgnoredFields...)
 	equivalent, err := converter.ResourceYAMLEquivalent(configYAML, stateYAML, additionalIgnored, m.preservedAnnotationKeys)
 	if err != nil {

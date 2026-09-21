@@ -18,6 +18,12 @@ jobs:
       - name: Build test image and run roundtrip tests
         run: ./test/roundtrip/run_all.sh
         env:
+          # The roundtrip credential has the organization-admin role the time
+          # series aggregation endpoints require, so no test should skip. Fail
+          # the run if one does, rather than reporting a green summary for a
+          # test that never executed. Fork PRs are unaffected: run_all.sh exits
+          # 0 before the skip logic when no credentials are available at all.
+          ROUNDTRIP_REQUIRE_NO_SKIPS: 1
           DASH0_API_URL: ${{ secrets.DASH0_API_URL }}
           DASH0_AUTH_TOKEN: ${{ secrets.DASH0_AUTH_TOKEN }}
           DASH0_DATASET: ${{ secrets.DASH0_DATASET }}
