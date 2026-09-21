@@ -186,13 +186,7 @@ func (a *DeploymentEventAction) Invoke(ctx context.Context, req action.InvokeReq
 		return
 	}
 
-	// Resource attributes describe the entity being deployed and should stay
-	// meaningful across many telemetry points from that resource. A deployment
-	// event is a one-off occurrence: values like vcs.ref.head.revision that
-	// only this single event would ever carry don't give resource-centricity
-	// anything to group on, they just churn the resource identity. They belong
-	// on the log record instead, matching the dash0 CLI's send-log-event action
-	// and the dash0.deployment event registry page.
+	// Resource attributes describe the deployed entity.
 	resourceAttributes := map[string]string{}
 	putIfSet(resourceAttributes, "service.name", cfg.ServiceName)
 	putIfSet(resourceAttributes, "service.namespace", cfg.ServiceNamespace)
@@ -202,8 +196,7 @@ func (a *DeploymentEventAction) Invoke(ctx context.Context, req action.InvokeReq
 	putIfSet(resourceAttributes, "deployment.id", cfg.DeploymentID)
 	mergeAttributes(resourceAttributes, extraResourceAttributes)
 
-	// deployment.status and vcs.* describe this event, not the deployed
-	// entity, so they are log record attributes.
+	// deployment.status and vcs.* describe this event, not the entity.
 	logAttributes := map[string]string{}
 	putIfSet(logAttributes, "deployment.status", cfg.DeploymentStatus)
 	putIfSet(logAttributes, "vcs.repository.url.full", cfg.VcsRepositoryURL)

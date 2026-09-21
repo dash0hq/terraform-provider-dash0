@@ -95,8 +95,6 @@ func TestDeploymentEventAction_AttributePlacement(t *testing.T) {
 
 	require.False(t, resp.Diagnostics.HasError(), "diagnostics: %v", resp.Diagnostics)
 
-	// Everything that describes the deployed entity, and stays meaningful
-	// across the resource's ongoing telemetry, belongs on the resource.
 	assert.Equal(t, map[string]string{
 		"service.name":                "checkout-api",
 		"service.namespace":           "shop",
@@ -106,7 +104,6 @@ func TestDeploymentEventAction_AttributePlacement(t *testing.T) {
 		"deployment.id":               "run-1234",
 	}, event.ResourceAttributes)
 
-	// deployment.status and vcs.* describe this one-off event, not the entity.
 	assert.Equal(t, map[string]string{
 		"deployment.status":       "succeeded",
 		"vcs.repository.url.full": "https://github.com/acme/checkout-api",
