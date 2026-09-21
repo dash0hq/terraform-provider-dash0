@@ -107,15 +107,15 @@ func (a *DeploymentEventAction) Schema(_ context.Context, _ action.SchemaRequest
 			},
 			"vcs_repository_url": schema.StringAttribute{
 				Optional:    true,
-				Description: "The URL of the repository the deployed revision came from. Maps to the `vcs.repository.url.full` resource attribute, an identifying attribute of the `vcs.repository` entity.",
+				Description: "The URL of the repository the deployed revision came from. Maps to the `vcs.repository.url.full` log record attribute.",
 			},
 			"vcs_ref_head_revision": schema.StringAttribute{
 				Optional:    true,
-				Description: "The deployed revision, for example a commit SHA. Maps to the `vcs.ref.head.revision` resource attribute, an identifying attribute of the `vcs.ref` entity.",
+				Description: "The deployed revision, for example a commit SHA. Maps to the `vcs.ref.head.revision` log record attribute.",
 			},
 			"vcs_ref_head_name": schema.StringAttribute{
 				Optional:    true,
-				Description: "The name of the deployed ref, for example a branch or tag name. Maps to the `vcs.ref.head.name` resource attribute.",
+				Description: "The name of the deployed ref, for example a branch or tag name. Maps to the `vcs.ref.head.name` log record attribute.",
 			},
 			"body": schema.StringAttribute{
 				Optional:    true,
@@ -186,11 +186,13 @@ func (a *DeploymentEventAction) Invoke(ctx context.Context, req action.InvokeReq
 		return
 	}
 
-	// Resource attributes describe the entity being deployed. The vcs.* keys
-	// belong here rather than on the log record because upstream OpenTelemetry
-	// models vcs.repository and vcs.ref as entities, with
-	// vcs.repository.url.full and vcs.ref.head.revision as their identifying
-	// attributes — placed on the log record they could not identify anything.
+	// Resource attributes describe the entity being deployed and should stay
+	// meaningful across many telemetry points from that resource. A deployment
+	// event is a one-off occurrence: values like vcs.ref.head.revision that
+	// only this single event would ever carry don't give resource-centricity
+	// anything to group on, they just churn the resource identity. They belong
+	// on the log record instead, matching the dash0 CLI's send-log-event action
+	// and the dash0.deployment event registry page.
 	resourceAttributes := map[string]string{}
 	putIfSet(resourceAttributes, "service.name", cfg.ServiceName)
 	putIfSet(resourceAttributes, "service.namespace", cfg.ServiceNamespace)
@@ -198,15 +200,15 @@ func (a *DeploymentEventAction) Invoke(ctx context.Context, req action.InvokeReq
 	putIfSet(resourceAttributes, "deployment.environment.name", cfg.DeploymentEnvironmentName)
 	putIfSet(resourceAttributes, "deployment.name", cfg.DeploymentName)
 	putIfSet(resourceAttributes, "deployment.id", cfg.DeploymentID)
-	putIfSet(resourceAttributes, "vcs.repository.url.full", cfg.VcsRepositoryURL)
-	putIfSet(resourceAttributes, "vcs.ref.head.revision", cfg.VcsRefHeadRevision)
-	putIfSet(resourceAttributes, "vcs.ref.head.name", cfg.VcsRefHeadName)
 	mergeAttributes(resourceAttributes, extraResourceAttributes)
 
-	// deployment.status describes this event, not the deployed entity, so it is
-	// a log record attribute.
+	// deployment.status and vcs.* describe this event, not the deployed
+	// entity, so they are log record attributes.
 	logAttributes := map[string]string{}
 	putIfSet(logAttributes, "deployment.status", cfg.DeploymentStatus)
+	putIfSet(logAttributes, "vcs.repository.url.full", cfg.VcsRepositoryURL)
+	putIfSet(logAttributes, "vcs.ref.head.revision", cfg.VcsRefHeadRevision)
+	putIfSet(logAttributes, "vcs.ref.head.name", cfg.VcsRefHeadName)
 	mergeAttributes(logAttributes, extraLogAttributes)
 
 	event := client.LogEvent{

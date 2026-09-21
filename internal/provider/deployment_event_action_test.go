@@ -95,10 +95,8 @@ func TestDeploymentEventAction_AttributePlacement(t *testing.T) {
 
 	require.False(t, resp.Diagnostics.HasError(), "diagnostics: %v", resp.Diagnostics)
 
-	// Everything that describes the deployed entity belongs on the resource.
-	// vcs.repository.url.full and vcs.ref.head.revision are identifying
-	// attributes of the vcs.repository and vcs.ref entities upstream, so placing
-	// them on the log record would stop the entity from being formed at all.
+	// Everything that describes the deployed entity, and stays meaningful
+	// across the resource's ongoing telemetry, belongs on the resource.
 	assert.Equal(t, map[string]string{
 		"service.name":                "checkout-api",
 		"service.namespace":           "shop",
@@ -106,13 +104,15 @@ func TestDeploymentEventAction_AttributePlacement(t *testing.T) {
 		"deployment.environment.name": "production",
 		"deployment.name":             "checkout-rollout",
 		"deployment.id":               "run-1234",
-		"vcs.repository.url.full":     "https://github.com/acme/checkout-api",
-		"vcs.ref.head.revision":       "abc123",
-		"vcs.ref.head.name":           "main",
 	}, event.ResourceAttributes)
 
-	// deployment.status describes this event, not the entity.
-	assert.Equal(t, map[string]string{"deployment.status": "succeeded"}, event.LogAttributes)
+	// deployment.status and vcs.* describe this one-off event, not the entity.
+	assert.Equal(t, map[string]string{
+		"deployment.status":       "succeeded",
+		"vcs.repository.url.full": "https://github.com/acme/checkout-api",
+		"vcs.ref.head.revision":   "abc123",
+		"vcs.ref.head.name":       "main",
+	}, event.LogAttributes)
 }
 
 func TestDeploymentEventAction_ExtraAttributesMergeWithoutShadowing(t *testing.T) {

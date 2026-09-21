@@ -130,6 +130,6 @@ action "dash0_deployment_event" "per_service" {
 - `service_version` (String) The version of the deployed service, for example an image tag or release number. Maps to the `service.version` resource attribute.
 - `severity_number` (Number) The OpenTelemetry severity number (1–24). Defaults to 9 (INFO), which is what a deployment marker is.
 - `time` (String) The event timestamp as an RFC3339 timestamp with optional nanoseconds (for example "2024-03-15T10:30:00.123456789Z"). Defaults to the time the action is invoked, which is normally what you want for a deployment marker.
-- `vcs_ref_head_name` (String) The name of the deployed ref, for example a branch or tag name. Maps to the `vcs.ref.head.name` resource attribute.
-- `vcs_ref_head_revision` (String) The deployed revision, for example a commit SHA. Maps to the `vcs.ref.head.revision` resource attribute, an identifying attribute of the `vcs.ref` entity.
-- `vcs_repository_url` (String) The URL of the repository the deployed revision came from. Maps to the `vcs.repository.url.full` resource attribute, an identifying attribute of the `vcs.repository` entity.
+- `vcs_ref_head_name` (String) The name of the deployed ref, for example a branch or tag name. Maps to the `vcs.ref.head.name` log record attribute.
+- `vcs_ref_head_revision` (String) The deployed revision, for example a commit SHA. Maps to the `vcs.ref.head.revision` log record attribute.
+- `vcs_repository_url` (String) The URL of the repository the deployed revision came from. Maps to the `vcs.repository.url.full` log record attribute.
