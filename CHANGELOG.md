@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.19.0
+
+
+### Bug Fixes
+
+
+- `actions`: `dash0_deployment_event` now sends `vcs.repository.url.full`, `vcs.ref.head.revision`, and `vcs.ref.head.name` as log record attributes instead of resource attributes, matching the dash0 CLI's `send-log-event` action. (#181)
+
 ## 1.18.0
 
 
