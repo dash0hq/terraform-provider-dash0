@@ -1,0 +1,5 @@
+change_type: bug_fix
+component: check_rules
+note: Preserve baseline and change-gate settings in check_rule_yaml reads and imports.
+issues: [182]
+change_logs: [user]
