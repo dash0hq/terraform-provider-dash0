@@ -42,11 +42,44 @@ kind: SLO
 metadata:
   name: checkout-availability
   labels:
+    dash0.com/dataset: "test-dataset"
     dash0.com/id: "test-uuid"
+    dash0.com/origin: "test-origin"
+    dash0.com/source: "terraform"
     dash0.com/version: "2"
   annotations:
     dash0.com/created-at: "2024-01-01T00:00:00Z"
     dash0.com/updated-at: "2024-01-02T00:00:00Z"
+    dash0.com/window-start: "2024-01-01T00:00:00Z"
+    dash0.com/enabled: "true"
+spec:
+  service: checkout
+  budgetingMethod: Occurrences
+  objectives:
+    - displayName: 99% availability
+      target: 0.99
+`
+
+	yamlWithDisplayName := `apiVersion: openslo.com/v1
+kind: SLO
+metadata:
+  name: checkout-availability
+  annotations:
+    dash0.com/display-name: Checkout availability
+spec:
+  service: checkout
+  budgetingMethod: Occurrences
+  objectives:
+    - displayName: 99% availability
+      target: 0.99
+`
+
+	yamlWithUserLabel := `apiVersion: openslo.com/v1
+kind: SLO
+metadata:
+  name: checkout-availability
+  labels:
+    team: payments
 spec:
   service: checkout
   budgetingMethod: Occurrences
@@ -79,6 +112,20 @@ spec:
 			currentState:      baseYAML,
 			apiResponse:       yamlWithMetadataChanges,
 			expectStateUpdate: false,
+			expectWarning:     false,
+		},
+		{
+			name:              "display name edit outside terraform",
+			currentState:      baseYAML,
+			apiResponse:       yamlWithDisplayName,
+			expectStateUpdate: true,
+			expectWarning:     false,
+		},
+		{
+			name:              "user label edit outside terraform",
+			currentState:      baseYAML,
+			apiResponse:       yamlWithUserLabel,
+			expectStateUpdate: true,
 			expectWarning:     false,
 		},
 		{

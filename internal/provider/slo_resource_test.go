@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -14,9 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-
-	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
-	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
 )
 
 // basicSLOYaml is a minimal OpenSLO v1 document within the supported subset
@@ -53,6 +51,25 @@ spec:
   objectives:
     - displayName: 99% availability
       target: 0.99`
+
+const metadataSLOYaml = `apiVersion: openslo.com/v1
+kind: SLO
+metadata:
+  name: checkout-availability
+  labels:
+    team: payments
+  annotations:
+    dash0.com/display-name: Checkout availability
+    dash0.com/enabled: "true"
+    dash0.com/folder-path: /payments
+    dash0.com/sharing: "role:basic_member"
+    owner: payments-oncall
+spec:
+  service: checkout
+  objectives:
+    - displayName: 99% availability
+      target: 0.99
+`
 
 // Tests for sloResource
 func TestSLOResource_Metadata(t *testing.T) {
@@ -422,100 +439,92 @@ func testSLOSchema() schema.Schema {
 	}
 }
 
-func TestSLOResource_SharingAnnotationTriggersReplan(t *testing.T) {
+func TestSLOResource_MetadataPlan(t *testing.T) {
+	schemaResp := &resource.SchemaResponse{}
+	(&SLOResource{}).Schema(context.Background(), resource.SchemaRequest{}, schemaResp)
+	sloYamlModifiers := schemaResp.Schema.Attributes["slo_yaml"].(schema.StringAttribute).PlanModifiers
+	require.Len(t, sloYamlModifiers, 1)
+
 	tests := []struct {
-		name         string
-		configValue  types.String
-		stateValue   types.String
-		expectedPlan types.String
-		description  string
+		name       string
+		config     string
+		state      string
+		wantUpdate bool
 	}{
 		{
-			name: "dash0.com/sharing changed - should trigger replan",
-			configValue: types.StringValue(`
-apiVersion: openslo.com/v1
-kind: SLO
-metadata:
-  name: checkout-availability
-  annotations:
-    dash0.com/sharing: all-users
-spec:
-  service: checkout
-`),
-			stateValue: types.StringValue(`
-apiVersion: openslo.com/v1
-kind: SLO
-metadata:
-  name: checkout-availability
-  annotations:
-    dash0.com/sharing: private
-spec:
-  service: checkout
-`),
-			expectedPlan: types.StringValue(`
-apiVersion: openslo.com/v1
-kind: SLO
-metadata:
-  name: checkout-availability
-  annotations:
-    dash0.com/sharing: all-users
-spec:
-  service: checkout
-`),
-			description: "Should use config value when dash0.com/sharing annotation changed on SLO",
+			name:       "display name edit",
+			config:     editedMetadataSLOYaml(t, "dash0.com/display-name: Checkout availability", "dash0.com/display-name: Checkout success"),
+			state:      metadataSLOYaml,
+			wantUpdate: true,
 		},
 		{
-			name: "dash0.com/sharing same - should suppress replan",
-			configValue: types.StringValue(`
-apiVersion: openslo.com/v1
-kind: SLO
-metadata:
-  name: checkout-availability
-  annotations:
-    dash0.com/sharing: all-users
-spec:
-  service: checkout
-`),
-			stateValue: types.StringValue(`
-apiVersion: openslo.com/v1
-kind: SLO
-metadata:
-  name: checkout-availability
-  annotations:
-    dash0.com/sharing: all-users
-spec:
-  service: checkout
-`),
-			expectedPlan: types.StringValue(`
-apiVersion: openslo.com/v1
-kind: SLO
-metadata:
-  name: checkout-availability
-  annotations:
-    dash0.com/sharing: all-users
-spec:
-  service: checkout
-`),
-			description: "Should use state value when dash0.com/sharing annotation is the same on SLO",
+			name:       "disabled SLO",
+			config:     editedMetadataSLOYaml(t, `dash0.com/enabled: "true"`, `dash0.com/enabled: "false"`),
+			state:      metadataSLOYaml,
+			wantUpdate: true,
+		},
+		{
+			name:       "folder path edit",
+			config:     editedMetadataSLOYaml(t, "dash0.com/folder-path: /payments", "dash0.com/folder-path: /checkout"),
+			state:      metadataSLOYaml,
+			wantUpdate: true,
+		},
+		{
+			name:       "sharing edit",
+			config:     editedMetadataSLOYaml(t, `dash0.com/sharing: "role:basic_member"`, `dash0.com/sharing: "role:admin"`),
+			state:      metadataSLOYaml,
+			wantUpdate: true,
+		},
+		{
+			name:       "user label edit",
+			config:     editedMetadataSLOYaml(t, "team: payments", "team: checkout"),
+			state:      metadataSLOYaml,
+			wantUpdate: true,
+		},
+		{
+			name:       "user annotation edit",
+			config:     editedMetadataSLOYaml(t, "owner: payments-oncall", "owner: checkout-oncall"),
+			state:      metadataSLOYaml,
+			wantUpdate: true,
+		},
+		{
+			name:       "objective edit",
+			config:     editedMetadataSLOYaml(t, "target: 0.99", "target: 0.995"),
+			state:      metadataSLOYaml,
+			wantUpdate: true,
+		},
+		{
+			name:       "omitted enabled annotation",
+			config:     editedMetadataSLOYaml(t, "    dash0.com/enabled: \"true\"\n", ""),
+			state:      metadataSLOYaml,
+			wantUpdate: false,
+		},
+		{
+			name:       "server labels in state",
+			config:     metadataSLOYaml,
+			state:      editedMetadataSLOYaml(t, "    team: payments\n", "    team: payments\n    dash0.com/id: 6f1d1c3e-7c43-4f39-9a52-0b7a1d8e1f20\n    dash0.com/version: \"3\"\n"),
+			wantUpdate: false,
+		},
+		{
+			name:       "server annotations in state",
+			config:     metadataSLOYaml,
+			state:      editedMetadataSLOYaml(t, "    owner: payments-oncall\n", "    owner: payments-oncall\n    dash0.com/created-at: \"2026-10-01T09:00:00Z\"\n    dash0.com/window-start: \"2026-10-01T09:00:00Z\"\n"),
+			wantUpdate: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			modifier := customplanmodifier.YAMLSemanticEqual(converter.AnnotationSharing)
-
 			req := planmodifier.StringRequest{
-				ConfigValue: tt.configValue,
-				StateValue:  tt.stateValue,
-				PlanValue:   tt.configValue,
+				ConfigValue: types.StringValue(tt.config),
+				StateValue:  types.StringValue(tt.state),
+				PlanValue:   types.StringValue(tt.config),
 			}
-			resp := &planmodifier.StringResponse{
-				PlanValue: tt.configValue,
-			}
+			resp := &planmodifier.StringResponse{PlanValue: req.PlanValue}
 
-			modifier.PlanModifyString(context.Background(), req, resp)
+			sloYamlModifiers[0].PlanModifyString(context.Background(), req, resp)
 
-			assert.Equal(t, tt.expectedPlan, resp.PlanValue, tt.description)
+			assert.Equal(t, tt.wantUpdate, !resp.PlanValue.Equal(req.StateValue), "planned slo_yaml:\n%s", resp.PlanValue.ValueString())
 		})
 	}
 }
@@ -592,4 +601,11 @@ func TestSLOResource_Update(t *testing.T) {
 		assert.Equal(t, "test-id", resultState.ID.ValueString())
 		assert.Equal(t, testURL, resultState.URL.ValueString())
 	})
+}
+
+func editedMetadataSLOYaml(t *testing.T, from, to string) string {
+	t.Helper()
+	edited := strings.Replace(metadataSLOYaml, from, to, 1)
+	require.NotEqual(t, metadataSLOYaml, edited, "%q not found in metadataSLOYaml", from)
+	return edited
 }

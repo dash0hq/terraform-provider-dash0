@@ -80,6 +80,7 @@ If an ID is present in the YAML, it is sent to the backend but ignored (the orig
 
 For drift detection, the provider normalizes YAML by stripping server-generated fields (`internal/converter/normalizer.go`).
 The stripped fields include `metadata.labels`, `metadata.dash0Extensions`, and `metadata.annotations`, which means any ID fields added by the backend are excluded from state comparison and do not cause spurious diffs in Terraform plans.
+SLOs are the exception: `SLOYAMLEquivalent` (`internal/converter/slo_metadata.go`) also compares the labels and annotations that Dash0 stores for an SLO, and ignores only the `dash0.com/` keys that the server manages.
 
 ## Adding a new resource
 
