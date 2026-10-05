@@ -57,6 +57,13 @@ func YAMLSemanticEqualConditionally(conditionallyIgnoredFields []string, preserv
 	}
 }
 
+// YAMLSemanticEqualComparing returns a plan modifier like YAMLSemanticEqual that decides equivalence with the given function.
+func YAMLSemanticEqualComparing(equivalent func(yamlA, yamlB string, additionalIgnoredFields []string) (bool, error)) planmodifier.String {
+	return yamlSemanticEqualModifier{
+		equivalent: equivalent,
+	}
+}
+
 type yamlSemanticEqualModifier struct {
 	preservedAnnotationKeys []string
 	alwaysIgnoredFields     []string
@@ -69,6 +76,8 @@ type yamlSemanticEqualModifier struct {
 	// per resource: this modifier is shared, and a reconciliation that one
 	// resource needs is usually wrong for the others.
 	normalize func(string) string
+
+	equivalent func(yamlA, yamlB string, additionalIgnoredFields []string) (bool, error)
 }
 
 func (m yamlSemanticEqualModifier) Description(_ context.Context) string {
@@ -107,7 +116,7 @@ func (m yamlSemanticEqualModifier) PlanModifyString(_ context.Context, req planm
 	}
 	additionalIgnored := converter.FieldsAbsentFromYAML(configYAML, conditionallyIgnored)
 	additionalIgnored = append(additionalIgnored, m.alwaysIgnoredFields...)
-	equivalent, err := converter.ResourceYAMLEquivalent(configYAML, stateYAML, additionalIgnored, m.preservedAnnotationKeys)
+	equivalent, err := m.compare(configYAML, stateYAML, additionalIgnored)
 	if err != nil {
 		// On error, let Terraform use normal comparison
 		return
@@ -117,4 +126,11 @@ func (m yamlSemanticEqualModifier) PlanModifyString(_ context.Context, req planm
 		// If semantically equal, use the state value to prevent unnecessary diff
 		resp.PlanValue = req.StateValue
 	}
+}
+
+func (m yamlSemanticEqualModifier) compare(configYAML, stateYAML string, additionalIgnoredFields []string) (bool, error) {
+	if m.equivalent != nil {
+		return m.equivalent(configYAML, stateYAML, additionalIgnoredFields)
+	}
+	return converter.ResourceYAMLEquivalent(configYAML, stateYAML, additionalIgnoredFields, m.preservedAnnotationKeys)
 }
