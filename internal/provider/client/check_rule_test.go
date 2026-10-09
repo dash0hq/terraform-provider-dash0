@@ -125,3 +125,44 @@ func TestCreateCheckRule_MergesTopLevelAnnotations(t *testing.T) {
 		capturedBody.Annotations.AdditionalProperties["dash0.com/notification-channel-ids"],
 		"the rule had no annotations of its own, so it must inherit the top-level metadata.annotations entry in full")
 }
+
+func TestCreateCheckRule_UnquotedYLabelKey(t *testing.T) {
+	var capturedBody dash0.PrometheusAlertRule
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(body, &capturedBody))
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(dash0.PrometheusAlertRule{Name: "A", Expression: "up == 0"})
+	}))
+	t.Cleanup(server.Close)
+
+	inner, err := dash0.NewClient(
+		dash0.WithApiUrl(server.URL),
+		dash0.WithAuthToken("auth_test-token"),
+		dash0.WithUserAgent("test"),
+	)
+	require.NoError(t, err)
+
+	c := &dash0Client{inner: inner, apiURL: server.URL}
+
+	err = c.CreateCheckRule(context.Background(), "tf_test-origin", `apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: r
+spec:
+  groups:
+    - name: g
+      rules:
+        - alert: A
+          expr: up == 0
+          labels:
+            y: a
+`, "test-dataset")
+	require.NoError(t, err)
+
+	require.NotNil(t, capturedBody.Labels)
+	assert.Equal(t, map[string]string{"y": "a"}, *capturedBody.Labels)
+}
