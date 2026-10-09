@@ -1,6 +1,6 @@
 change_type: bug_fix
 component: check_rules
 note: "Keep unquoted `y`, `n`, `yes`, `no`, `on`, and `off` label and annotation keys as strings, so a label `y: a` is no longer sent as `\"true\": a`."
-issues: []
+issues: [186]
 subtext:
 change_logs: []
