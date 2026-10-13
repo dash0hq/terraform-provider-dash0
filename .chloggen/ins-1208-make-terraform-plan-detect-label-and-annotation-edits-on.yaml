@@ -1,0 +1,33 @@
+# Use this changelog template to create an entry for release notes.
+
+# One of 'breaking', 'deprecation', 'new_component', 'enhancement', 'bug_fix'
+change_type: bug_fix
+
+# The name of the component, or a single word describing the area of concern (e.g. dashboards, check_rules, views)
+component: slos
+
+# A brief description of the change. Surround your text with quotes ("") if it needs to start with a backtick (`).
+note: "`dash0_slo` now detects changes to an SLO's labels and annotations in plans and during refresh"
+
+# Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
+issues: [184]
+
+# (Optional) One or more lines of additional information to render under the primary note.
+# These lines will be padded with 2 spaces and then inserted directly into the document.
+# Use pipe (|) for multiline entries.
+subtext: |
+  Before, editing only the `dash0.com/display-name`, `dash0.com/enabled` or `dash0.com/folder-path`
+  annotation, or a user-defined label or annotation, planned as "No changes", so the edit never reached
+  Dash0. Changes made outside Terraform, for example in the Dash0 UI, never showed up as drift either.
+  Server-managed keys such as `dash0.com/id`, `dash0.com/version` and `dash0.com/created-at` are still
+  ignored, and a missing `dash0.com/enabled` annotation still counts as `"true"`.
+  After you upgrade, the first plan can show an update for SLOs whose metadata in Dash0 differs from your
+  configuration. Applying it sets the metadata in Dash0 to the values in your configuration.
+
+# If your change doesn't affect end users or the exported elements of any package,
+# you should instead start your pull request title with "chore" or use the "Skip Changelog" label.
+# Optional: The change log or logs in which this entry should be included.
+# e.g. '[user]' or '[user, api]'
+# Include 'user' if the change is relevant to end users.
+# Default: '[user]'
+change_logs: []
