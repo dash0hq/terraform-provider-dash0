@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: provider
+note: "Remove dashboards, views, SLOs, synthetic checks, recording rules, check rules and notification channels from state when they no longer exist remotely, instead of failing `terraform plan` with a 404."
+issues: [189]
+subtext: "Soft-deleted dashboards, views, SLOs, synthetic checks and recording rules are removed too. The next plan proposes to re-create the asset."
+change_logs: []

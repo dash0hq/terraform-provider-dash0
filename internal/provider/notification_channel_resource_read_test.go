@@ -265,3 +265,13 @@ spec:
 		"server-written spec.routing.assets must not trigger a state update")
 	assert.Equal(t, 0, resp.Diagnostics.WarningsCount())
 }
+
+func TestNotificationChannelResource_ReadNotFoundClearsState(t *testing.T) {
+	r := &NotificationChannelResource{client: &testNotificationChannelClient{getError: errNotFound}}
+	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test"}))
+}
+
+func TestNotificationChannelResource_ReadServerErrorKeepsStateAndErrors(t *testing.T) {
+	r := &NotificationChannelResource{client: &testNotificationChannelClient{getError: errServer}}
+	assertReadKeepsStateAndErrors(t, readWithState(t, r, map[string]string{"origin": "tf_test"}))
+}

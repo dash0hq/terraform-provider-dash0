@@ -174,3 +174,18 @@ spec:
 		})
 	}
 }
+
+func TestRecordingRuleResource_ReadNotFoundClearsState(t *testing.T) {
+	r := &RecordingRuleResource{client: &testRecordingRuleClient{getError: errNotFound}}
+	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}
+
+func TestRecordingRuleResource_ReadServerErrorKeepsStateAndErrors(t *testing.T) {
+	r := &RecordingRuleResource{client: &testRecordingRuleClient{getError: errServer}}
+	assertReadKeepsStateAndErrors(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}
+
+func TestRecordingRuleResource_ReadSoftDeletedClearsState(t *testing.T) {
+	r := &RecordingRuleResource{client: &testRecordingRuleClient{getResponse: softDeletedJSON}}
+	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}

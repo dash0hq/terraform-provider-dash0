@@ -263,6 +263,9 @@ func (r *NotificationChannelResource) Read(ctx context.Context, req resource.Rea
 	}
 
 	apiResponseJSON, err := r.client.GetNotificationChannel(ctx, state.Origin.ValueString())
+	if removedOutOfBand(ctx, resp, "Notification channel", state.Origin.ValueString(), apiResponseJSON, err) {
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read notification channel, got error: %s", err))
 		return

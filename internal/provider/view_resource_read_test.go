@@ -183,3 +183,18 @@ spec:
 		})
 	}
 }
+
+func TestViewResource_ReadNotFoundClearsState(t *testing.T) {
+	r := &ViewResource{client: &testViewClient{getError: errNotFound}}
+	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}
+
+func TestViewResource_ReadServerErrorKeepsStateAndErrors(t *testing.T) {
+	r := &ViewResource{client: &testViewClient{getError: errServer}}
+	assertReadKeepsStateAndErrors(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}
+
+func TestViewResource_ReadSoftDeletedClearsState(t *testing.T) {
+	r := &ViewResource{client: &testViewClient{getResponse: softDeletedJSON}}
+	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}

@@ -24,11 +24,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// annotationDeletedAt marks a soft-deleted time series aggregation. Deletes are
-// soft for this asset kind: after a DELETE, a GET by origin returns 200 with
-// this annotation set rather than a 404.
-const annotationDeletedAt = "dash0.com/deleted-at"
-
 // timeSeriesAggregationConditionallyIgnoredFields are fields the Dash0 API
 // defaults server-side on write and echoes back on read. When the user does not
 // declare them, comparing them would produce a diff the user cannot resolve.
@@ -312,27 +307,6 @@ func (r *TimeSeriesAggregationResource) resolveTimeSeriesAggregation(ctx context
 	model.ID = stringOrNull(id)
 }
 
-// isTimeSeriesAggregationDeleted reports whether the given API response is a
-// soft-delete tombstone. Time series aggregation deletes are soft: after a
-// DELETE, a GET by origin returns 200 with metadata.annotations["dash0.com/deleted-at"]
-// set instead of a 404, so a branch keyed only on IsNotFound would never fire.
-func isTimeSeriesAggregationDeleted(apiResponseJSON string) bool {
-	var parsed map[string]interface{}
-	if err := yaml.Unmarshal([]byte(apiResponseJSON), &parsed); err != nil {
-		return false
-	}
-	metadata, ok := parsed["metadata"].(map[string]interface{})
-	if !ok {
-		return false
-	}
-	annotations, ok := metadata["annotations"].(map[string]interface{})
-	if !ok {
-		return false
-	}
-	deletedAt, ok := annotations[annotationDeletedAt].(string)
-	return ok && deletedAt != ""
-}
-
 func (r *TimeSeriesAggregationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var model timeSeriesAggregationModel
 	diags := req.Plan.Get(ctx, &model)
@@ -390,21 +364,11 @@ func (r *TimeSeriesAggregationResource) Read(ctx context.Context, req resource.R
 	}
 
 	apiResponseJSON, err := r.client.GetTimeSeriesAggregation(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
-	if err != nil {
-		if dash0.IsNotFound(err) {
-			tflog.Debug(ctx, fmt.Sprintf("Time series aggregation %s no longer exists on the server; removing from state", state.Origin.ValueString()))
-			resp.State.RemoveResource(ctx)
-			return
-		}
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read time series aggregation, got error: %s", err))
+	if removedOutOfBand(ctx, resp, "Time series aggregation", state.Origin.ValueString(), apiResponseJSON, err) {
 		return
 	}
-
-	// Deletes are soft: a deleted aggregation comes back as a 200 tombstone,
-	// not a 404. Treat it as gone so the next apply re-creates it.
-	if isTimeSeriesAggregationDeleted(apiResponseJSON) {
-		tflog.Debug(ctx, fmt.Sprintf("Time series aggregation %s is soft-deleted on the server; removing from state", state.Origin.ValueString()))
-		resp.State.RemoveResource(ctx)
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read time series aggregation, got error: %s", err))
 		return
 	}
 
@@ -538,7 +502,7 @@ func (r *TimeSeriesAggregationResource) ImportState(ctx context.Context, req res
 
 	// Deletes are soft, so a GET can succeed against an already-deleted
 	// aggregation. Refuse to adopt a tombstone into state.
-	if isTimeSeriesAggregationDeleted(apiResponseJSON) {
+	if isSoftDeleted(apiResponseJSON) {
 		resp.Diagnostics.AddError(
 			"Error Importing Time Series Aggregation",
 			fmt.Sprintf("The time series aggregation with origin=%s, dataset=%s has been deleted (it carries a %s "+

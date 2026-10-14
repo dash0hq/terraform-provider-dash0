@@ -178,3 +178,18 @@ spec:
 		})
 	}
 }
+
+func TestDashboardResource_ReadNotFoundClearsState(t *testing.T) {
+	r := &DashboardResource{client: &testDashboardClient{getError: errNotFound}}
+	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}
+
+func TestDashboardResource_ReadServerErrorKeepsStateAndErrors(t *testing.T) {
+	r := &DashboardResource{client: &testDashboardClient{getError: errServer}}
+	assertReadKeepsStateAndErrors(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}
+
+func TestDashboardResource_ReadSoftDeletedClearsState(t *testing.T) {
+	r := &DashboardResource{client: &testDashboardClient{getResponse: softDeletedJSON}}
+	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}

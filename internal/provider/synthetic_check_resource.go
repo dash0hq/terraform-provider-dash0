@@ -195,6 +195,9 @@ func (r *SyntheticCheckResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 
 	apiResponseJSON, err := r.client.GetSyntheticCheck(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
+	if removedOutOfBand(ctx, resp, "Synthetic check", state.Origin.ValueString(), apiResponseJSON, err) {
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read synthetic check, got error: %s", err))
 		return

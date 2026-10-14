@@ -195,6 +195,9 @@ func (r *SLOResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 	}
 
 	apiResponseJSON, err := r.client.GetSLO(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
+	if removedOutOfBand(ctx, resp, "SLO", state.Origin.ValueString(), apiResponseJSON, err) {
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read SLO, got error: %s", err))
 		return
