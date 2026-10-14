@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
@@ -196,6 +197,12 @@ func (r *SLOResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 
 	apiResponseJSON, err := r.client.GetSLO(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
 	if err != nil {
+		// Deleted out-of-band (or its dataset was): clear state so the next plan re-creates it.
+		if dash0.IsNotFound(err) {
+			tflog.Warn(ctx, fmt.Sprintf("SLO %s no longer exists on the server; removing from state", state.Origin.ValueString()))
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read SLO, got error: %s", err))
 		return
 	}

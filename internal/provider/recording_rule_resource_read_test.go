@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
 
@@ -173,4 +174,48 @@ spec:
 			assert.Equal(t, tc.expectWarning, hasWarnings)
 		})
 	}
+}
+
+func testRecordingRuleReadWithError(t *testing.T, getErr error) resource.ReadResponse {
+	t.Helper()
+	testSchema := schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"origin":              schema.StringAttribute{Computed: true},
+			"id":                  schema.StringAttribute{Computed: true},
+			"dataset":             schema.StringAttribute{Required: true},
+			"recording_rule_yaml": schema.StringAttribute{Required: true},
+		},
+	}
+	raw := tftypes.NewValue(
+		tftypes.Object{AttributeTypes: map[string]tftypes.Type{
+			"origin":              tftypes.String,
+			"id":                  tftypes.String,
+			"dataset":             tftypes.String,
+			"recording_rule_yaml": tftypes.String,
+		}},
+		map[string]tftypes.Value{
+			"origin":              tftypes.NewValue(tftypes.String, "x"),
+			"id":                  tftypes.NewValue(tftypes.String, nil),
+			"dataset":             tftypes.NewValue(tftypes.String, "x"),
+			"recording_rule_yaml": tftypes.NewValue(tftypes.String, "x"),
+		},
+	)
+	state := tfsdk.State{Raw: raw, Schema: testSchema}
+	r := &RecordingRuleResource{client: &testRecordingRuleClient{getError: getErr}}
+	resp := resource.ReadResponse{State: state}
+	r.Read(context.Background(), resource.ReadRequest{State: state}, &resp)
+	return resp
+}
+
+// A 404 means the asset was deleted out-of-band; Read must clear state, not error.
+func TestRecordingRuleResource_ReadNotFoundClearsState(t *testing.T) {
+	resp := testRecordingRuleReadWithError(t, &dash0.APIError{StatusCode: 404, Status: "404 Not Found"})
+	assert.False(t, resp.Diagnostics.HasError(), "404 must not surface as an error")
+	assert.True(t, resp.State.Raw.IsNull(), "state must be cleared on 404")
+}
+
+// Other errors must still surface.
+func TestRecordingRuleResource_ReadNonNotFoundStillErrors(t *testing.T) {
+	resp := testRecordingRuleReadWithError(t, &dash0.APIError{StatusCode: 500, Status: "500 Internal Server Error"})
+	assert.True(t, resp.Diagnostics.HasError())
 }
