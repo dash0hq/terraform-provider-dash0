@@ -193,7 +193,7 @@ func (r *SpamFilterResource) Read(ctx context.Context, req resource.ReadRequest,
 	}
 
 	apiResponseJSON, err := r.client.GetSpamFilter(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
-	if removedOutOfBand(ctx, resp, "Spam filter", state.Origin.ValueString(), apiResponseJSON, err) {
+	if removedOutOfBandInDataset(ctx, resp, r.client, state.Dataset.ValueString(), "Spam filter", state.Origin.ValueString(), apiResponseJSON, err) {
 		return
 	}
 	if err != nil {

@@ -22,8 +22,10 @@ description: |-
 ## Destroying a dataset
 
 Destroying a dataset is a soft delete.
-Apply the same configuration again within 30 days to restore it.
-After 30 days, the dataset and all of its telemetry are purged.
+Dashboards, check rules, synthetic checks and views are kept for 30 days.
+Apply the same configuration again within that time to restore them.
+After 30 days, the dataset, its permissions and those assets are removed.
+Telemetry is removed as its retention expires.
 
 To guard against an accidental destroy, add `prevent_destroy` to the resource:
 

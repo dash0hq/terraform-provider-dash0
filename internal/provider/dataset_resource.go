@@ -122,8 +122,9 @@ func (r *DatasetResource) Metadata(_ context.Context, req resource.MetadataReque
 func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a Dash0 dataset. Datasets are organization-level resources identified by an immutable slug.\n\n" +
-			"~> **Note:** Destroying a dataset soft-deletes it. After 30 days the dataset and ALL its telemetry are " +
-			"purged permanently. Re-creating a dataset with the same slug within 30 days restores it.\n\n" +
+			"~> **Note:** Destroying a dataset soft-deletes it. Dashboards, check rules, synthetic checks and views are kept for 30 days; " +
+			"applying the same slug within that time restores them. After 30 days the dataset, its permissions and those assets are removed. " +
+			"Telemetry is removed as its retention expires.\n\n" +
 			"The slug is set in `metadata.labels[\"dash0.com/id\"]` and cannot change: changing it replaces the dataset " +
 			"(destroy, then create under the new slug). `spec.permissions` and `spec.telemetryFilters` are not managed by " +
 			"this resource yet: they are ignored on create and when detecting drift. Spec settings you omit (retention, privacy options) " +

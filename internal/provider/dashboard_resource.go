@@ -195,7 +195,7 @@ func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 	}
 
 	apiResponseJSON, err := r.client.GetDashboard(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
-	if removedOutOfBand(ctx, resp, "Dashboard", state.Origin.ValueString(), apiResponseJSON, err) {
+	if removedOutOfBandInDataset(ctx, resp, r.client, state.Dataset.ValueString(), "Dashboard", state.Origin.ValueString(), apiResponseJSON, err) {
 		return
 	}
 	if err != nil {

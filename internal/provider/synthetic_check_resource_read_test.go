@@ -185,7 +185,7 @@ spec:
 }
 
 func TestSyntheticCheckResource_ReadNotFoundClearsState(t *testing.T) {
-	r := &SyntheticCheckResource{client: &testSyntheticCheckClient{getError: errNotFound}}
+	r := &SyntheticCheckResource{client: &testSyntheticCheckClient{Client: datasetLookup(nil), getError: errNotFound}}
 	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
 }
 

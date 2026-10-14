@@ -2,5 +2,5 @@ change_type: new_component
 component: datasets
 note: "Add the `dash0_dataset` resource to manage Dash0 datasets: retention, privacy, redaction, and semantic convention upgrades."
 issues: [171]
-subtext: "Destroying a dataset soft-deletes it. After 30 days, the dataset and its telemetry are purged. Re-creating the same slug within 30 days restores it."
+subtext: "Destroying a dataset soft-deletes it. Dashboards, check rules, synthetic checks and views are kept for 30 days; applying the same slug within that time restores them. Telemetry is removed as its retention expires."
 change_logs: []

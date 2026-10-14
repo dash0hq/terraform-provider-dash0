@@ -84,7 +84,9 @@ func (c *dash0Client) UpdateDataset(ctx context.Context, slug string, origin str
 
 // DeleteDataset deletes the dataset with the given slug. The delete is soft:
 // the dataset can be restored by creating one with the same slug during the
-// 30-day grace period, after which its telemetry is purged. The server also
+// 30-day grace period, after which the dataset, its permissions and its assets
+// are removed. Telemetry is never deleted here: it follows each signal's
+// retention. The server also
 // answers 200 for an unknown or already-deleted dataset, so a nil error does
 // not prove the dataset existed.
 func (c *dash0Client) DeleteDataset(ctx context.Context, slug string) error {

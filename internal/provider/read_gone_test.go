@@ -8,8 +8,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	dash0 "github.com/dash0hq/dash0-api-client-go"
+
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
 
 // softDeletedJSON is a minimal soft-delete tombstone as the API returns it:
@@ -60,4 +63,22 @@ func assertReadKeepsStateAndErrors(t *testing.T, resp resource.ReadResponse) {
 	t.Helper()
 	assert.True(t, resp.Diagnostics.HasError(), "error must surface")
 	assert.False(t, resp.State.Raw.IsNull(), "state must be kept")
+}
+
+// datasetLookup returns a client whose GetDataset("x") returns err, for the
+// dataset check a 404 on a dataset-scoped asset triggers. A nil err means the
+// dataset exists.
+func datasetLookup(err error) client.Client {
+	m := &MockClient{}
+	m.On("GetDataset", mock.Anything, "x").Return("{}", err)
+	return m
+}
+
+// assertReadKeepsStateWithDiag checks Read left state in place and added one
+// diagnostic of the wanted severity.
+func assertReadKeepsStateWithDiag(t *testing.T, resp resource.ReadResponse, wantErr bool) {
+	t.Helper()
+	assert.False(t, resp.State.Raw.IsNull(), "state must be kept")
+	assert.Equal(t, wantErr, resp.Diagnostics.HasError())
+	assert.Equal(t, !wantErr, resp.Diagnostics.WarningsCount() == 1, "a deleted dataset warns")
 }

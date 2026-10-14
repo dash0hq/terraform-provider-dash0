@@ -301,7 +301,7 @@ spec:
 }
 
 func TestCheckRuleResource_ReadNotFoundClearsState(t *testing.T) {
-	r := &CheckRuleResource{client: &testCheckRuleClient{getError: errNotFound}}
+	r := &CheckRuleResource{client: &testCheckRuleClient{Client: datasetLookup(nil), getError: errNotFound}}
 	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
 }
 

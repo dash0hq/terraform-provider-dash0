@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Roundtrip test for dash0_dataset (org-scoped, identified by slug).
 # The dash0 CLI has no `datasets` command, so the API is called via `dash0 -X api`.
-# Destroy is a soft delete (purged after 30 days), so each run uses a unique slug.
+# Destroy is a soft delete (restorable for 30 days), so each run uses a unique slug.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"

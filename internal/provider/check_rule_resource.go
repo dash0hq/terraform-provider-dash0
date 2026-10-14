@@ -193,7 +193,7 @@ func (r *CheckRuleResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 	// The client returns a Prometheus YAML string (Dash0->Prometheus conversion is done internally)
 	apiResponseYAML, err := r.client.GetCheckRule(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
-	if removedOutOfBand(ctx, resp, "Check rule", state.Origin.ValueString(), apiResponseYAML, err) {
+	if removedOutOfBandInDataset(ctx, resp, r.client, state.Dataset.ValueString(), "Check rule", state.Origin.ValueString(), apiResponseYAML, err) {
 		return
 	}
 	if err != nil {

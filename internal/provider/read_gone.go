@@ -9,6 +9,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	dash0 "github.com/dash0hq/dash0-api-client-go"
+
+	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
 
 // annotationDeletedAt marks a soft-deleted asset. For most asset kinds a
@@ -36,6 +38,37 @@ func removedOutOfBand(ctx context.Context, resp *resource.ReadResponse, kind, id
 		return false
 	}
 	resp.State.RemoveResource(ctx)
+	return true
+}
+
+// removedOutOfBandInDataset is removedOutOfBand for dataset-scoped assets.
+// Soft-deleting a dataset keeps its assets alive but makes asset GETs return
+// 404. Dropping them from state would make the next apply create a second copy
+// of every asset, so on a 404 it checks the dataset first:
+//   - dataset exists: the asset is really gone, drop it from state.
+//   - dataset is gone too: keep state untouched and warn.
+//   - dataset check fails: keep state untouched and error.
+//
+// It returns true when the caller must return right away.
+func removedOutOfBandInDataset(ctx context.Context, resp *resource.ReadResponse, c client.Client, dataset, kind, id, body string, err error) bool {
+	if err == nil || !dash0.IsNotFound(err) {
+		return removedOutOfBand(ctx, resp, kind, id, body, err)
+	}
+	_, dsErr := c.GetDataset(ctx, dataset)
+	switch {
+	case dsErr == nil:
+		return removedOutOfBand(ctx, resp, kind, id, body, err)
+	case dash0.IsNotFound(dsErr):
+		resp.Diagnostics.AddWarning(
+			"Dataset is deleted",
+			fmt.Sprintf("dataset %s is deleted; keeping %s %s in state, it comes back when the dataset is restored", dataset, kind, id),
+		)
+	default:
+		resp.Diagnostics.AddError(
+			"Client Error",
+			fmt.Sprintf("%s %s returned 404 and the dataset %s cannot be checked, so it is kept in state: %s", kind, id, dataset, dsErr),
+		)
+	}
 	return true
 }
 

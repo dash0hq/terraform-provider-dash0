@@ -195,7 +195,7 @@ func (r *ViewResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	}
 
 	apiResponseJSON, err := r.client.GetView(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
-	if removedOutOfBand(ctx, resp, "View", state.Origin.ValueString(), apiResponseJSON, err) {
+	if removedOutOfBandInDataset(ctx, resp, r.client, state.Dataset.ValueString(), "View", state.Origin.ValueString(), apiResponseJSON, err) {
 		return
 	}
 	if err != nil {

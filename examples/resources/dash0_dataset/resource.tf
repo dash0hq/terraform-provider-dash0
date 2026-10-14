@@ -6,9 +6,10 @@
 # cannot be changed after creation; changing it destroys and re-creates the
 # dataset.
 #
-# Destroying the resource soft-deletes the dataset. After 30 days, the dataset
-# and all of its telemetry are purged. Re-creating a dataset with the same
-# slug within 30 days restores it.
+# Destroying the resource soft-deletes the dataset. Dashboards, check rules,
+# synthetic checks and views are kept for 30 days; applying the same slug
+# within that time restores them. After 30 days the dataset, its permissions
+# and those assets are removed. Telemetry is removed as its retention expires.
 resource "dash0_dataset" "staging" {
   dataset_yaml = <<-YAML
 kind: Dash0Dataset

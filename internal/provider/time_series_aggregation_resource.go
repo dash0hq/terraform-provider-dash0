@@ -364,7 +364,7 @@ func (r *TimeSeriesAggregationResource) Read(ctx context.Context, req resource.R
 	}
 
 	apiResponseJSON, err := r.client.GetTimeSeriesAggregation(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
-	if removedOutOfBand(ctx, resp, "Time series aggregation", state.Origin.ValueString(), apiResponseJSON, err) {
+	if removedOutOfBandInDataset(ctx, resp, r.client, state.Dataset.ValueString(), "Time series aggregation", state.Origin.ValueString(), apiResponseJSON, err) {
 		return
 	}
 	if err != nil {
