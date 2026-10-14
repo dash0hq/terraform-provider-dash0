@@ -16,8 +16,8 @@ import (
 // is stamped onto dash0.com/origin.
 //
 // A create with the slug of a soft-deleted dataset inside the grace period
-// restores that dataset. The server ignores spec.permissions on create, so
-// permissions are applied by a later UpdateDataset.
+// restores that dataset. The server ignores spec.permissions on create and no
+// follow-up update is made, so permissions are not applied.
 func (c *dash0Client) CreateDataset(ctx context.Context, origin string, datasetJSON string) error {
 	def, err := unmarshalDataset(datasetJSON)
 	if err != nil {

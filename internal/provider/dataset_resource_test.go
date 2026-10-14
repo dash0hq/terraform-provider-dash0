@@ -5,10 +5,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -263,7 +267,7 @@ func TestDatasetResource_ModifyPlan(t *testing.T) {
 	t.Run("slug change requires replace", func(t *testing.T) {
 		resp := datasetModifyPlan(t, datasetRaw("tf_abc", "production", datasetTestYaml),
 			strings.Replace(datasetTestYaml, "id: production", "id: staging", 1))
-		assert.Equal(t, path.Paths{path.Root("dataset_yaml")}, resp.RequiresReplace)
+		assert.Equal(t, path.Paths{path.Root("id")}, resp.RequiresReplace)
 	})
 }
 
@@ -281,5 +285,62 @@ func TestDatasetResource_ValidateConfig(t *testing.T) {
 	assert.True(t, validate("kind: [").Diagnostics.HasError())
 	assert.True(t, validate("kind: Dash0Team\nmetadata:\n  name: x").Diagnostics.HasError())
 	assert.True(t, validate("kind: Dash0Dataset\nmetadata:\n  name: x").Diagnostics.HasError())
-	assert.Equal(t, 1, validate(datasetTestYaml+"\n  permissions: []").Diagnostics.WarningsCount())
+	warned := validate(datasetTestYaml + "\n  permissions: []").Diagnostics
+	assert.Equal(t, 1, warned.WarningsCount())
+	assert.Contains(t, warned.Warnings()[0].Detail(), "ignored on create")
+}
+
+// datasetTestProvider registers only dash0_dataset so a test can drive the
+// real framework plan pipeline without credentials.
+type datasetTestProvider struct{}
+
+func (datasetTestProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "dash0"
+}
+func (datasetTestProvider) Schema(context.Context, provider.SchemaRequest, *provider.SchemaResponse) {
+}
+func (datasetTestProvider) Configure(context.Context, provider.ConfigureRequest, *provider.ConfigureResponse) {
+}
+func (datasetTestProvider) DataSources(context.Context) []func() datasource.DataSource { return nil }
+func (datasetTestProvider) Resources(context.Context) []func() resource.Resource {
+	return []func() resource.Resource{NewDatasetResource}
+}
+
+// TestDatasetResource_PlanResourceChange_SlugChangeReplacesID runs the full
+// framework plan: attribute plan modifiers first, then ModifyPlan. The
+// semantic-equal modifier ignores labels, so a slug-only edit leaves
+// dataset_yaml unchanged; the replace must therefore target id.
+func TestDatasetResource_PlanResourceChange_SlugChangeReplacesID(t *testing.T) {
+	ctx := context.Background()
+	srv := providerserver.NewProtocol6(datasetTestProvider{})()
+
+	objType := datasetRaw(nil, nil, "").Type()
+	dv := func(v tftypes.Value) *tfprotov6.DynamicValue {
+		d, err := tfprotov6.NewDynamicValue(objType, v)
+		assert.NoError(t, err)
+		return &d
+	}
+
+	renamed := strings.Replace(datasetTestYaml, "id: production", "id: staging", 1)
+	prior := datasetRaw("tf_abc", "production", datasetTestYaml)
+	resp, err := srv.PlanResourceChange(ctx, &tfprotov6.PlanResourceChangeRequest{
+		TypeName:         "dash0_dataset",
+		PriorState:       dv(prior),
+		ProposedNewState: dv(datasetRaw("tf_abc", "production", renamed)),
+		Config:           dv(datasetRaw(nil, nil, renamed)),
+	})
+	assert.NoError(t, err)
+	assert.Empty(t, resp.Diagnostics)
+
+	planned, err := resp.PlannedState.Unmarshal(objType)
+	assert.NoError(t, err)
+	var attrs map[string]tftypes.Value
+	assert.NoError(t, planned.As(&attrs))
+	var yamlPlan, idPlan string
+	assert.NoError(t, attrs["dataset_yaml"].As(&yamlPlan))
+	assert.NoError(t, attrs["id"].As(&idPlan))
+
+	assert.Equal(t, datasetTestYaml, yamlPlan, "precondition: dataset_yaml shows no change")
+	assert.Equal(t, "staging", idPlan)
+	assert.Equal(t, []*tftypes.AttributePath{tftypes.NewAttributePath().WithAttributeName("id")}, resp.RequiresReplace)
 }

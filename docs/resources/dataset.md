@@ -4,17 +4,17 @@ page_title: "dash0_dataset Resource - Dash0"
 subcategory: ""
 description: |-
   Manages a Dash0 dataset. Datasets are organization-level resources identified by an immutable slug.
-  ~> Warning: Destroying a dataset soft-deletes it. After 30 days the dataset and ALL its telemetry are purged permanently. Re-creating a dataset with the same slug within 30 days restores it.
-  The slug is set in metadata.labels["dash0.com/id"] and cannot change: changing it replaces the dataset (destroy, then create under the new slug). spec.permissions and spec.telemetryFilters are not managed by this resource yet and are ignored when detecting drift. Spec settings you omit (retention, privacy options) keep the server's values without causing a diff.
+  ~> Note: Destroying a dataset soft-deletes it. After 30 days the dataset and ALL its telemetry are purged permanently. Re-creating a dataset with the same slug within 30 days restores it.
+  The slug is set in metadata.labels["dash0.com/id"] and cannot change: changing it replaces the dataset (destroy, then create under the new slug). spec.permissions and spec.telemetryFilters are not managed by this resource yet: they are ignored on create and when detecting drift. Spec settings you omit (retention, privacy options) keep the server's values without causing a diff.
 ---
 
 # dash0_dataset (Resource)
 
 Manages a Dash0 dataset. Datasets are organization-level resources identified by an immutable slug.
 
-~> **Warning:** Destroying a dataset soft-deletes it. After 30 days the dataset and ALL its telemetry are purged permanently. Re-creating a dataset with the same slug within 30 days restores it.
+~> **Note:** Destroying a dataset soft-deletes it. After 30 days the dataset and ALL its telemetry are purged permanently. Re-creating a dataset with the same slug within 30 days restores it.
 
-The slug is set in `metadata.labels["dash0.com/id"]` and cannot change: changing it replaces the dataset (destroy, then create under the new slug). `spec.permissions` and `spec.telemetryFilters` are not managed by this resource yet and are ignored when detecting drift. Spec settings you omit (retention, privacy options) keep the server's values without causing a diff.
+The slug is set in `metadata.labels["dash0.com/id"]` and cannot change: changing it replaces the dataset (destroy, then create under the new slug). `spec.permissions` and `spec.telemetryFilters` are not managed by this resource yet: they are ignored on create and when detecting drift. Spec settings you omit (retention, privacy options) keep the server's values without causing a diff.
 
 ## Example Usage
 

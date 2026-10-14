@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 WORK_DIR="$(mktemp -d)"
-SLUG="rt-ds-${RANDOM}"
+SLUG="rt-ds-$(date +%s)-${RANDOM}"
 DESTROYED=0
 
 # Destroy on early failure so aborted runs do not leave a live dataset behind.

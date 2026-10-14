@@ -122,11 +122,11 @@ func (r *DatasetResource) Metadata(_ context.Context, req resource.MetadataReque
 func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a Dash0 dataset. Datasets are organization-level resources identified by an immutable slug.\n\n" +
-			"~> **Warning:** Destroying a dataset soft-deletes it. After 30 days the dataset and ALL its telemetry are " +
+			"~> **Note:** Destroying a dataset soft-deletes it. After 30 days the dataset and ALL its telemetry are " +
 			"purged permanently. Re-creating a dataset with the same slug within 30 days restores it.\n\n" +
 			"The slug is set in `metadata.labels[\"dash0.com/id\"]` and cannot change: changing it replaces the dataset " +
 			"(destroy, then create under the new slug). `spec.permissions` and `spec.telemetryFilters` are not managed by " +
-			"this resource yet and are ignored when detecting drift. Spec settings you omit (retention, privacy options) " +
+			"this resource yet: they are ignored on create and when detecting drift. Spec settings you omit (retention, privacy options) " +
 			"keep the server's values without causing a diff.",
 
 		Attributes: map[string]schema.Attribute{
@@ -183,7 +183,7 @@ func (r *DatasetResource) ValidateConfig(ctx context.Context, req resource.Valid
 			if _, set := spec[field]; set {
 				resp.Diagnostics.AddAttributeWarning(path.Root("dataset_yaml"),
 					fmt.Sprintf("spec.%s is not managed by dash0_dataset", field),
-					fmt.Sprintf("spec.%s is ignored when detecting drift; changes made outside Terraform are not reverted.", field))
+					fmt.Sprintf("spec.%s is ignored on create and when detecting drift. The server does not apply it on create, and changes made outside Terraform are not reverted.", field))
 			}
 		}
 	}
@@ -214,7 +214,9 @@ func (r *DatasetResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	var stateID types.String
 	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("id"), &stateID)...)
 	if !stateID.IsNull() && stateID.ValueString() != slug {
-		resp.RequiresReplace = append(resp.RequiresReplace, path.Root("dataset_yaml"))
+		// Target id, not dataset_yaml: the semantic-equal modifier ignores labels, so
+		// dataset_yaml shows no change on a slug-only edit and Terraform would skip it.
+		resp.RequiresReplace = append(resp.RequiresReplace, path.Root("id"))
 	}
 }
 
