@@ -117,6 +117,11 @@ files:
     title: dash0_dashboard
     description: Terraform resource for Dash0 dashboards defined in the Perses Dashboard format.
 
+  - source: docs/resources/dataset.md
+    target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/dataset.md
+    title: dash0_dataset
+    description: Terraform resource for Dash0 datasets — declaratively manage retention, geolocation and IP address storage, sensitive-data redaction, and semantic convention upgrades.
+
   - source: docs/resources/notification_channel.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/notification-channel.md
     title: dash0_notification_channel

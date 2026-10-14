@@ -345,6 +345,39 @@ assert_deleted_via_cli() {
   fail "Resource ${id} still returned by CLI after ${max_retries} attempts."
 }
 
+# dataset_get <slug>
+#
+# The dash0 CLI has no `datasets` command, so datasets are read through the raw
+# API command. Datasets are organization-scoped, hence `--dataset ""` to skip
+# the dataset query parameter. Prints the dataset JSON (valid YAML) and exits
+# non-zero on 404.
+dataset_get() {
+  dash0 -X api "/api/datasets/$1" --dataset ""
+}
+
+# assert_dataset_deleted <slug>
+#
+# Dataset deletion is soft, but a soft-deleted dataset must answer 404 on GET.
+# Retries up to 10 times with 3s delay to tolerate eventual consistency.
+assert_dataset_deleted() {
+  local slug="$1"
+  local max_retries=10
+  local delay=3
+
+  for i in $(seq 1 "$max_retries"); do
+    if ! dataset_get "$slug" >/dev/null 2>&1; then
+      info "Dataset confirmed deleted via API (attempt ${i})."
+      return 0
+    fi
+    if [[ "$i" -lt "$max_retries" ]]; then
+      warn "Dataset still returned by API (attempt ${i}/${max_retries}), retrying in ${delay}s..."
+      sleep "$delay"
+    fi
+  done
+
+  fail "Dataset ${slug} still returned by API after ${max_retries} attempts."
+}
+
 # assert_deleted_via_tf <work_dir>
 #
 # After destroy, verifies that tofu plan shows the resource needs to be created

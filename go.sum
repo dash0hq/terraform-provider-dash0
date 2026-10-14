@@ -39,6 +39,8 @@ github.com/cyphar/filepath-securejoin v0.4.1 h1:JyxxyPEaktOD+GAnqIqTf9A8tHyAG22r
 github.com/cyphar/filepath-securejoin v0.4.1/go.mod h1:Sdj7gXlvMcPZsbhwhQ33GguGLDGQL7h7bg04C/+u9jI=
 github.com/dash0hq/dash0-api-client-go v1.22.0 h1:KBXcSoZXq2gUtTl8LezYNy8O0zWmWdgEmn2Db+74ojM=
 github.com/dash0hq/dash0-api-client-go v1.22.0/go.mod h1:+PufWHDFteVN4eG28EDCjnSQF8vUneO92tnEw39SiRY=
+github.com/dash0hq/dash0-api-client-go v1.24.0 h1:TDyml9zyuLv1eopg2voWF6VVV/b8CMxsYw1uRlCuetA=
+github.com/dash0hq/dash0-api-client-go v1.24.0/go.mod h1:SNFFzSwfYUYBAH7RJ6N9au+8zWRZ/UMKtN/RppOp554=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=

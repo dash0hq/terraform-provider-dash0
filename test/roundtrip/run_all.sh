@@ -106,6 +106,7 @@ else
     test_spam_filter_v1alpha2.sh
     test_spam_filter_concurrent.sh
     test_team.sh
+    test_dataset.sh
     test_time_series_aggregation.sh
     test_import_check_rule.sh
     test_import_dashboard.sh
@@ -115,6 +116,7 @@ else
     test_import_spam_filter.sh
     test_import_synthetic_check.sh
     test_import_team.sh
+    test_import_dataset.sh
     test_import_view.sh
     test_import_time_series_aggregation.sh
     test_actions.sh
