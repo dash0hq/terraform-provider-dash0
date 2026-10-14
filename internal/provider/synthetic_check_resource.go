@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
-	dash0 "github.com/dash0hq/dash0-api-client-go"
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
@@ -196,21 +195,11 @@ func (r *SyntheticCheckResource) Read(ctx context.Context, req resource.ReadRequ
 	}
 
 	apiResponseJSON, err := r.client.GetSyntheticCheck(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
-	if err != nil {
-		// Deleted out-of-band: clear state so the next plan re-creates it.
-		if dash0.IsNotFound(err) {
-			tflog.Debug(ctx, fmt.Sprintf("Synthetic check %s no longer exists on the server; removing from state", state.Origin.ValueString()))
-			resp.State.RemoveResource(ctx)
-			return
-		}
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read synthetic check, got error: %s", err))
+	if removedOutOfBand(ctx, resp, "Synthetic check", state.Origin.ValueString(), apiResponseJSON, err) {
 		return
 	}
-
-	// Deletes are soft: a deleted asset can come back as a 200 tombstone, not a 404.
-	if isSoftDeleted(apiResponseJSON) {
-		tflog.Debug(ctx, fmt.Sprintf("Synthetic check %s is soft-deleted on the server; removing from state", state.Origin.ValueString()))
-		resp.State.RemoveResource(ctx)
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read synthetic check, got error: %s", err))
 		return
 	}
 

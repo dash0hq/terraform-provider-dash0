@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
-	dash0 "github.com/dash0hq/dash0-api-client-go"
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
@@ -264,13 +263,10 @@ func (r *NotificationChannelResource) Read(ctx context.Context, req resource.Rea
 	}
 
 	apiResponseJSON, err := r.client.GetNotificationChannel(ctx, state.Origin.ValueString())
+	if removedOutOfBand(ctx, resp, "Notification channel", state.Origin.ValueString(), apiResponseJSON, err) {
+		return
+	}
 	if err != nil {
-		// Deleted out-of-band: clear state so the next plan re-creates it.
-		if dash0.IsNotFound(err) {
-			tflog.Debug(ctx, fmt.Sprintf("Notification channel %s no longer exists on the server; removing from state", state.Origin.ValueString()))
-			resp.State.RemoveResource(ctx)
-			return
-		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read notification channel, got error: %s", err))
 		return
 	}
