@@ -265,9 +265,9 @@ func (r *NotificationChannelResource) Read(ctx context.Context, req resource.Rea
 
 	apiResponseJSON, err := r.client.GetNotificationChannel(ctx, state.Origin.ValueString())
 	if err != nil {
-		// Deleted out-of-band (or its dataset was): clear state so the next plan re-creates it.
+		// Deleted out-of-band: clear state so the next plan re-creates it.
 		if dash0.IsNotFound(err) {
-			tflog.Warn(ctx, fmt.Sprintf("Notification channel %s no longer exists on the server; removing from state", state.Origin.ValueString()))
+			tflog.Debug(ctx, fmt.Sprintf("Notification channel %s no longer exists on the server; removing from state", state.Origin.ValueString()))
 			resp.State.RemoveResource(ctx)
 			return
 		}

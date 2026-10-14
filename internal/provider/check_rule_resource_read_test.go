@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 
-	dash0 "github.com/dash0hq/dash0-api-client-go"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
 
@@ -301,75 +300,12 @@ spec:
 	}
 }
 
-// A 404 means the check rule was deleted out-of-band; Read must drop it from state.
 func TestCheckRuleResource_ReadNotFoundClearsState(t *testing.T) {
-	testSchema := schema.Schema{
-		Attributes: map[string]schema.Attribute{
-			"origin":          schema.StringAttribute{Computed: true},
-			"id":              schema.StringAttribute{Computed: true},
-			"dataset":         schema.StringAttribute{Required: true},
-			"check_rule_yaml": schema.StringAttribute{Required: true},
-			"url":             schema.StringAttribute{Computed: true},
-		},
-	}
-	r := &CheckRuleResource{client: &testCheckRuleClient{getError: &dash0.APIError{StatusCode: 404, Status: "404 Not Found"}}}
-	raw := tftypes.NewValue(
-		tftypes.Object{AttributeTypes: map[string]tftypes.Type{
-			"origin":          tftypes.String,
-			"id":              tftypes.String,
-			"dataset":         tftypes.String,
-			"check_rule_yaml": tftypes.String,
-			"url":             tftypes.String,
-		}},
-		map[string]tftypes.Value{
-			"origin":          tftypes.NewValue(tftypes.String, "tf_test"),
-			"id":              tftypes.NewValue(tftypes.String, nil),
-			"dataset":         tftypes.NewValue(tftypes.String, "x"),
-			"check_rule_yaml": tftypes.NewValue(tftypes.String, "x"),
-			"url":             tftypes.NewValue(tftypes.String, nil),
-		},
-	)
-	state := tfsdk.State{Raw: raw, Schema: testSchema}
-	resp := resource.ReadResponse{State: state}
-
-	r.Read(context.Background(), resource.ReadRequest{State: state}, &resp)
-
-	assert.False(t, resp.Diagnostics.HasError(), "404 must not surface as an error")
-	assert.True(t, resp.State.Raw.IsNull(), "state must be cleared on 404")
+	r := &CheckRuleResource{client: &testCheckRuleClient{getError: errNotFound}}
+	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
 }
 
-// Non-404 errors must still fail the read.
-func TestCheckRuleResource_ReadNonNotFoundStillErrors(t *testing.T) {
-	testSchema := schema.Schema{
-		Attributes: map[string]schema.Attribute{
-			"origin":          schema.StringAttribute{Computed: true},
-			"id":              schema.StringAttribute{Computed: true},
-			"dataset":         schema.StringAttribute{Required: true},
-			"check_rule_yaml": schema.StringAttribute{Required: true},
-			"url":             schema.StringAttribute{Computed: true},
-		},
-	}
-	r := &CheckRuleResource{client: &testCheckRuleClient{getError: &dash0.APIError{StatusCode: 500, Status: "500 Internal Server Error"}}}
-	raw := tftypes.NewValue(
-		tftypes.Object{AttributeTypes: map[string]tftypes.Type{
-			"origin":          tftypes.String,
-			"id":              tftypes.String,
-			"dataset":         tftypes.String,
-			"check_rule_yaml": tftypes.String,
-			"url":             tftypes.String,
-		}},
-		map[string]tftypes.Value{
-			"origin":          tftypes.NewValue(tftypes.String, "tf_test"),
-			"id":              tftypes.NewValue(tftypes.String, nil),
-			"dataset":         tftypes.NewValue(tftypes.String, "x"),
-			"check_rule_yaml": tftypes.NewValue(tftypes.String, "x"),
-			"url":             tftypes.NewValue(tftypes.String, nil),
-		},
-	)
-	state := tfsdk.State{Raw: raw, Schema: testSchema}
-	resp := resource.ReadResponse{State: state}
-
-	r.Read(context.Background(), resource.ReadRequest{State: state}, &resp)
-
-	assert.True(t, resp.Diagnostics.HasError(), "500 must surface as an error")
+func TestCheckRuleResource_ReadServerErrorKeepsStateAndErrors(t *testing.T) {
+	r := &CheckRuleResource{client: &testCheckRuleClient{getError: errServer}}
+	assertReadKeepsStateAndErrors(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
 }

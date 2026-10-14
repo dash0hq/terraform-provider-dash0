@@ -195,9 +195,9 @@ func (r *CheckRuleResource) Read(ctx context.Context, req resource.ReadRequest, 
 	// The client returns a Prometheus YAML string (Dash0->Prometheus conversion is done internally)
 	apiResponseYAML, err := r.client.GetCheckRule(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
 	if err != nil {
-		// Deleted out-of-band (or its dataset was): clear state so the next plan re-creates it.
+		// Deleted out-of-band: clear state so the next plan re-creates it.
 		if dash0.IsNotFound(err) {
-			tflog.Warn(ctx, fmt.Sprintf("Check rule %s no longer exists on the server; removing from state", state.Origin.ValueString()))
+			tflog.Debug(ctx, fmt.Sprintf("Check rule %s no longer exists on the server; removing from state", state.Origin.ValueString()))
 			resp.State.RemoveResource(ctx)
 			return
 		}

@@ -38,7 +38,17 @@ func (c *dash0Client) GetRecordingRule(ctx context.Context, origin string, datas
 
 	tflog.Debug(ctx, fmt.Sprintf("Recording rule retrieved with origin: %s", origin))
 
+	// The strip below removes dash0.com/deleted-at, which the resource layer
+	// needs to detect a soft-deleted rule. Keep it.
+	var deletedAt string
+	if rule.Metadata.Annotations != nil {
+		deletedAt = (*rule.Metadata.Annotations)["dash0.com/deleted-at"]
+	}
+
 	dash0.StripRecordingRuleServerFields(rule)
+	if deletedAt != "" {
+		(*rule.Metadata.Annotations)["dash0.com/deleted-at"] = deletedAt
+	}
 	return marshalToJSON(rule)
 }
 

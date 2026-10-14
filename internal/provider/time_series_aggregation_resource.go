@@ -312,11 +312,11 @@ func (r *TimeSeriesAggregationResource) resolveTimeSeriesAggregation(ctx context
 	model.ID = stringOrNull(id)
 }
 
-// isTimeSeriesAggregationDeleted reports whether the given API response is a
-// soft-delete tombstone. Time series aggregation deletes are soft: after a
+// isSoftDeleted reports whether the given API response is a
+// soft-delete tombstone. Deletes of most assets are soft: after a
 // DELETE, a GET by origin returns 200 with metadata.annotations["dash0.com/deleted-at"]
 // set instead of a 404, so a branch keyed only on IsNotFound would never fire.
-func isTimeSeriesAggregationDeleted(apiResponseJSON string) bool {
+func isSoftDeleted(apiResponseJSON string) bool {
 	var parsed map[string]interface{}
 	if err := yaml.Unmarshal([]byte(apiResponseJSON), &parsed); err != nil {
 		return false
@@ -402,7 +402,7 @@ func (r *TimeSeriesAggregationResource) Read(ctx context.Context, req resource.R
 
 	// Deletes are soft: a deleted aggregation comes back as a 200 tombstone,
 	// not a 404. Treat it as gone so the next apply re-creates it.
-	if isTimeSeriesAggregationDeleted(apiResponseJSON) {
+	if isSoftDeleted(apiResponseJSON) {
 		tflog.Debug(ctx, fmt.Sprintf("Time series aggregation %s is soft-deleted on the server; removing from state", state.Origin.ValueString()))
 		resp.State.RemoveResource(ctx)
 		return
@@ -538,7 +538,7 @@ func (r *TimeSeriesAggregationResource) ImportState(ctx context.Context, req res
 
 	// Deletes are soft, so a GET can succeed against an already-deleted
 	// aggregation. Refuse to adopt a tombstone into state.
-	if isTimeSeriesAggregationDeleted(apiResponseJSON) {
+	if isSoftDeleted(apiResponseJSON) {
 		resp.Diagnostics.AddError(
 			"Error Importing Time Series Aggregation",
 			fmt.Sprintf("The time series aggregation with origin=%s, dataset=%s has been deleted (it carries a %s "+
