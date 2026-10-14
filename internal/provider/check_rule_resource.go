@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
@@ -302,6 +303,10 @@ func (r *CheckRuleResource) Delete(ctx context.Context, req resource.DeleteReque
 
 	err := r.client.DeleteCheckRule(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
 	if err != nil {
+		if dash0.IsNotFound(err) {
+			tflog.Debug(ctx, fmt.Sprintf("Check rule %s was already gone on the server; treating delete as successful", state.Origin.ValueString()))
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete check rule, got error: %s", err))
 		return
 	}

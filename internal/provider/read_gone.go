@@ -51,7 +51,9 @@ func removedOutOfBand(ctx context.Context, resp *resource.ReadResponse, kind, id
 //
 // It returns true when the caller must return right away.
 func removedOutOfBandInDataset(ctx context.Context, resp *resource.ReadResponse, c client.Client, dataset, kind, id, body string, err error) bool {
-	if err == nil || !dash0.IsNotFound(err) {
+	// An empty slug would make GetDataset hit the list endpoint (200), so there
+	// is nothing to check: behave like a plain asset.
+	if err == nil || !dash0.IsNotFound(err) || dataset == "" {
 		return removedOutOfBand(ctx, resp, kind, id, body, err)
 	}
 	_, dsErr := c.GetDataset(ctx, dataset)

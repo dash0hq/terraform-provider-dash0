@@ -67,10 +67,13 @@ func assertReadKeepsStateAndErrors(t *testing.T, resp resource.ReadResponse) {
 
 // datasetLookup returns a client whose GetDataset("x") returns err, for the
 // dataset check a 404 on a dataset-scoped asset triggers. A nil err means the
-// dataset exists.
-func datasetLookup(err error) client.Client {
+// dataset exists. The test fails if the lookup never happens, which catches a
+// Read path that dropped the dataset-aware guard.
+func datasetLookup(t *testing.T, err error) client.Client {
+	t.Helper()
 	m := &MockClient{}
 	m.On("GetDataset", mock.Anything, "x").Return("{}", err)
+	t.Cleanup(func() { m.AssertExpectations(t) })
 	return m
 }
 

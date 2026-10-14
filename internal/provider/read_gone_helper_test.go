@@ -92,3 +92,23 @@ func TestRemovedOutOfBandInDataset(t *testing.T) {
 		})
 	}
 }
+
+// An empty dataset slug (import ID ",origin") must not trigger GetDataset: the
+// request would hit the dataset list endpoint, which always returns 200.
+func TestRemovedOutOfBandInDataset_EmptyDatasetSkipsLookup(t *testing.T) {
+	sch := schema.Schema{Attributes: map[string]schema.Attribute{"origin": schema.StringAttribute{Required: true}}}
+	objType := tftypes.Object{AttributeTypes: map[string]tftypes.Type{"origin": tftypes.String}}
+	state := tfsdk.State{
+		Raw:    tftypes.NewValue(objType, map[string]tftypes.Value{"origin": tftypes.NewValue(tftypes.String, "tf_x")}),
+		Schema: sch,
+	}
+	resp := &resource.ReadResponse{State: state}
+	m := &MockClient{} // no expectations: any call panics
+
+	got := removedOutOfBandInDataset(context.Background(), resp, m, "", "Thing", "tf_x", "", errNotFound)
+
+	assert.True(t, got)
+	assert.True(t, resp.State.Raw.IsNull(), "asset is dropped on 404")
+	assert.False(t, resp.Diagnostics.HasError())
+	m.AssertNotCalled(t, "GetDataset", mock.Anything, mock.Anything)
+}

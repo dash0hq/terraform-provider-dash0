@@ -175,7 +175,7 @@ spec:
 }
 
 func TestSLOResource_ReadNotFoundClearsState(t *testing.T) {
-	r := &SLOResource{client: &testSLOClient{Client: datasetLookup(nil), getError: errNotFound}}
+	r := &SLOResource{client: &testSLOClient{Client: datasetLookup(t, nil), getError: errNotFound}}
 	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
 }
 
