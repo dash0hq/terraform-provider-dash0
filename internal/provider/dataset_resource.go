@@ -22,36 +22,50 @@ import (
 )
 
 const (
-	datasetKind      = "Dash0Dataset"
-	datasetIDLabel   = "dash0.com/id"
-	datasetOriginKey = "dash0.com/origin"
+	datasetKind       = "Dash0Dataset"
+	datasetAPIVersion = "dash0.com/v1alpha1"
+	datasetIDLabel    = "dash0.com/id"
+	datasetOriginKey  = "dash0.com/origin"
 )
 
 // datasetServerManagedFields never participate in drift detection: the
 // resource does not manage them yet, or the server derives them.
 var datasetServerManagedFields = []string{
 	"spec.permissions",
-	"spec.telemetryFilters",
 	"spec.permittedActions",
 }
 
 // datasetServerDefaultedFields are ignored only when the user did not set
-// them, so the server may fill in defaults (retention, privacy settings, ...)
-// without causing a diff. When the user sets a field, drift on it is detected.
+// them, so the server may fill in defaults without causing a diff. Paths go
+// down to the leaves, so setting one key (for example retention.logs) does not
+// make its server-filled siblings drift. When the user sets a field, drift on
+// it is detected.
 var datasetServerDefaultedFields = []string{
-	"spec.tracing",
-	"spec.tracing.convertSpanEventsToLogRecords",
-	"spec.logging",
-	"spec.metrics",
-	"spec.profiling",
-	"spec.webEvents",
-	"spec.geoLocation",
-	"spec.ipAddresses",
-	"spec.genAiAttributeRedaction",
-	"spec.darkplane",
-	"spec.cardholderDataRedaction",
-	"spec.semanticConventionUpgrades",
 	"spec.preferred",
+	"spec.retention",
+	"spec.retention.traces",
+	"spec.retention.logs",
+	"spec.retention.metrics",
+	"spec.retention.profiles",
+	"spec.retention.webEvents",
+	"spec.privacy",
+	"spec.privacy.ipAddresses",
+	"spec.privacy.ipAddresses.endUser",
+	"spec.privacy.ipAddresses.endUser.storage",
+	"spec.privacy.geoLocation",
+	"spec.privacy.geoLocation.endUser",
+	"spec.privacy.geoLocation.endUser.storage",
+	"spec.privacy.redaction",
+	"spec.privacy.redaction.cardholderData",
+	"spec.privacy.redaction.cardholderData.enabled",
+	"spec.privacy.redaction.genAi",
+	"spec.privacy.redaction.genAi.conversation",
+	"spec.privacy.redaction.genAi.toolCalls",
+	"spec.privacy.redaction.genAi.errors",
+	"spec.processing",
+	"spec.processing.spanEventsToLogs",
+	"spec.processing.semanticConventionUpgrades",
+	"spec.processing.darkplane",
 }
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -126,8 +140,8 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"applying the same slug within that time restores them. Spam filters are not restored. After 30 days the dataset, its permissions and those assets are removed. " +
 			"Telemetry is removed as its retention expires.\n\n" +
 			"The slug is set in `metadata.labels[\"dash0.com/id\"]` and cannot change: changing it replaces the dataset " +
-			"(destroy, then create under the new slug). `spec.permissions` and `spec.telemetryFilters` are not managed by " +
-			"this resource yet: they are ignored on create and when detecting drift. Spec settings you omit (retention, privacy options) " +
+			"(destroy, then create under the new slug). `spec.permissions` is not managed by " +
+			"this resource yet: it is ignored on create and when detecting drift. Spec settings you omit (retention, privacy, processing) " +
 			"keep the server's values without causing a diff.",
 
 		Attributes: map[string]schema.Attribute{
@@ -144,8 +158,9 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Computed:    true,
 			},
 			"dataset_yaml": schema.StringAttribute{
-				Description: "The dataset definition in YAML format, with `kind: Dash0Dataset`, `metadata.name` for the display " +
-					"name, `metadata.labels[\"dash0.com/id\"]` for the slug, and optional `spec` settings. " +
+				Description: "The dataset definition in YAML, following the Dash0 API dataset document: `apiVersion: dash0.com/v1alpha1`, " +
+					"`kind: Dash0Dataset`, `metadata.name` for the display name, `metadata.labels[\"dash0.com/id\"]` for the slug, " +
+					"and optional `spec` settings (`retention`, `privacy`, `processing`, `preferred`). " +
 					"Server-managed metadata is stripped from the state on read.",
 				Required: true,
 				PlanModifiers: []planmodifier.String{
@@ -156,7 +171,7 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 	}
 }
 
-// ValidateConfig checks dataset_yaml at plan time: syntax, kind and slug.
+// ValidateConfig checks dataset_yaml at plan time: syntax, apiVersion, kind and slug.
 func (r *DatasetResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	var yamlAttr types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("dataset_yaml"), &yamlAttr)...)
@@ -170,6 +185,11 @@ func (r *DatasetResource) ValidateConfig(ctx context.Context, req resource.Valid
 			fmt.Sprintf("dataset_yaml is not valid YAML: %s", err))
 		return
 	}
+	if v, _ := parsed["apiVersion"].(string); v != datasetAPIVersion {
+		resp.Diagnostics.AddAttributeError(path.Root("dataset_yaml"), "dataset_yaml is missing or has an unsupported apiVersion",
+			fmt.Sprintf("dataset_yaml must declare `apiVersion: %s`; got %q.", datasetAPIVersion, v))
+		return
+	}
 	if kind, _ := parsed["kind"].(string); kind != datasetKind {
 		resp.Diagnostics.AddAttributeError(path.Root("dataset_yaml"), "dataset_yaml is missing or has the wrong kind",
 			fmt.Sprintf("dataset_yaml must declare `kind: %s`; got %q.", datasetKind, kind))
@@ -180,12 +200,10 @@ func (r *DatasetResource) ValidateConfig(ctx context.Context, req resource.Valid
 		return
 	}
 	if spec, ok := parsed["spec"].(map[string]interface{}); ok {
-		for _, field := range []string{"permissions", "telemetryFilters"} {
-			if _, set := spec[field]; set {
-				resp.Diagnostics.AddAttributeWarning(path.Root("dataset_yaml"),
-					fmt.Sprintf("spec.%s is not managed by dash0_dataset", field),
-					fmt.Sprintf("spec.%s is ignored on create and when detecting drift. The server does not apply it on create, and changes made outside Terraform are not reverted.", field))
-			}
+		if _, set := spec["permissions"]; set {
+			resp.Diagnostics.AddAttributeWarning(path.Root("dataset_yaml"),
+				"spec.permissions is not managed by dash0_dataset",
+				"spec.permissions is ignored on create and when detecting drift. The server does not apply it on create, and changes made outside Terraform are not reverted.")
 		}
 	}
 }

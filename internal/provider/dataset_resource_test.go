@@ -18,14 +18,15 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-const datasetTestYaml = `kind: Dash0Dataset
+const datasetTestYaml = `apiVersion: dash0.com/v1alpha1
+kind: Dash0Dataset
 metadata:
   name: Production
   labels:
     dash0.com/id: production
 spec:
-  tracing:
-    retention: 30d`
+  retention:
+    traces: 30d`
 
 func datasetTestSchema() resource.SchemaResponse {
 	resp := resource.SchemaResponse{}
@@ -74,8 +75,8 @@ func TestDatasetSlugFromYAML(t *testing.T) {
 	assert.Equal(t, "production", slug)
 
 	for _, bad := range []string{
-		"kind: Dash0Dataset\nmetadata:\n  name: x",
-		"kind: Dash0Dataset\nmetadata:\n  labels:\n    dash0.com/id: \"\"",
+		"apiVersion: dash0.com/v1alpha1\nkind: Dash0Dataset\nmetadata:\n  name: x",
+		"apiVersion: dash0.com/v1alpha1\nkind: Dash0Dataset\nmetadata:\n  labels:\n    dash0.com/id: \"\"",
 		"kind: [",
 	} {
 		_, err := datasetSlugFromYAML(bad)
@@ -112,7 +113,7 @@ func TestDatasetResource_Create_MissingSlug(t *testing.T) {
 	r := &DatasetResource{client: mockClient}
 
 	req := resource.CreateRequest{Plan: tfsdk.Plan{
-		Raw:    datasetRaw(tftypes.UnknownValue, tftypes.UnknownValue, "kind: Dash0Dataset\nmetadata:\n  name: x"),
+		Raw:    datasetRaw(tftypes.UnknownValue, tftypes.UnknownValue, "apiVersion: dash0.com/v1alpha1\nkind: Dash0Dataset\nmetadata:\n  name: x"),
 		Schema: datasetTestSchema().Schema,
 	}}
 	resp := &resource.CreateResponse{State: tfsdk.State{Schema: datasetTestSchema().Schema, Raw: datasetRaw(nil, nil, "")}}
@@ -198,7 +199,7 @@ func datasetImportResponse() *resource.ImportStateResponse {
 func TestDatasetResource_ImportState(t *testing.T) {
 	t.Run("by slug with origin label", func(t *testing.T) {
 		mockClient := &MockClient{}
-		apiResponse := `{"kind":"Dash0Dataset","metadata":{"name":"Production","labels":{"dash0.com/id":"production","dash0.com/origin":"tf_abc"}}}`
+		apiResponse := `{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0Dataset","metadata":{"name":"Production","labels":{"dash0.com/id":"production","dash0.com/origin":"tf_abc"}}}`
 		mockClient.On("GetDataset", mock.Anything, "production").Return(apiResponse, nil)
 		resp := datasetImportResponse()
 
@@ -213,7 +214,7 @@ func TestDatasetResource_ImportState(t *testing.T) {
 	})
 	t.Run("without origin label leaves origin null", func(t *testing.T) {
 		mockClient := &MockClient{}
-		mockClient.On("GetDataset", mock.Anything, "production").Return(`{"kind":"Dash0Dataset","metadata":{"name":"Production"}}`, nil)
+		mockClient.On("GetDataset", mock.Anything, "production").Return(`{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0Dataset","metadata":{"name":"Production"}}`, nil)
 		resp := datasetImportResponse()
 
 		(&DatasetResource{client: mockClient}).ImportState(context.Background(), resource.ImportStateRequest{ID: "production"}, resp)
@@ -284,10 +285,12 @@ func TestDatasetResource_ValidateConfig(t *testing.T) {
 	assert.Equal(t, 0, validate(datasetTestYaml).Diagnostics.WarningsCount())
 	assert.True(t, validate("kind: [").Diagnostics.HasError())
 	assert.True(t, validate("kind: Dash0Team\nmetadata:\n  name: x").Diagnostics.HasError())
-	assert.True(t, validate("kind: Dash0Dataset\nmetadata:\n  name: x").Diagnostics.HasError())
+	assert.True(t, validate("apiVersion: dash0.com/v1alpha1\nkind: Dash0Dataset\nmetadata:\n  name: x").Diagnostics.HasError())
 	warned := validate(datasetTestYaml + "\n  permissions: []").Diagnostics
 	assert.Equal(t, 1, warned.WarningsCount())
 	assert.Contains(t, warned.Warnings()[0].Detail(), "ignored on create")
+	// telemetryFilters left the dataset document; it is no longer special-cased.
+	assert.Equal(t, 0, validate(datasetTestYaml+"\n  telemetryFilters: []").Diagnostics.WarningsCount())
 }
 
 // datasetTestProvider registers only dash0_dataset so a test can drive the

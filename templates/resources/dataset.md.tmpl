@@ -10,6 +10,8 @@ description: |-
 
 {{ .Description | trimspace }}
 
+The dataset document follows the Dash0 API dataset document (`apiVersion: dash0.com/v1alpha1`).
+
 {{ if .HasExamples -}}
 ## Example Usage
 
@@ -33,14 +35,15 @@ To guard against an accidental destroy, add `prevent_destroy` to the resource:
 ```terraform
 resource "dash0_dataset" "production" {
   dataset_yaml = <<-YAML
+apiVersion: dash0.com/v1alpha1
 kind: Dash0Dataset
 metadata:
   name: Production
   labels:
     dash0.com/id: production
 spec:
-  tracing:
-    retention: 30d
+  retention:
+    traces: 30d
 YAML
 
   lifecycle {

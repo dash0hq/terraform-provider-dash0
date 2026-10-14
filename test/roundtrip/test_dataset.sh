@@ -34,26 +34,30 @@ write_provider_tf "$WORK_DIR"
 info "Step 1: Creating dataset via Terraform..."
 
 cat > "${WORK_DIR}/dataset.yaml" <<YAMLEOF
+apiVersion: dash0.com/v1alpha1
 kind: Dash0Dataset
 metadata:
   name: Roundtrip Test Dataset
   labels:
     dash0.com/id: ${SLUG}
 spec:
-  tracing:
-    retention: 30d
-  logging:
-    retention: 30d
-  geoLocation:
-    endUserGeoLocationStorageStrategy: up_to_country
-  ipAddresses:
-    endUserIpAddressStorageStrategy: anonymize
-  cardholderDataRedaction:
-    enabled: true
-  genAiAttributeRedaction:
-    conversation: redact
-    toolCalls: disabled
-    errors: disabled
+  retention:
+    traces: 30d
+    logs: 30d
+  privacy:
+    ipAddresses:
+      endUser:
+        storage: anonymize
+    geoLocation:
+      endUser:
+        storage: up_to_country
+    redaction:
+      cardholderData:
+        enabled: true
+      genAi:
+        conversation: redact
+        toolCalls: disabled
+        errors: disabled
 YAMLEOF
 
 cat > "${WORK_DIR}/main.tf" <<'EOF'
@@ -106,26 +110,30 @@ info "Dataset equivalence check PASSED."
 info "Step 3: Updating dataset (name, geolocation, IP storage, redaction)..."
 
 cat > "${WORK_DIR}/dataset.yaml" <<YAMLEOF
+apiVersion: dash0.com/v1alpha1
 kind: Dash0Dataset
 metadata:
   name: Roundtrip Test Dataset (Updated)
   labels:
     dash0.com/id: ${SLUG}
 spec:
-  tracing:
-    retention: 30d
-  logging:
-    retention: 30d
-  geoLocation:
-    endUserGeoLocationStorageStrategy: do_not_store
-  ipAddresses:
-    endUserIpAddressStorageStrategy: do_not_store
-  cardholderDataRedaction:
-    enabled: false
-  genAiAttributeRedaction:
-    conversation: disabled
-    toolCalls: redact
-    errors: disabled
+  retention:
+    traces: 30d
+    logs: 30d
+  privacy:
+    ipAddresses:
+      endUser:
+        storage: do_not_store
+    geoLocation:
+      endUser:
+        storage: do_not_store
+    redaction:
+      cardholderData:
+        enabled: false
+      genAi:
+        conversation: disabled
+        toolCalls: redact
+        errors: disabled
 YAMLEOF
 
 TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"

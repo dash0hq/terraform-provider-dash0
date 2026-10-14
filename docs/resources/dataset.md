@@ -5,7 +5,7 @@ subcategory: ""
 description: |-
   Manages a Dash0 dataset. Datasets are organization-level resources identified by an immutable slug.
   ~> Note: Destroying a dataset soft-deletes it. Dashboards, views, check rules, synthetic checks, recording rules, SLOs and time series aggregations are kept for 30 days; applying the same slug within that time restores them. Spam filters are not restored. After 30 days the dataset, its permissions and those assets are removed. Telemetry is removed as its retention expires.
-  The slug is set in metadata.labels["dash0.com/id"] and cannot change: changing it replaces the dataset (destroy, then create under the new slug). spec.permissions and spec.telemetryFilters are not managed by this resource yet: they are ignored on create and when detecting drift. Spec settings you omit (retention, privacy options) keep the server's values without causing a diff.
+  The slug is set in metadata.labels["dash0.com/id"] and cannot change: changing it replaces the dataset (destroy, then create under the new slug). spec.permissions is not managed by this resource yet: it is ignored on create and when detecting drift. Spec settings you omit (retention, privacy, processing) keep the server's values without causing a diff.
 ---
 
 # dash0_dataset (Resource)
@@ -14,7 +14,9 @@ Manages a Dash0 dataset. Datasets are organization-level resources identified by
 
 ~> **Note:** Destroying a dataset soft-deletes it. Dashboards, views, check rules, synthetic checks, recording rules, SLOs and time series aggregations are kept for 30 days; applying the same slug within that time restores them. Spam filters are not restored. After 30 days the dataset, its permissions and those assets are removed. Telemetry is removed as its retention expires.
 
-The slug is set in `metadata.labels["dash0.com/id"]` and cannot change: changing it replaces the dataset (destroy, then create under the new slug). `spec.permissions` and `spec.telemetryFilters` are not managed by this resource yet: they are ignored on create and when detecting drift. Spec settings you omit (retention, privacy options) keep the server's values without causing a diff.
+The slug is set in `metadata.labels["dash0.com/id"]` and cannot change: changing it replaces the dataset (destroy, then create under the new slug). `spec.permissions` is not managed by this resource yet: it is ignored on create and when detecting drift. Spec settings you omit (retention, privacy, processing) keep the server's values without causing a diff.
+
+The dataset document follows the Dash0 API dataset document (`apiVersion: dash0.com/v1alpha1`).
 
 ## Example Usage
 
@@ -34,26 +36,30 @@ The slug is set in `metadata.labels["dash0.com/id"]` and cannot change: changing
 # those assets are removed. Telemetry is removed as its retention expires.
 resource "dash0_dataset" "staging" {
   dataset_yaml = <<-YAML
+apiVersion: dash0.com/v1alpha1
 kind: Dash0Dataset
 metadata:
   name: Staging
   labels:
     dash0.com/id: staging
 spec:
-  tracing:
-    retention: 30d
-  logging:
-    retention: 60d
-  geoLocation:
-    endUserGeoLocationStorageStrategy: up_to_country
-  ipAddresses:
-    endUserIpAddressStorageStrategy: anonymize
-  cardholderDataRedaction:
-    enabled: true
-  genAiAttributeRedaction:
-    conversation: redact
-    toolCalls: disabled
-    errors: disabled
+  retention:
+    traces: 30d
+    logs: 60d
+  privacy:
+    ipAddresses:
+      endUser:
+        storage: anonymize
+    geoLocation:
+      endUser:
+        storage: up_to_country
+    redaction:
+      cardholderData:
+        enabled: true
+      genAi:
+        conversation: redact
+        toolCalls: disabled
+        errors: disabled
 YAML
 }
 
@@ -83,14 +89,15 @@ To guard against an accidental destroy, add `prevent_destroy` to the resource:
 ```terraform
 resource "dash0_dataset" "production" {
   dataset_yaml = <<-YAML
+apiVersion: dash0.com/v1alpha1
 kind: Dash0Dataset
 metadata:
   name: Production
   labels:
     dash0.com/id: production
 spec:
-  tracing:
-    retention: 30d
+  retention:
+    traces: 30d
 YAML
 
   lifecycle {
@@ -105,7 +112,7 @@ YAML
 
 ### Required
 
-- `dataset_yaml` (String) The dataset definition in YAML format, with `kind: Dash0Dataset`, `metadata.name` for the display name, `metadata.labels["dash0.com/id"]` for the slug, and optional `spec` settings. Server-managed metadata is stripped from the state on read.
+- `dataset_yaml` (String) The dataset definition in YAML, following the Dash0 API dataset document: `apiVersion: dash0.com/v1alpha1`, `kind: Dash0Dataset`, `metadata.name` for the display name, `metadata.labels["dash0.com/id"]` for the slug, and optional `spec` settings (`retention`, `privacy`, `processing`, `preferred`). Server-managed metadata is stripped from the state on read.
 
 ### Read-Only
 

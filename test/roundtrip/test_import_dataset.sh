@@ -40,17 +40,19 @@ info "Step 1: Creating dataset via the API..."
 
 cat > "${WORK_DIR}/create.json" <<JSONEOF
 {
+  "apiVersion": "dash0.com/v1alpha1",
   "kind": "Dash0Dataset",
   "metadata": {
     "name": "Roundtrip Import Dataset",
     "labels": { "dash0.com/id": "${SLUG}" }
   },
   "spec": {
-    "tracing": { "retention": "30d" },
-    "logging": { "retention": "30d" },
-    "geoLocation": { "endUserGeoLocationStorageStrategy": "up_to_country" },
-    "ipAddresses": { "endUserIpAddressStorageStrategy": "anonymize" },
-    "cardholderDataRedaction": { "enabled": true }
+    "retention": { "traces": "30d", "logs": "30d" },
+    "privacy": {
+      "geoLocation": { "endUser": { "storage": "up_to_country" } },
+      "ipAddresses": { "endUser": { "storage": "anonymize" } },
+      "redaction": { "cardholderData": { "enabled": true } }
+    }
   }
 }
 JSONEOF
@@ -82,7 +84,7 @@ info "Identifier: ${IDENTIFIER}"
 # ---------------------------------------------------------------------------
 info "Step 3: Exporting YAML via the API + writing Terraform config..."
 
-# Drop fields the resource does not manage (permissions, telemetry filters)
+# Drop fields the resource does not manage (permissions)
 # and server-generated ones (annotations, permitted actions, origin, version,
 # source), keeping the slug label.
 dataset_get "$IDENTIFIER" \
@@ -92,7 +94,7 @@ doc = yaml.safe_load(sys.stdin.read())
 meta = doc['metadata']
 meta.pop('annotations', None)
 meta['labels'] = {'dash0.com/id': meta['labels']['dash0.com/id']}
-for key in ('permissions', 'permittedActions', 'telemetryFilters'):
+for key in ('permissions', 'permittedActions'):
     doc['spec'].pop(key, None)
 sys.stdout.write(yaml.safe_dump(doc, sort_keys=False))
 " > "${WORK_DIR}/dataset.yaml" \

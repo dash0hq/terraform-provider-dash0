@@ -19,14 +19,15 @@ const datasetResourceName = "dash0_dataset.test"
 
 // Destroying a dataset soft-deletes it for 30 days, so every run uses a unique slug.
 func testAccDatasetYaml(slug, name string) string {
-	return fmt.Sprintf(`kind: Dash0Dataset
+	return fmt.Sprintf(`apiVersion: dash0.com/v1alpha1
+kind: Dash0Dataset
 metadata:
   name: %s
   labels:
     dash0.com/id: %s
 spec:
-  tracing:
-    retention: 30d`, name, slug)
+  retention:
+    traces: 30d`, name, slug)
 }
 
 func TestAccDatasetResource(t *testing.T) {

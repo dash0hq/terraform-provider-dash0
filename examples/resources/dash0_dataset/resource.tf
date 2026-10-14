@@ -13,26 +13,30 @@
 # those assets are removed. Telemetry is removed as its retention expires.
 resource "dash0_dataset" "staging" {
   dataset_yaml = <<-YAML
+apiVersion: dash0.com/v1alpha1
 kind: Dash0Dataset
 metadata:
   name: Staging
   labels:
     dash0.com/id: staging
 spec:
-  tracing:
-    retention: 30d
-  logging:
-    retention: 60d
-  geoLocation:
-    endUserGeoLocationStorageStrategy: up_to_country
-  ipAddresses:
-    endUserIpAddressStorageStrategy: anonymize
-  cardholderDataRedaction:
-    enabled: true
-  genAiAttributeRedaction:
-    conversation: redact
-    toolCalls: disabled
-    errors: disabled
+  retention:
+    traces: 30d
+    logs: 60d
+  privacy:
+    ipAddresses:
+      endUser:
+        storage: anonymize
+    geoLocation:
+      endUser:
+        storage: up_to_country
+    redaction:
+      cardholderData:
+        enabled: true
+      genAi:
+        conversation: redact
+        toolCalls: disabled
+        errors: disabled
 YAML
 }
 

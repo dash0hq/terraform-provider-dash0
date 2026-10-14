@@ -12,6 +12,7 @@ import (
 // datasetServerResponse is what the API returns for datasetTestYaml: the
 // user's fields plus server-managed and server-defaulted ones.
 const datasetServerResponse = `{
+  "apiVersion": "dash0.com/v1alpha1",
   "kind": "Dash0Dataset",
   "metadata": {
     "name": "Production",
@@ -19,21 +20,19 @@ const datasetServerResponse = `{
     "annotations": {"dash0.com/created-at": "2026-01-01T00:00:00Z", "dash0.com/updated-at": "2026-02-01T00:00:00Z"}
   },
   "spec": {
-    "tracing": {"retention": "30d", "convertSpanEventsToLogRecords": true},
-    "logging": {"retention": "30d"},
-    "metrics": {"retention": "13m"},
-    "profiling": {"retention": "7d"},
-    "webEvents": {"retention": "30d"},
-    "geoLocation": {"endUserGeoLocationStorageStrategy": "full"},
-    "ipAddresses": {"endUserIpAddressStorageStrategy": "full"},
-    "genAiAttributeRedaction": {"conversationContent": "none"},
-    "darkplane": {"enabled": true},
-    "cardholderDataRedaction": {"enabled": false},
-    "semanticConventionUpgrades": "latest",
     "preferred": true,
+    "retention": {"traces": "30d", "logs": "30d", "metrics": "13m", "profiles": "7d", "webEvents": "30d"},
+    "privacy": {
+      "ipAddresses": {"endUser": {"storage": "anonymize"}},
+      "geoLocation": {"endUser": {"storage": "up_to_country"}},
+      "redaction": {
+        "cardholderData": {"enabled": false},
+        "genAi": {"conversation": "none", "toolCalls": "none", "errors": "none"}
+      }
+    },
+    "processing": {"spanEventsToLogs": true, "semanticConventionUpgrades": "latest", "darkplane": {"enabled": true}},
     "permissions": [{"actions": ["dataset:read"], "role": "basic_member"}],
-    "permittedActions": ["dataset:read", "dataset:update"],
-    "telemetryFilters": [{"name": "drop-health"}]
+    "permittedActions": ["dataset:read", "dataset:update"]
   }
 }`
 
@@ -78,7 +77,7 @@ func TestDatasetResource_Read_ServerDefaultsCauseNoDrift(t *testing.T) {
 	assert.Equal(t, datasetTestYaml, got.DatasetYaml.ValueString())
 }
 
-// permissions and telemetryFilters are ignored even when the user sets them.
+// permissions are ignored even when the user sets them.
 func TestDatasetResource_Read_PermissionsNeverDrift(t *testing.T) {
 	stateYaml := datasetTestYaml + "\n  permissions:\n    - role: admin\n      actions: [dataset:update]"
 	_, got := datasetRead(t, stateYaml, datasetServerResponse, nil)
@@ -87,13 +86,60 @@ func TestDatasetResource_Read_PermissionsNeverDrift(t *testing.T) {
 
 // A field the user set still detects drift.
 func TestDatasetResource_Read_UserSetFieldDetectsDrift(t *testing.T) {
-	apiResponse := `{"kind":"Dash0Dataset","metadata":{"name":"Production","labels":{"dash0.com/id":"production"}},"spec":{"tracing":{"retention":"7d"}}}`
+	apiResponse := `{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0Dataset","metadata":{"name":"Production","labels":{"dash0.com/id":"production"}},"spec":{"retention":{"traces":"7d"}}}`
 	_, got := datasetRead(t, datasetTestYaml, apiResponse, nil)
 	assert.Equal(t, apiResponse, got.DatasetYaml.ValueString())
 }
 
 func TestDatasetResource_Read_NameDriftDetected(t *testing.T) {
-	apiResponse := `{"kind":"Dash0Dataset","metadata":{"name":"Renamed"},"spec":{"tracing":{"retention":"30d"}}}`
+	apiResponse := `{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0Dataset","metadata":{"name":"Renamed"},"spec":{"retention":{"traces":"30d"}}}`
 	_, got := datasetRead(t, datasetTestYaml, apiResponse, nil)
 	assert.Equal(t, apiResponse, got.DatasetYaml.ValueString())
+}
+
+// Setting one leaf must not make the server-filled siblings drift.
+func TestDatasetResource_Read_PartialRetentionCausesNoDrift(t *testing.T) {
+	stateYaml := `apiVersion: dash0.com/v1alpha1
+kind: Dash0Dataset
+metadata:
+  name: Production
+  labels:
+    dash0.com/id: production
+spec:
+  retention:
+    logs: 30d`
+	resp, got := datasetRead(t, stateYaml, datasetServerResponse, nil)
+	assert.False(t, resp.Diagnostics.HasError())
+	assert.Equal(t, stateYaml, got.DatasetYaml.ValueString())
+}
+
+// A user-set nested privacy field detects drift while untouched siblings do not.
+func TestDatasetResource_Read_NestedPrivacyDriftDetected(t *testing.T) {
+	stateYaml := `apiVersion: dash0.com/v1alpha1
+kind: Dash0Dataset
+metadata:
+  name: Production
+  labels:
+    dash0.com/id: production
+spec:
+  privacy:
+    ipAddresses:
+      endUser:
+        storage: full`
+	_, got := datasetRead(t, stateYaml, datasetServerResponse, nil)
+	assert.Equal(t, datasetServerResponse, got.DatasetYaml.ValueString())
+
+	inSync := `apiVersion: dash0.com/v1alpha1
+kind: Dash0Dataset
+metadata:
+  name: Production
+  labels:
+    dash0.com/id: production
+spec:
+  privacy:
+    ipAddresses:
+      endUser:
+        storage: anonymize`
+	_, got = datasetRead(t, inSync, datasetServerResponse, nil)
+	assert.Equal(t, inSync, got.DatasetYaml.ValueString())
 }
