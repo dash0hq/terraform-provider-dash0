@@ -1,6 +1,0 @@
-change_type: bug_fix
-component: provider
-note: "Keep dataset-scoped assets in state, with a warning, when their dataset is deleted, instead of dropping them."
-issues: [190]
-subtext: "Dropping them made the next apply create every dashboard, view, check rule, synthetic check, recording rule, SLO and time series aggregation a second time after the dataset was restored."
-change_logs: []

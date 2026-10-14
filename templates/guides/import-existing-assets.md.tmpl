@@ -18,14 +18,14 @@ Under the JSON list output, the exact field varies by asset kind:
 
 | Asset kind | JSON path that carries the identifier |
 |-----------|---------------------------------------|
-| Dashboards | `.metadata.dash0Extensions.id` |
-| Views, synthetic checks, spam filters, SLOs | `.metadata.labels["dash0.com/origin"]` (API-created) or `.metadata.labels["dash0.com/id"]` (UI-created; the origin label is absent) |
-| Recording rules | `.metadata.labels["dash0.com/id"]` |
 | Check rules | `.id` (top-level; check rules have no `metadata` field in the list response) |
-| Notification channels | `.metadata.labels["dash0.com/id"]` |
-| Time series aggregations | `.metadata.labels["dash0.com/origin"]` (always set; the origin label is mandatory on every aggregation) |
-| Teams | `.id` (top-level; teams have no `metadata` wrapper in the list response) |
+| Dashboards | `.metadata.dash0Extensions.id` |
 | Datasets | `.metadata.labels["dash0.com/id"]` (the dataset slug; always set) |
+| Notification channels | `.metadata.labels["dash0.com/id"]` |
+| Recording rules | `.metadata.labels["dash0.com/id"]` |
+| SLOs, spam filters, synthetic checks, views | `.metadata.labels["dash0.com/origin"]` (API-created) or `.metadata.labels["dash0.com/id"]` (UI-created; the origin label is absent) |
+| Teams | `.id` (top-level; teams have no `metadata` wrapper in the list response) |
+| Time series aggregations | `.metadata.labels["dash0.com/origin"]` (always set; the origin label is mandatory on every aggregation) |
 
 For assets created by the Terraform Provider the identifier is a `tf_`-prefixed value; for assets created via the Dash0 UI or CLI it is a UUID (sometimes prefixed `api-`).
 
