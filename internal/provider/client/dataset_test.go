@@ -15,10 +15,39 @@ import (
 )
 
 const datasetTestJSON = `{
+  "apiVersion": "dash0.com/v1alpha1",
   "kind": "Dash0Dataset",
   "metadata": {"name": "Staging", "labels": {"dash0.com/id": "staging"}},
-  "spec": {"preferred": false}
+  "spec": {
+    "preferred": false,
+    "retention": {"traces": "30d", "logs": "60d"},
+    "privacy": {
+      "ipAddresses": {"endUser": {"storage": "anonymize"}},
+      "geoLocation": {"endUser": {"storage": "up_to_country"}},
+      "redaction": {"cardholderData": {"enabled": true}, "genAi": {"conversation": "redact"}}
+    },
+    "processing": {"spanEventsToLogs": true}
+  }
 }`
+
+// assertDatasetSpecShape checks the document shape survives the typed decode
+// and encode in the client wrapper: no settings may be dropped.
+func assertDatasetSpecShape(t *testing.T, doc map[string]any) {
+	t.Helper()
+	assert.Equal(t, "dash0.com/v1alpha1", doc["apiVersion"])
+	spec, ok := doc["spec"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, map[string]any{"traces": "30d", "logs": "60d"}, spec["retention"])
+	privacy, ok := spec["privacy"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, map[string]any{"endUser": map[string]any{"storage": "anonymize"}}, privacy["ipAddresses"])
+	assert.Equal(t, map[string]any{"endUser": map[string]any{"storage": "up_to_country"}}, privacy["geoLocation"])
+	assert.Equal(t, map[string]any{
+		"cardholderData": map[string]any{"enabled": true},
+		"genAi":          map[string]any{"conversation": "redact"},
+	}, privacy["redaction"])
+	assert.Equal(t, map[string]any{"spanEventsToLogs": true}, spec["processing"])
+}
 
 // newDatasetTestServer starts an httptest server that records the last
 // request and answers with status and body.
@@ -61,6 +90,7 @@ func TestCreateDataset_StampsOriginAndPostsSlug(t *testing.T) {
 	labels := datasetLabels(t, body)
 	assert.Equal(t, "staging", labels["dash0.com/id"])
 	assert.Equal(t, "tf_abc", labels["dash0.com/origin"])
+	assertDatasetSpecShape(t, body)
 }
 
 func TestCreateDataset_EmptyOriginLeavesOriginUnset(t *testing.T) {
@@ -88,6 +118,7 @@ func TestCreateDataset_MissingSlugErrors(t *testing.T) {
 func TestGetDataset_StripsServerFieldsAndKeepsIdentity(t *testing.T) {
 	var method, path string
 	c := newDatasetTestServer(t, http.StatusOK, `{
+	  "apiVersion": "dash0.com/v1alpha1",
 	  "kind": "Dash0Dataset",
 	  "metadata": {
 	    "name": "Staging",
@@ -98,7 +129,13 @@ func TestGetDataset_StripsServerFieldsAndKeepsIdentity(t *testing.T) {
 	    "preferred": true,
 	    "permittedActions": ["dataset:read"],
 	    "permissions": [{"role": "basic_member", "actions": ["dataset:read"]}],
-	    "telemetryFilters": [{"name": "drop-health"}]
+	    "retention": {"traces": "30d", "logs": "60d"},
+	    "privacy": {
+	      "ipAddresses": {"endUser": {"storage": "anonymize"}},
+	      "geoLocation": {"endUser": {"storage": "up_to_country"}},
+	      "redaction": {"cardholderData": {"enabled": true}, "genAi": {"conversation": "redact"}}
+	    },
+	    "processing": {"spanEventsToLogs": true}
 	  }
 	}`, &method, &path, nil)
 
@@ -118,9 +155,10 @@ func TestGetDataset_StripsServerFieldsAndKeepsIdentity(t *testing.T) {
 	assert.NotContains(t, got["metadata"], "annotations")
 	spec := got["spec"].(map[string]any)
 	assert.Equal(t, true, spec["preferred"])
-	for _, f := range []string{"permittedActions", "permissions", "telemetryFilters"} {
+	for _, f := range []string{"permittedActions", "permissions"} {
 		assert.NotContains(t, spec, f)
 	}
+	assertDatasetSpecShape(t, got)
 }
 
 func TestUpdateDataset_PutsBySlugAndMatchesBodySlug(t *testing.T) {
@@ -137,7 +175,7 @@ func TestUpdateDataset_PutsBySlugAndMatchesBodySlug(t *testing.T) {
 	labels := datasetLabels(t, body)
 	assert.Equal(t, "other", labels["dash0.com/id"])
 	assert.Equal(t, "tf_abc", labels["dash0.com/origin"])
-	assert.NotContains(t, body["spec"], "telemetryFilters")
+	assertDatasetSpecShape(t, body)
 }
 
 func TestDeleteDataset(t *testing.T) {

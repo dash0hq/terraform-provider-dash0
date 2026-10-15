@@ -63,8 +63,7 @@ func (c *dash0Client) GetDataset(ctx context.Context, slug string) (string, erro
 // written into dash0.com/id so the body matches the path. When origin is
 // non-empty it is stamped onto dash0.com/origin.
 //
-// spec.telemetryFilters is sent only when the caller set it; omitting it
-// leaves the filters stored by the spam filter API untouched.
+// Settings the caller omits keep their stored value on the server.
 func (c *dash0Client) UpdateDataset(ctx context.Context, slug string, origin string, datasetJSON string) error {
 	def, err := unmarshalDataset(datasetJSON)
 	if err != nil {
