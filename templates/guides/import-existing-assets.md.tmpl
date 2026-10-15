@@ -2,7 +2,7 @@
 page_title: "Guide: Import existing Dash0 assets into Terraform"
 subcategory: ""
 description: |-
-  Adopt dashboards, check rules, views, synthetic checks, recording rules, notification channels, spam filters, teams, datasets, SLOs, and time series aggregations that already exist in Dash0 into Terraform state, without recreating them.
+  Adopt dashboards, check rules, views, synthetic checks, recording rules, notification channels, spam filters, teams, datasets, auth tokens, SLOs, and time series aggregations that already exist in Dash0 into Terraform state, without recreating them.
 ---
 
 # Import existing Dash0 assets into Terraform
@@ -26,6 +26,7 @@ Under the JSON list output, the exact field varies by asset kind:
 | SLOs, spam filters, synthetic checks, views | `.metadata.labels["dash0.com/origin"]` (API-created) or `.metadata.labels["dash0.com/id"]` (UI-created; the origin label is absent) |
 | Teams | `.id` (top-level; teams have no `metadata` wrapper in the list response) |
 | Time series aggregations | `.metadata.labels["dash0.com/origin"]` (always set; the origin label is mandatory on every aggregation) |
+| Auth tokens | `.metadata.labels["dash0.com/id"]` (a UUID), or `.metadata.labels["dash0.com/origin"]` when set; either works as the import ID |
 
 For assets created by the Terraform Provider the identifier is a `tf_`-prefixed value; for assets created via the Dash0 UI or CLI it is a UUID (sometimes prefixed `api-`).
 
@@ -181,12 +182,13 @@ Sanity-check the resource addresses in `import.tf` — the sanitizer may still c
 
 ## Organization-scoped assets: identifier only, no dataset
 
-`dash0_notification_channel`, `dash0_team`, and `dash0_dataset` are organization-scoped, not dataset-scoped, so their import IDs drop the dataset prefix:
+`dash0_notification_channel`, `dash0_team`, `dash0_dataset`, and `dash0_auth_token` are organization-scoped, not dataset-scoped, so their import IDs drop the dataset prefix:
 
 ```sh
 terraform import dash0_notification_channel.slack_alerts "<identifier>"
 terraform import dash0_team.backend "<identifier>"
 terraform import dash0_dataset.staging "<slug>"
+terraform import dash0_auth_token.ingest "<id-or-origin>"
 ```
 
 Every other asset kind — dashboards, check rules, views, synthetic checks, recording rules, spam filters, SLOs, and time series aggregations — uses the `dataset,identifier` shape.

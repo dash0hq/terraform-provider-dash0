@@ -1,0 +1,6 @@
+change_type: new_component
+component: auth_tokens
+note: "Add the `dash0_auth_token` resource to manage Dash0 auth tokens, with the secret exposed in the sensitive `token` attribute."
+issues: [191]
+subtext: "Managing auth tokens requires an admin user or an auth token with the `*` action and no restriction. The secret is stored in the Terraform state in plain text and cannot change; rotate it with `terraform apply -replace`. Dash0 refuses to delete the last auth token of an organization."
+change_logs: []

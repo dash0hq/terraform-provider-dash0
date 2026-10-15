@@ -69,6 +69,16 @@ type Client interface {
 	UpdateDataset(ctx context.Context, slug string, origin string, datasetJSON string) error
 	DeleteDataset(ctx context.Context, slug string) error
 
+	// Auth tokens are organization-scoped and addressed by id (UUID) or origin.
+	// CreateAuthToken upserts by origin and returns the server-generated id and
+	// secret. The API returns the secret only on create, so GetAuthToken returns
+	// the definition JSON without it and an empty secret. The secret cannot change
+	// through UpdateAuthToken.
+	CreateAuthToken(ctx context.Context, origin string, authTokenJSON string) (id string, token string, err error)
+	GetAuthToken(ctx context.Context, idOrOrigin string) (definitionJSON string, token string, err error)
+	UpdateAuthToken(ctx context.Context, idOrOrigin string, origin string, authTokenJSON string) error
+	DeleteAuthToken(ctx context.Context, idOrOrigin string) error
+
 	CreateTeam(ctx context.Context, origin string, teamJSON string) error
 	GetTeam(ctx context.Context, origin string) (string, error)
 	UpdateTeam(ctx context.Context, origin string, teamJSON string) error

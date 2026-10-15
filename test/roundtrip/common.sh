@@ -390,6 +390,93 @@ assert_dataset_deleted() {
   fail "Dataset ${slug} still returned by API after ${max_retries} attempts."
 }
 
+# auth_token_preflight "<what did not run>"
+#
+# Skips loudly with exit code 77 (counted separately by run_all.sh) when the
+# target API does not serve /api/auth-tokens yet (404) or the credential may not
+# manage auth tokens (403: needs an admin or an unrestricted "*" token). Any
+# other failure is a real failure.
+auth_token_preflight() {
+  local what="$1"
+  local output rc
+  set +e
+  output="$(dash0 -X api "/api/auth-tokens" --dataset "" 2>&1)"
+  rc=$?
+  set -e
+
+  if [[ "$rc" -eq 0 ]]; then
+    info "Preflight: auth tokens API reachable with the configured credentials."
+    return 0
+  fi
+
+  if echo "$output" | grep -qE '404|Not Found|403|Forbidden'; then
+    echo ""
+    echo "############################################################################"
+    echo "## SKIPPED — this test did NOT run:"
+    echo "##   ${what}"
+    echo "##"
+    echo "## The target API does not serve /api/auth-tokens yet (404), or the"
+    echo "## configured DASH0_AUTH_TOKEN may not manage auth tokens (403)."
+    echo "## This is a KNOWN COVERAGE GAP, not a pass."
+    echo "############################################################################"
+    echo ""
+    exit 77 # skip: counted separately by run_all.sh
+  fi
+
+  echo "$output" | sed -E 's/"token": *"[^"]*"/"token":"<redacted>"/g'
+  fail "Preflight 'GET /api/auth-tokens' failed for an unexpected reason (exit ${rc})."
+}
+
+# auth_token_get <id-or-origin>
+#
+# The dash0 CLI has no auth-token command, so auth tokens are read through the
+# raw API command. Auth tokens are organization-scoped, hence `--dataset ""`.
+# Prints the auth token JSON (valid YAML) with spec.token removed so the secret
+# never reaches the logs, and exits non-zero on 404.
+auth_token_get() {
+  local out
+  out="$(dash0 -X api "/api/auth-tokens/$1" --dataset "")" || return 1
+  printf '%s' "$out" | python3 -c "
+import json, sys
+doc = json.load(sys.stdin)
+doc.get('spec', {}).pop('token', None)
+print(json.dumps(doc))
+"
+}
+
+# assert_auth_token_deleted <id>
+#
+# Succeeds only on a 404 from GET /api/auth-tokens/<id>; any other failure
+# (auth, network, 5xx) fails the test. Retries up to 10 times with 3s delay.
+assert_auth_token_deleted() {
+  local id="$1"
+  local max_retries=10
+  local delay=3
+
+  for i in $(seq 1 "$max_retries"); do
+    set +e
+    local output
+    output="$(auth_token_get "$id" 2>&1)"
+    local rc=$?
+    set -e
+
+    if [[ "$rc" -ne 0 ]]; then
+      if echo "$output" | grep -q "HTTP 404"; then
+        info "Auth token confirmed deleted via API (attempt ${i})."
+        return 0
+      fi
+      echo "$output"
+      fail "Could not verify deletion of auth token ${id}: API call failed with something other than 404 (exit ${rc})."
+    fi
+    if [[ "$i" -lt "$max_retries" ]]; then
+      warn "Auth token still returned by API (attempt ${i}/${max_retries}), retrying in ${delay}s..."
+      sleep "$delay"
+    fi
+  done
+
+  fail "Auth token ${id} still returned by API after ${max_retries} attempts."
+}
+
 # assert_deleted_via_tf <work_dir>
 #
 # After destroy, verifies that tofu plan shows the resource needs to be created

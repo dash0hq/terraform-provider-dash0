@@ -183,6 +183,26 @@ func (m *MockClient) DeleteDataset(ctx context.Context, slug string) error {
 	return args.Error(0)
 }
 
+func (m *MockClient) CreateAuthToken(ctx context.Context, origin string, authTokenJSON string) (string, string, error) {
+	args := m.Called(ctx, origin, authTokenJSON)
+	return args.String(0), args.String(1), args.Error(2)
+}
+
+func (m *MockClient) GetAuthToken(ctx context.Context, idOrOrigin string) (string, string, error) {
+	args := m.Called(ctx, idOrOrigin)
+	return args.String(0), args.String(1), args.Error(2)
+}
+
+func (m *MockClient) UpdateAuthToken(ctx context.Context, idOrOrigin string, origin string, authTokenJSON string) error {
+	args := m.Called(ctx, idOrOrigin, origin, authTokenJSON)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteAuthToken(ctx context.Context, idOrOrigin string) error {
+	args := m.Called(ctx, idOrOrigin)
+	return args.Error(0)
+}
+
 func (m *MockClient) CreateTeam(ctx context.Context, origin string, teamJSON string) error {
 	args := m.Called(ctx, origin, teamJSON)
 	return args.Error(0)
