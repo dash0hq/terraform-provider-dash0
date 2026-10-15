@@ -185,7 +185,7 @@ spec:
 }
 
 func TestViewResource_ReadNotFoundClearsState(t *testing.T) {
-	r := &ViewResource{client: &testViewClient{getError: errNotFound}}
+	r := &ViewResource{client: &testViewClient{Client: datasetLookup(t, nil), getError: errNotFound}}
 	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
 }
 

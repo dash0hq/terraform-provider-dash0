@@ -176,7 +176,7 @@ spec:
 }
 
 func TestRecordingRuleResource_ReadNotFoundClearsState(t *testing.T) {
-	r := &RecordingRuleResource{client: &testRecordingRuleClient{getError: errNotFound}}
+	r := &RecordingRuleResource{client: &testRecordingRuleClient{Client: datasetLookup(t, nil), getError: errNotFound}}
 	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
 }
 

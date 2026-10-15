@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
@@ -195,7 +196,7 @@ func (r *SLOResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 	}
 
 	apiResponseJSON, err := r.client.GetSLO(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
-	if removedOutOfBand(ctx, resp, "SLO", state.Origin.ValueString(), apiResponseJSON, err) {
+	if removedOutOfBandInDataset(ctx, resp, r.client, state.Dataset.ValueString(), "SLO", state.Origin.ValueString(), apiResponseJSON, err) {
 		return
 	}
 	if err != nil {
@@ -295,6 +296,10 @@ func (r *SLOResource) Delete(ctx context.Context, req resource.DeleteRequest, re
 
 	err := r.client.DeleteSLO(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
 	if err != nil {
+		if dash0.IsNotFound(err) {
+			tflog.Debug(ctx, fmt.Sprintf("SLO %s was already gone on the server; treating delete as successful", state.Origin.ValueString()))
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete SLO, got error: %s", err))
 		return
 	}
