@@ -214,7 +214,7 @@ func TestDatasetResource_ImportState(t *testing.T) {
 	})
 	t.Run("without origin label leaves origin null", func(t *testing.T) {
 		mockClient := &MockClient{}
-		mockClient.On("GetDataset", mock.Anything, "production").Return(`{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0Dataset","metadata":{"name":"Production"}}`, nil)
+		mockClient.On("GetDataset", mock.Anything, "production").Return(`{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0Dataset","metadata":{"name":"Production","labels":{"dash0.com/id":"production"}}}`, nil)
 		resp := datasetImportResponse()
 
 		(&DatasetResource{client: mockClient}).ImportState(context.Background(), resource.ImportStateRequest{ID: "production"}, resp)
@@ -224,6 +224,34 @@ func TestDatasetResource_ImportState(t *testing.T) {
 		resp.State.Get(context.Background(), &got)
 		assert.True(t, got.Origin.IsNull())
 		assert.Equal(t, "production", got.ID.ValueString())
+	})
+	t.Run("by origin stores the slug as id and plans clean", func(t *testing.T) {
+		mockClient := &MockClient{}
+		apiResponse := `{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0Dataset","metadata":{"name":"Production","labels":{"dash0.com/id":"production","dash0.com/origin":"tf_abc"}}}`
+		mockClient.On("GetDataset", mock.Anything, "tf_abc").Return(apiResponse, nil)
+		resp := datasetImportResponse()
+
+		(&DatasetResource{client: mockClient}).ImportState(context.Background(), resource.ImportStateRequest{ID: "tf_abc"}, resp)
+
+		assert.False(t, resp.Diagnostics.HasError())
+		var got datasetModel
+		resp.State.Get(context.Background(), &got)
+		assert.Equal(t, "production", got.ID.ValueString())
+		assert.Equal(t, "tf_abc", got.Origin.ValueString())
+
+		// The next plan, with config that names the same slug, must not replace.
+		plan := datasetModifyPlan(t, resp.State.Raw, datasetTestYaml)
+		assert.False(t, plan.Diagnostics.HasError())
+		assert.Empty(t, plan.RequiresReplace)
+	})
+	t.Run("response without slug errors", func(t *testing.T) {
+		mockClient := &MockClient{}
+		mockClient.On("GetDataset", mock.Anything, "tf_abc").Return(`{"kind":"Dash0Dataset","metadata":{"name":"Production"}}`, nil)
+		resp := datasetImportResponse()
+
+		(&DatasetResource{client: mockClient}).ImportState(context.Background(), resource.ImportStateRequest{ID: "tf_abc"}, resp)
+
+		assert.True(t, resp.Diagnostics.HasError())
 	})
 	t.Run("unknown slug errors", func(t *testing.T) {
 		mockClient := &MockClient{}

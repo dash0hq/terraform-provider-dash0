@@ -366,13 +366,19 @@ func (r *DatasetResource) Delete(ctx context.Context, req resource.DeleteRequest
 	tflog.Trace(ctx, "deleted a dataset resource")
 }
 
-// ImportState imports an existing dataset by its slug.
+// ImportState imports an existing dataset by its slug or its origin. The state
+// id always comes from the slug in the API response: taking it from the import
+// ID would store the origin and make the next plan replace the dataset.
 func (r *DatasetResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	slug := req.ID
-
-	apiResponseJSON, err := r.client.GetDataset(ctx, slug)
+	apiResponseJSON, err := r.client.GetDataset(ctx, req.ID)
 	if err != nil {
-		resp.Diagnostics.AddError("Error Importing Dataset", fmt.Sprintf("Could not get dataset with slug=%s: %s", slug, err))
+		resp.Diagnostics.AddError("Error Importing Dataset", fmt.Sprintf("Could not get dataset with slug or origin %q: %s", req.ID, err))
+		return
+	}
+
+	slug, err := datasetSlugFromYAML(apiResponseJSON)
+	if err != nil {
+		resp.Diagnostics.AddError("Error Importing Dataset", fmt.Sprintf("The API response for %q has no dataset slug: %s", req.ID, err))
 		return
 	}
 
