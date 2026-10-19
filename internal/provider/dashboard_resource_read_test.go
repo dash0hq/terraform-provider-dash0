@@ -178,3 +178,28 @@ spec:
 		})
 	}
 }
+
+func TestDashboardResource_ReadNotFoundClearsState(t *testing.T) {
+	r := &DashboardResource{client: &testDashboardClient{Client: datasetLookup(t, nil), getError: errNotFound}}
+	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}
+
+func TestDashboardResource_ReadServerErrorKeepsStateAndErrors(t *testing.T) {
+	r := &DashboardResource{client: &testDashboardClient{getError: errServer}}
+	assertReadKeepsStateAndErrors(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}
+
+func TestDashboardResource_ReadSoftDeletedClearsState(t *testing.T) {
+	r := &DashboardResource{client: &testDashboardClient{getResponse: softDeletedJSON}}
+	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}
+
+func TestDashboardResource_ReadNotFoundInDeletedDatasetKeepsStateAndWarns(t *testing.T) {
+	r := &DashboardResource{client: &testDashboardClient{Client: datasetLookup(t, errNotFound), getError: errNotFound}}
+	assertReadKeepsStateWithDiag(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}), false)
+}
+
+func TestDashboardResource_ReadNotFoundWithFailingDatasetCheckKeepsStateAndErrors(t *testing.T) {
+	r := &DashboardResource{client: &testDashboardClient{Client: datasetLookup(t, errServer), getError: errNotFound}}
+	assertReadKeepsStateWithDiag(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}), true)
+}

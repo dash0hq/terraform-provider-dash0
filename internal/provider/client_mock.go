@@ -163,6 +163,46 @@ func (m *MockClient) ResolveNotificationChannel(ctx context.Context, origin stri
 	return args.String(0), args.String(1), args.Error(2)
 }
 
+func (m *MockClient) CreateDataset(ctx context.Context, origin string, datasetJSON string) error {
+	args := m.Called(ctx, origin, datasetJSON)
+	return args.Error(0)
+}
+
+func (m *MockClient) GetDataset(ctx context.Context, slug string) (string, error) {
+	args := m.Called(ctx, slug)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockClient) UpdateDataset(ctx context.Context, slug string, origin string, datasetJSON string) error {
+	args := m.Called(ctx, slug, origin, datasetJSON)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteDataset(ctx context.Context, slug string) error {
+	args := m.Called(ctx, slug)
+	return args.Error(0)
+}
+
+func (m *MockClient) CreateAuthToken(ctx context.Context, origin string, authTokenJSON string) (string, string, error) {
+	args := m.Called(ctx, origin, authTokenJSON)
+	return args.String(0), args.String(1), args.Error(2)
+}
+
+func (m *MockClient) GetAuthToken(ctx context.Context, idOrOrigin string) (string, string, error) {
+	args := m.Called(ctx, idOrOrigin)
+	return args.String(0), args.String(1), args.Error(2)
+}
+
+func (m *MockClient) UpdateAuthToken(ctx context.Context, idOrOrigin string, origin string, authTokenJSON string) error {
+	args := m.Called(ctx, idOrOrigin, origin, authTokenJSON)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteAuthToken(ctx context.Context, idOrOrigin string) error {
+	args := m.Called(ctx, idOrOrigin)
+	return args.Error(0)
+}
+
 func (m *MockClient) CreateTeam(ctx context.Context, origin string, teamJSON string) error {
 	args := m.Called(ctx, origin, teamJSON)
 	return args.Error(0)

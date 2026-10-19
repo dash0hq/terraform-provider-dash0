@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.20.0
+
+
+### New Components
+
+
+- `auth_tokens`: Add the `dash0_auth_token` resource to manage Dash0 auth tokens, with the secret exposed in the sensitive `token` attribute. (#191)
+  Managing auth tokens requires an admin user or an auth token with the `*` action and no restriction. The secret is stored in the Terraform state in plain text and cannot change; rotate it with `terraform apply -replace`. Dash0 refuses to delete the last auth token of an organization.
+
+- `datasets`: Add the `dash0_dataset` resource to manage Dash0 datasets: retention, privacy, redaction, and semantic convention upgrades. (#171)
+  Destroying a dataset soft-deletes it. Dashboards, views, check rules, synthetic checks, recording rules, SLOs and time series aggregations are kept for 30 days; applying the same slug within that time restores them. Spam filters are not restored. Telemetry is removed as its retention expires.
+
+
+### Bug Fixes
+
+
+- `provider`: Remove dashboards, views, SLOs, synthetic checks, recording rules, check rules and notification channels from state when they no longer exist remotely, instead of failing `terraform plan` with a 404. (#189)
+  Soft-deleted dashboards, views, SLOs, synthetic checks and recording rules are removed too. The next plan proposes to re-create the asset.
+
 ## 1.19.0
 
 

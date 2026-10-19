@@ -58,6 +58,27 @@ type Client interface {
 	DeleteNotificationChannel(ctx context.Context, origin string) error
 	ResolveNotificationChannel(ctx context.Context, origin string) (string, string, error)
 
+	// Datasets are organization-scoped and addressed by slug (the
+	// dash0.com/id label, immutable). origin is stamped on
+	// dash0.com/origin when non-empty. CreateDataset uses POST (a same-slug
+	// create inside the grace period restores a soft-deleted dataset);
+	// UpdateDataset uses PUT by slug. GetDataset returns the definition with
+	// server-managed fields stripped.
+	CreateDataset(ctx context.Context, origin string, datasetJSON string) error
+	GetDataset(ctx context.Context, slug string) (string, error)
+	UpdateDataset(ctx context.Context, slug string, origin string, datasetJSON string) error
+	DeleteDataset(ctx context.Context, slug string) error
+
+	// Auth tokens are organization-scoped and addressed by id (UUID) or origin.
+	// CreateAuthToken upserts by origin and returns the server-generated id and
+	// secret. The API returns the secret only on create, so GetAuthToken returns
+	// the definition JSON without it and an empty secret. The secret cannot change
+	// through UpdateAuthToken.
+	CreateAuthToken(ctx context.Context, origin string, authTokenJSON string) (id string, token string, err error)
+	GetAuthToken(ctx context.Context, idOrOrigin string) (definitionJSON string, token string, err error)
+	UpdateAuthToken(ctx context.Context, idOrOrigin string, origin string, authTokenJSON string) error
+	DeleteAuthToken(ctx context.Context, idOrOrigin string) error
+
 	CreateTeam(ctx context.Context, origin string, teamJSON string) error
 	GetTeam(ctx context.Context, origin string) (string, error)
 	UpdateTeam(ctx context.Context, origin string, teamJSON string) error

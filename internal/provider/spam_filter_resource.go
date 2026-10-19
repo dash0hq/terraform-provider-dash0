@@ -194,12 +194,10 @@ func (r *SpamFilterResource) Read(ctx context.Context, req resource.ReadRequest,
 	}
 
 	apiResponseJSON, err := r.client.GetSpamFilter(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
+	if removedOutOfBandInDataset(ctx, resp, r.client, state.Dataset.ValueString(), "Spam filter", state.Origin.ValueString(), apiResponseJSON, err) {
+		return
+	}
 	if err != nil {
-		if dash0.IsNotFound(err) {
-			tflog.Debug(ctx, fmt.Sprintf("Spam filter %s no longer exists on the server; removing from state", state.Origin.ValueString()))
-			resp.State.RemoveResource(ctx)
-			return
-		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read spam filter, got error: %s", err))
 		return
 	}
@@ -295,6 +293,10 @@ func (r *SpamFilterResource) Delete(ctx context.Context, req resource.DeleteRequ
 
 	err := r.client.DeleteSpamFilter(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
 	if err != nil {
+		if dash0.IsNotFound(err) {
+			tflog.Debug(ctx, fmt.Sprintf("Spam filter %s was already gone on the server; treating delete as successful", state.Origin.ValueString()))
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete spam filter, got error: %s", err))
 		return
 	}
