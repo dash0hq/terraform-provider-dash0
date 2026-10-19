@@ -299,3 +299,13 @@ spec:
 		})
 	}
 }
+
+func TestCheckRuleResource_ReadNotFoundClearsState(t *testing.T) {
+	r := &CheckRuleResource{client: &testCheckRuleClient{Client: datasetLookup(t, nil), getError: errNotFound}}
+	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}
+
+func TestCheckRuleResource_ReadServerErrorKeepsStateAndErrors(t *testing.T) {
+	r := &CheckRuleResource{client: &testCheckRuleClient{getError: errServer}}
+	assertReadKeepsStateAndErrors(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}

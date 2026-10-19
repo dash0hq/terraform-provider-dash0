@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
@@ -193,6 +194,9 @@ func (r *CheckRuleResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 	// The client returns a Prometheus YAML string (Dash0->Prometheus conversion is done internally)
 	apiResponseYAML, err := r.client.GetCheckRule(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
+	if removedOutOfBandInDataset(ctx, resp, r.client, state.Dataset.ValueString(), "Check rule", state.Origin.ValueString(), apiResponseYAML, err) {
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read check rule, got error: %s", err))
 		return
@@ -299,6 +303,10 @@ func (r *CheckRuleResource) Delete(ctx context.Context, req resource.DeleteReque
 
 	err := r.client.DeleteCheckRule(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
 	if err != nil {
+		if dash0.IsNotFound(err) {
+			tflog.Debug(ctx, fmt.Sprintf("Check rule %s was already gone on the server; treating delete as successful", state.Origin.ValueString()))
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete check rule, got error: %s", err))
 		return
 	}

@@ -38,6 +38,7 @@ func TestSpamFilterResource_Read_404IsNotHandledAsGone(t *testing.T) {
 	}
 	mockClient.On("GetSpamFilter", mock.Anything, "tf_origin", "dataset-1").
 		Return("", notFound)
+	mockClient.On("GetDataset", mock.Anything, "dataset-1").Return("{}", nil)
 
 	state := tfsdk.State{
 		Raw: tftypes.NewValue(
