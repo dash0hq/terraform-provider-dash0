@@ -12,7 +12,7 @@ This guide shows how to deploy the Dash0 AWS integration using Terraform's [`aws
 ~> **Note:** This is not a native Dash0 provider resource. It uses the AWS provider to deploy a CloudFormation stack with the official Dash0 integration template.
 
 The integration provisions the required IAM roles and configuration for collecting telemetry from your AWS account.
-The template additionally provisions, via a CloudFormation StackSet, per-region resources for the `AWS/Lambda` namespace — a Kinesis Firehose delivery stream, a CloudWatch metric stream and an S3 backup bucket — and, optionally, an EventBridge rule, ApiDestination, and Connection that forward Lambda lifecycle events (`UpdateFunctionConfiguration`, `DeleteFunction`) to Dash0 in near real-time.
+When `EnableLambdaIntegration` is enabled (default), the template additionally provisions, via a CloudFormation StackSet, per-region resources for the `AWS/Lambda` namespace — a Kinesis Firehose delivery stream, a CloudWatch metric stream and an S3 backup bucket — and an EventBridge rule, ApiDestination, and Connection that forward Lambda lifecycle events (`UpdateFunctionConfiguration`, `DeleteFunction`) to Dash0 in near real-time.
 
 ## Prerequisites
 
@@ -23,7 +23,7 @@ The template additionally provisions, via a CloudFormation StackSet, per-region 
 - An AWS account with permissions to create CloudFormation stacks, StackSets, and IAM roles.
 - Terraform >= 1.0 and the [AWS provider](https://registry.terraform.io/providers/hashicorp/aws/latest) >= 5.0.
 - To collect Lambda lifecycle events (enabled by default), a CloudTrail trail logging management events in each region listed in `Regions`.
-  Most AWS accounts already have an org-wide trail; if yours does not, either enable one or set `CollectLambdaLifecycleEvents` to `"false"`.
+  Most AWS accounts already have an org-wide trail; if yours does not, either enable one or set `EnableLambdaIntegration` to `"false"`.
 
 ## Example Usage
 
@@ -34,16 +34,16 @@ The core resource definition is:
 ```terraform
 resource "aws_cloudformation_stack" "dash0_integration" {
   name         = "dash0-integration"
-  template_url = "https://public-integrations-production.eu-west-1.aws.dash0.com.s3.eu-west-1.amazonaws.com/dash0-customer-integration-cloudformation-v2.yaml"
+  template_url = "https://public-integrations-production.eu-west-1.aws.dash0.com.s3.eu-west-1.amazonaws.com/dash0-customer-integration-cloudformation-v3.yaml"
 
   parameters = {
-    ApiKey                       = var.api_key
-    Dataset                      = var.dataset
-    ResourcesInstrumentation     = var.resources_instrumentation
-    CollectLambdaLifecycleEvents = var.collect_lambda_lifecycle_events
-    TechnicalId                  = var.technical_id
-    Regions                      = join(",", var.regions)
-    Dash0RegionalEndpoint        = var.dash0_regional_endpoint
+    ApiKey                  = var.api_key
+    Dataset                 = var.dataset
+    EnableMetricsScraping   = var.enable_metrics_scraping
+    EnableLambdaIntegration = var.enable_lambda_integration
+    TechnicalId             = var.technical_id
+    Regions                 = join(",", var.regions)
+    Dash0RegionalEndpoint   = var.dash0_regional_endpoint
   }
 
   capabilities = ["CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND"]
@@ -51,7 +51,7 @@ resource "aws_cloudformation_stack" "dash0_integration" {
 ```
 
 The `CAPABILITY_NAMED_IAM` capability is required because the template creates named IAM roles for the Dash0 integration.
-The `CAPABILITY_AUTO_EXPAND` capability is required because the v2 template includes a nested `AWS::CloudFormation::StackSet` that deploys the per-region Dash0 resources (Lambda metrics streaming and, optionally, Lambda lifecycle event forwarding).
+The `CAPABILITY_AUTO_EXPAND` capability is required because the v3 template includes a nested `AWS::CloudFormation::StackSet` that deploys the per-region Dash0 Lambda integration resources (metrics streaming and lifecycle event forwarding) when `EnableLambdaIntegration` is enabled.
 
 CloudFormation expects `Regions` to be a `CommaDelimitedList`, so the Terraform list variable is joined into a comma-separated string before being passed to the stack.
 
@@ -61,8 +61,8 @@ CloudFormation expects `Regions` to be a `CommaDelimitedList`, so the Terraform 
 |-----------|-------------|----------|---------|
 | `ApiKey` | Dash0 API key (auth token) for the integration. | Yes | -- |
 | `Dataset` | The Dash0 dataset to send telemetry data to. | No | `default` |
-| `ResourcesInstrumentation` | Enable instrumentation of AWS Lambda and other resources (`"true"` or `"false"`). | No | `"true"` |
-| `CollectLambdaLifecycleEvents` | Forward AWS Lambda lifecycle events (`UpdateFunctionConfiguration`, `DeleteFunction`) to Dash0 via EventBridge (`"true"` or `"false"`). Requires a CloudTrail trail logging management events in the selected regions. | No | `"true"` |
+| `EnableMetricsScraping` | Let Dash0 read CloudWatch metrics and resource tags in the selected regions (`"true"` or `"false"`). | No | `"true"` |
+| `EnableLambdaIntegration` | Enable the Lambda instrumentation role, stream AWS/Lambda metrics, and forward Lambda lifecycle events (`UpdateFunctionConfiguration`, `DeleteFunction`) to Dash0 via EventBridge (`"true"` or `"false"`). Lifecycle events require a CloudTrail trail logging management events in the selected regions. | No | `"true"` |
 | `TechnicalId` | External ID for securing IAM role assumption. When empty, the template uses the CloudFormation stack ID automatically — the recommended approach for IaC onboarding. | No | `""` |
 | `Regions` | Comma-separated list of AWS regions in which to enable `AWS/Lambda` metrics streaming and (when enabled) Lambda lifecycle event forwarding (for example `eu-west-1,us-east-1`). | Yes | -- |
 | `Dash0RegionalEndpoint` | Regional Dash0 ingress endpoint base URL for your organization. Find it under **Settings > Endpoints > AWS CloudWatch Metrics** in the Dash0 UI (for example `https://ingress.eu-west-1.aws.dash0.com`). Provide only the base URL; the template appends the required paths internally. | Yes | -- |
