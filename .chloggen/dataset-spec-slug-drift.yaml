@@ -1,0 +1,11 @@
+# One of 'breaking', 'deprecation', 'new_component', 'enhancement', 'bug_fix'
+change_type: bug_fix
+
+# The name of the component, or a single word describing the area of concern (e.g. dashboards, check_rules, views)
+component: datasets
+
+# A brief description of the change. Surround your text with quotes ("") if it needs to start with a backtick (`).
+note: "`dash0_dataset` no longer shows permanent drift when `dataset_yaml` carries a `spec.slug` field (for example when hand-authored or exported via the raw API). `spec.slug` mirrors `metadata.labels[\"dash0.com/id\"]` and is now ignored for drift detection like `spec.permissions`."
+
+# Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
+issues: [194]

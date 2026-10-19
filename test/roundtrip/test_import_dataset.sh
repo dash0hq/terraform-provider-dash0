@@ -70,7 +70,8 @@ IDENTIFIER="$(dash0 -X api /api/datasets --dataset "" \
   | python3 -c "
 import json, sys
 doc = json.load(sys.stdin)
-for it in doc.get('datasets', []):
+items = doc if isinstance(doc, list) else doc.get('datasets', [])
+for it in items:
     labels = it.get('metadata', {}).get('labels', {})
     if labels.get('dash0.com/id') == '$SLUG':
         print(labels['dash0.com/id'])

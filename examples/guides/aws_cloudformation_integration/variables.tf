@@ -16,15 +16,15 @@ variable "dataset" {
   default     = "default"
 }
 
-variable "resources_instrumentation" {
+variable "enable_metrics_scraping" {
   type        = string
-  description = "Whether to enable Lambda and other AWS resource instrumentation. Must be \"true\" or \"false\"."
+  description = "Whether to let Dash0 read CloudWatch metrics and resource tags in the selected regions. Must be \"true\" or \"false\"."
   default     = "true"
 }
 
-variable "collect_lambda_lifecycle_events" {
+variable "enable_lambda_integration" {
   type        = string
-  description = "Whether to forward AWS Lambda lifecycle events (UpdateFunctionConfiguration, DeleteFunction) to Dash0 via EventBridge. Requires a CloudTrail trail logging management events in the selected regions. Must be \"true\" or \"false\"."
+  description = "Whether to enable the Lambda instrumentation role, Lambda metrics streaming, and lifecycle event forwarding (UpdateFunctionConfiguration, DeleteFunction) to Dash0 via EventBridge. Requires a CloudTrail trail logging management events in the selected regions. Must be \"true\" or \"false\"."
   default     = "true"
 }
 

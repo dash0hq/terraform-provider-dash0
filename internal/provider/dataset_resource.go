@@ -33,6 +33,12 @@ const (
 var datasetServerManagedFields = []string{
 	"spec.permissions",
 	"spec.permittedActions",
+	// spec.slug mirrors metadata.labels["dash0.com/id"] and is not part of the
+	// dash0-api-client-go DatasetSpec schema, so it is silently dropped when
+	// GetDataset round-trips the API response through that typed struct. The
+	// raw API response (e.g. from `dash0 -X api`) still carries it, so without
+	// this it would always show as drift between config and state.
+	"spec.slug",
 }
 
 // datasetServerDefaultedFields are ignored only when the user did not set
