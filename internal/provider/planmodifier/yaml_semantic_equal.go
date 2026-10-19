@@ -64,6 +64,17 @@ func YAMLSemanticEqualComparing(equivalent func(yamlA, yamlB string, additionalI
 	}
 }
 
+// YAMLSemanticEqualConditionallyWith combines YAMLSemanticEqualConditionally
+// and YAMLSemanticEqualWith: conditionallyIgnoredFields are ignored only when
+// absent from the config, alwaysIgnoredFields are always ignored.
+func YAMLSemanticEqualConditionallyWith(conditionallyIgnoredFields, alwaysIgnoredFields []string, preservedAnnotationKeys ...string) planmodifier.String {
+	return yamlSemanticEqualModifier{
+		preservedAnnotationKeys:    preservedAnnotationKeys,
+		alwaysIgnoredFields:        alwaysIgnoredFields,
+		conditionallyIgnoredFields: conditionallyIgnoredFields,
+	}
+}
+
 type yamlSemanticEqualModifier struct {
 	preservedAnnotationKeys []string
 	alwaysIgnoredFields     []string

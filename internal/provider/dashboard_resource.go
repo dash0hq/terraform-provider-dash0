@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
@@ -195,6 +196,9 @@ func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 	}
 
 	apiResponseJSON, err := r.client.GetDashboard(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
+	if removedOutOfBandInDataset(ctx, resp, r.client, state.Dataset.ValueString(), "Dashboard", state.Origin.ValueString(), apiResponseJSON, err) {
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read dashboard, got error: %s", err))
 		return
@@ -293,6 +297,10 @@ func (r *DashboardResource) Delete(ctx context.Context, req resource.DeleteReque
 
 	err := r.client.DeleteDashboard(ctx, state.Origin.ValueString(), state.Dataset.ValueString())
 	if err != nil {
+		if dash0.IsNotFound(err) {
+			tflog.Debug(ctx, fmt.Sprintf("Dashboard %s was already gone on the server; treating delete as successful", state.Origin.ValueString()))
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete dashboard, got error: %s", err))
 		return
 	}

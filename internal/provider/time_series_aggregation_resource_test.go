@@ -340,6 +340,7 @@ func TestTimeSeriesAggregationResource_Read_NotFoundRemovesResource(t *testing.T
 
 	mockClient.On("GetTimeSeriesAggregation", mock.Anything, "tf_origin", "test-dataset").
 		Return("", &dash0.APIError{StatusCode: 404, Status: "404 Not Found"})
+	mockClient.On("GetDataset", mock.Anything, "test-dataset").Return("{}", nil)
 
 	state := tsaState(strPtr("tf_origin"), strPtr("an-id"), strPtr("test-dataset"), strPtr(tsaValidYaml))
 	resp := resource.ReadResponse{State: state}

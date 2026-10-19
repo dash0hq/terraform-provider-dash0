@@ -98,3 +98,19 @@ func TestYAMLSemanticEqualConditionally_CustomListReplacesGlobal(t *testing.T) {
 	assert.Equal(t, types.StringValue(config), global,
 		"the global list does not cover spec.enabled/spec.priority; the scoped list is what makes the difference")
 }
+
+// TestYAMLSemanticEqualConditionallyWith combines both lists: the conditional
+// one applies only when the field is absent from config, the always one
+// applies regardless.
+func TestYAMLSemanticEqualConditionallyWith(t *testing.T) {
+	m := YAMLSemanticEqualConditionallyWith([]string{"spec.tracing"}, []string{"spec.permissions"})
+
+	config := "spec:\n  display:\n    name: Example\n  permissions:\n    - subject: me\n"
+	state := "spec:\n  display:\n    name: Example\n  permissions:\n    - subject: other\n  tracing:\n    retention: 30d\n"
+	assert.Equal(t, types.StringValue(state), runModifier(m, config, state),
+		"permissions always ignored; undeclared tracing conditionally ignored")
+
+	configWithTracing := config + "  tracing:\n    retention: 7d\n"
+	assert.Equal(t, types.StringValue(configWithTracing), runModifier(m, configWithTracing, state),
+		"a declared tracing block is compared")
+}

@@ -220,3 +220,18 @@ spec:
 		})
 	}
 }
+
+func TestSLOResource_ReadNotFoundClearsState(t *testing.T) {
+	r := &SLOResource{client: &testSLOClient{Client: datasetLookup(t, nil), getError: errNotFound}}
+	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}
+
+func TestSLOResource_ReadServerErrorKeepsStateAndErrors(t *testing.T) {
+	r := &SLOResource{client: &testSLOClient{getError: errServer}}
+	assertReadKeepsStateAndErrors(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}
+
+func TestSLOResource_ReadSoftDeletedClearsState(t *testing.T) {
+	r := &SLOResource{client: &testSLOClient{getResponse: softDeletedJSON}}
+	assertReadClearsState(t, readWithState(t, r, map[string]string{"origin": "tf_test", "dataset": "x"}))
+}

@@ -107,6 +107,11 @@ files:
     title: dash0_log_event
     description: Terraform action that sends an arbitrary log event to Dash0 via OTLP — the general-purpose counterpart to dash0_deployment_event, mirroring the dash0 logs send CLI command.
 
+  - source: docs/resources/auth_token.md
+    target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/auth-token.md
+    title: dash0_auth_token
+    description: Terraform resource for Dash0 auth tokens — organization-level credentials for telemetry ingestion and the Dash0 API, with the secret exposed as a sensitive attribute.
+
   - source: docs/resources/check_rule.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/check-rule.md
     title: dash0_check_rule
@@ -116,6 +121,11 @@ files:
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/dashboard.md
     title: dash0_dashboard
     description: Terraform resource for Dash0 dashboards defined in the Perses Dashboard format.
+
+  - source: docs/resources/dataset.md
+    target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/dataset.md
+    title: dash0_dataset
+    description: Terraform resource for Dash0 datasets — declaratively manage retention, geolocation and IP address storage, sensitive-data redaction, and semantic convention upgrades.
 
   - source: docs/resources/notification_channel.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/notification-channel.md
