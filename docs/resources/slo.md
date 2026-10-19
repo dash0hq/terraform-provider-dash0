@@ -67,7 +67,7 @@ YAML
 
 ### Required
 
-- `slo_yaml` (String) The SLO definition in [OpenSLO](https://openslo.com) v1 YAML format (`apiVersion: openslo.com/v1`, `kind: SLO`), specifying the objective target, service level indicator, budgeting method, and time window. See [Create SLOs](https://dash0.com/docs/dash0/monitoring/alerting/create-slos) for the available options. The `dash0.com/sharing` metadata annotation is supported to control sharing settings; changes to it trigger a resource update. All other metadata annotations are managed by the server and ignored during drift detection.
+- `slo_yaml` (String) The SLO definition in [OpenSLO](https://openslo.com) v1 YAML format (`apiVersion: openslo.com/v1`, `kind: SLO`), specifying the objective target, service level indicator, budgeting method, and time window. See [Create SLOs](https://dash0.com/docs/dash0/monitoring/alerting/create-slos) for the available options. Changes to user-defined labels and annotations, and to the `dash0.com/display-name`, `dash0.com/enabled`, `dash0.com/folder-path` and `dash0.com/sharing` annotations, trigger a resource update; a missing `dash0.com/enabled` annotation counts as `"true"`. Labels and annotations with any other `dash0.com/` key are managed by the server and ignored during drift detection.
 
 ### Optional
 
