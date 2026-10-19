@@ -84,6 +84,16 @@ func TestDatasetResource_Read_PermissionsNeverDrift(t *testing.T) {
 	assert.Equal(t, stateYaml, got.DatasetYaml.ValueString())
 }
 
+// spec.slug mirrors metadata.labels["dash0.com/id"] and is dropped by
+// GetDataset's round-trip through the typed DatasetSpec struct, which has no
+// Slug field. A state YAML that still carries it (e.g. from an out-of-band
+// API response) must not show drift against an API response without it.
+func TestDatasetResource_Read_SpecSlugNeverDrifts(t *testing.T) {
+	stateYaml := datasetTestYaml + "\n  slug: production"
+	_, got := datasetRead(t, stateYaml, datasetServerResponse, nil)
+	assert.Equal(t, stateYaml, got.DatasetYaml.ValueString())
+}
+
 // A field the user set still detects drift.
 func TestDatasetResource_Read_UserSetFieldDetectsDrift(t *testing.T) {
 	apiResponse := `{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0Dataset","metadata":{"name":"Production","labels":{"dash0.com/id":"production"}},"spec":{"retention":{"traces":"7d"}}}`
