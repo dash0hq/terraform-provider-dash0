@@ -167,9 +167,9 @@ func testAccCheckDatasetDestroyed(slug string) resource.TestCheckFunc {
 	}
 }
 
-// TestAccDatasetResource_Permissions covers spec.permissions: applied on
-// create, order-insensitive, a permissions-only change, drift made outside
-// Terraform, and the write grant rejected at plan time.
+// TestAccDatasetResource_Permissions covers spec.permissions: added to an
+// existing dataset, order-insensitive, a permissions-only change, drift made
+// outside Terraform, and the write grant rejected at plan time.
 func TestAccDatasetResource_Permissions(t *testing.T) {
 	if os.Getenv("TF_ACC") != "1" {
 		t.Skip("Acceptance tests skipped unless TF_ACC=1")
@@ -192,7 +192,10 @@ func TestAccDatasetResource_Permissions(t *testing.T) {
 				PlanOnly:    true,
 				ExpectError: regexp.MustCompile(`grants dataset:write`),
 			},
-			// The server ignores permissions on create; the provider applies them.
+			{
+				Config: testAccDatasetResourceConfig(testAccDatasetYaml(slug, "Terraform Acceptance Permissions")),
+			},
+			// Adding permissions to an existing dataset.
 			{
 				Config: testAccDatasetResourceConfig(withPermissions("[dataset:read, dataset:createCheckRule]")),
 				Check:  testAccCheckDatasetPermissions(slug, `"dataset:createCheckRule"`),

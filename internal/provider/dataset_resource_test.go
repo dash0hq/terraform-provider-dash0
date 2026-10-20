@@ -110,32 +110,20 @@ func TestDatasetResource_Create_StampsOriginAndSlug(t *testing.T) {
 	mockClient.AssertExpectations(t)
 }
 
-// The server ignores spec.permissions on create, so they are applied with a PUT.
-func TestDatasetResource_Create_AppliesPermissionsWithUpdate(t *testing.T) {
-	for _, tc := range []struct {
-		name      string
-		updateErr error
-	}{{"update succeeds", nil}, {"update fails", errServer}} {
-		t.Run(tc.name, func(t *testing.T) {
-			mockClient := &MockClient{}
-			mockClient.On("CreateDataset", mock.Anything, mock.Anything, mock.Anything).Return(nil)
-			mockClient.On("UpdateDataset", mock.Anything, "production",
-				mock.MatchedBy(func(o string) bool { return strings.HasPrefix(o, "tf_") }),
-				mock.MatchedBy(func(body string) bool { return strings.Contains(body, "team-a") })).Return(tc.updateErr)
+// Permissions go in the create body, with no follow-up update: the mock has no
+// UpdateDataset expectation, so a call to it fails the test.
+func TestDatasetResource_Create_SendsPermissionsInCreateBody(t *testing.T) {
+	mockClient := &MockClient{}
+	mockClient.On("CreateDataset", mock.Anything, mock.Anything,
+		mock.MatchedBy(func(body string) bool { return strings.Contains(body, "team-a") })).Return(nil)
 
-			yaml := datasetTestYaml + datasetTestPermissions
-			req := resource.CreateRequest{Plan: tfsdk.Plan{Raw: datasetRaw(tftypes.UnknownValue, "production", yaml), Schema: datasetTestSchema().Schema}}
-			resp := &resource.CreateResponse{State: datasetState(nil, nil, "")}
+	req := resource.CreateRequest{Plan: tfsdk.Plan{Raw: datasetRaw(tftypes.UnknownValue, "production", datasetTestYaml+datasetTestPermissions), Schema: datasetTestSchema().Schema}}
+	resp := &resource.CreateResponse{State: datasetState(nil, nil, "")}
 
-			(&DatasetResource{client: mockClient}).Create(context.Background(), req, resp)
+	(&DatasetResource{client: mockClient}).Create(context.Background(), req, resp)
 
-			assert.Equal(t, tc.updateErr != nil, resp.Diagnostics.HasError(), resp.Diagnostics)
-			var got datasetModel
-			resp.State.Get(context.Background(), &got)
-			assert.Equal(t, "production", got.ID.ValueString(), "state is kept so a failed update taints instead of losing the dataset")
-			mockClient.AssertExpectations(t)
-		})
-	}
+	assert.False(t, resp.Diagnostics.HasError(), resp.Diagnostics)
+	mockClient.AssertExpectations(t)
 }
 
 func TestDatasetResource_Create_MissingSlug(t *testing.T) {

@@ -295,14 +295,6 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 
 	tflog.Trace(ctx, "created a dataset resource")
 	resp.Diagnostics.Append(resp.State.Set(ctx, model)...)
-
-	// The server ignores spec.permissions on create. State is set first, so a
-	// failure here taints the dataset instead of leaving it untracked.
-	if len(converter.FieldsAbsentFromYAML(model.DatasetYaml.ValueString(), []string{"spec.permissions"})) == 0 {
-		if err := r.client.UpdateDataset(ctx, slug, model.Origin.ValueString(), body); err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Dataset %s was created, but applying spec.permissions failed: %s", slug, err))
-		}
-	}
 }
 
 func (r *DatasetResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
