@@ -23,7 +23,7 @@ metadata:
   name: %s
 spec:
   actions:
-    - dashboards:read`, name)
+    - ingest:logs`, name)
 }
 
 // Managing auth tokens needs an admin user or an unrestricted "*" token.

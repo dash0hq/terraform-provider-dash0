@@ -53,7 +53,7 @@ cat > "${WORK_DIR}/create.json" <<JSONEOF
     "labels": { "dash0.com/origin": "${ORIGIN}" }
   },
   "spec": {
-    "actions": ["views:read"]
+    "actions": ["ingest:logs"]
   }
 }
 JSONEOF

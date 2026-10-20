@@ -43,7 +43,7 @@ metadata:
   name: ${NAME}
 spec:
   actions:
-    - views:read
+    - ingest:logs
 YAMLEOF
 
 cat > "${WORK_DIR}/main.tf" <<'EOF'
@@ -118,8 +118,8 @@ metadata:
   name: ${NAME} (Updated)
 spec:
   actions:
-    - views:read
-    - views:write
+    - ingest:logs
+    - ingest:metrics
 YAMLEOF
 
 TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
