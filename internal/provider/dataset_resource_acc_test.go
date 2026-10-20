@@ -175,7 +175,7 @@ func TestAccDatasetResource_Permissions(t *testing.T) {
 		t.Skip("Acceptance tests skipped unless TF_ACC=1")
 	}
 
-	slug := fmt.Sprintf("tf-acc-ds-perm-%d-%d", time.Now().Unix(), rand.IntN(100000))
+	slug := fmt.Sprintf("tf-acc-dp-%d-%d", time.Now().Unix(), rand.IntN(100000))
 	withPermissions := func(actions string) string {
 		return testAccDatasetYaml(slug, "Terraform Acceptance Permissions") +
 			"\n  permissions:\n    - role: basic_member\n      actions: " + actions
