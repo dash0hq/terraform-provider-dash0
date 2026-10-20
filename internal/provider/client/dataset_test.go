@@ -115,7 +115,7 @@ func TestCreateDataset_MissingSlugErrors(t *testing.T) {
 	assert.Empty(t, method, "no request must be sent without a slug")
 }
 
-func TestGetDataset_StripsServerFieldsAndKeepsIdentity(t *testing.T) {
+func TestGetDataset_StripsServerFieldsAndKeepsIdentityAndPermissions(t *testing.T) {
 	var method, path string
 	c := newDatasetTestServer(t, http.StatusOK, `{
 	  "apiVersion": "dash0.com/v1alpha1",
@@ -155,9 +155,8 @@ func TestGetDataset_StripsServerFieldsAndKeepsIdentity(t *testing.T) {
 	assert.NotContains(t, got["metadata"], "annotations")
 	spec := got["spec"].(map[string]any)
 	assert.Equal(t, true, spec["preferred"])
-	for _, f := range []string{"permittedActions", "permissions"} {
-		assert.NotContains(t, spec, f)
-	}
+	assert.NotContains(t, spec, "permittedActions")
+	assert.Equal(t, []any{map[string]any{"role": "basic_member", "actions": []any{"dataset:read"}}}, spec["permissions"])
 	assertDatasetSpecShape(t, got)
 }
 

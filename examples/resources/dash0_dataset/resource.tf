@@ -11,6 +11,10 @@
 # are kept for 30 days; applying the same slug within that time restores them.
 # Spam filters are not restored. After 30 days the dataset, its permissions and
 # those assets are removed. Telemetry is removed as its retention expires.
+#
+# spec.permissions replaces the user and team grants on the dataset. Omit it to
+# leave the grants as they are. A grant cannot include dataset:write, and an
+# empty list does not remove grants.
 resource "dash0_dataset" "staging" {
   dataset_yaml = <<-YAML
 apiVersion: dash0.com/v1alpha1
@@ -37,6 +41,12 @@ spec:
         conversation: redact
         toolCalls: disabled
         errors: disabled
+  permissions:
+    # teamId is the id of a team, for example dash0_team.backend.id.
+    - teamId: 00000000-0000-0000-0000-000000000000
+      actions: [dataset:read, dataset:delete]
+    - userId: user_01ABCDEF
+      actions: [dataset:read]
 YAML
 }
 

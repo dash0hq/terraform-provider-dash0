@@ -2,9 +2,12 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand/v2"
 	"os"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -162,4 +165,100 @@ func testAccCheckDatasetDestroyed(slug string) resource.TestCheckFunc {
 		}
 		return nil
 	}
+}
+
+// TestAccDatasetResource_Permissions covers spec.permissions: applied on
+// create, order-insensitive, a permissions-only change, drift made outside
+// Terraform, and the write grant rejected at plan time.
+func TestAccDatasetResource_Permissions(t *testing.T) {
+	if os.Getenv("TF_ACC") != "1" {
+		t.Skip("Acceptance tests skipped unless TF_ACC=1")
+	}
+
+	slug := fmt.Sprintf("tf-acc-ds-perm-%d-%d", time.Now().Unix(), rand.IntN(100000))
+	withPermissions := func(actions string) string {
+		return testAccDatasetYaml(slug, "Terraform Acceptance Permissions") +
+			"\n  permissions:\n    - role: basic_member\n      actions: " + actions
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckDatasetDestroyed(slug),
+		Steps: []resource.TestStep{
+			// The server ignores permissions on create; the provider applies them.
+			{
+				Config: testAccDatasetResourceConfig(withPermissions("[dataset:read, dataset:createCheckRule]")),
+				Check:  testAccCheckDatasetPermissions(slug, `"dataset:createCheckRule"`),
+			},
+			{
+				Config:   testAccDatasetResourceConfig(withPermissions("[dataset:createCheckRule, dataset:read]")),
+				PlanOnly: true,
+			},
+			// Permissions-only change.
+			{
+				Config: testAccDatasetResourceConfig(withPermissions("[dataset:read, dataset:createSLO]")),
+				Check:  testAccCheckDatasetPermissions(slug, `"dataset:createSLO"`),
+			},
+			// Change made outside Terraform shows as drift.
+			{
+				PreConfig: func() {
+					body := `{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0Dataset","metadata":{"name":"Terraform Acceptance Permissions"},` +
+						`"spec":{"permissions":[{"role":"basic_member","actions":["dataset:read"]}]}}`
+					c, err := testAccDatasetClient()
+					if err == nil {
+						err = c.UpdateDataset(context.Background(), slug, "", body)
+					}
+					if err != nil {
+						t.Fatalf("out-of-band update failed: %s", err)
+					}
+				},
+				Config:             testAccDatasetResourceConfig(withPermissions("[dataset:read, dataset:createSLO]")),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				Config:      testAccDatasetResourceConfig(withPermissions("[dataset:read, dataset:write]")),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`grants dataset:write`),
+			},
+		},
+	})
+}
+
+// testAccCheckDatasetPermissions checks that the API returns want inside spec.permissions.
+func testAccCheckDatasetPermissions(slug, want string) resource.TestCheckFunc {
+	return func(_ *terraform.State) error {
+		c, err := testAccDatasetClient()
+		if err != nil {
+			return fmt.Errorf("Error creating client: %s", err)
+		}
+		got, err := c.GetDataset(context.Background(), slug)
+		if err != nil {
+			return fmt.Errorf("Error retrieving dataset: %s", err)
+		}
+		var parsed struct {
+			Spec struct {
+				Permissions json.RawMessage `json:"permissions"`
+			} `json:"spec"`
+		}
+		if err := json.Unmarshal([]byte(got), &parsed); err != nil {
+			return err
+		}
+		if !strings.Contains(string(parsed.Spec.Permissions), want) {
+			return fmt.Errorf("spec.permissions %s does not contain %s", parsed.Spec.Permissions, want)
+		}
+		return nil
+	}
+}
+
+func testAccDatasetClient() (client.Client, error) {
+	return client.NewDash0Client(
+		os.Getenv("DASH0_URL"),
+		dash0.StaticAuthTokenProvider(os.Getenv("DASH0_AUTH_TOKEN")),
+		false,
+		"test",
+		3,
+		"",
+	)
 }
