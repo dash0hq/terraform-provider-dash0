@@ -17,7 +17,7 @@ spec:
   # ingest:* is the "Ingesting" option in the Dash0 UI.
   actions:
     - ingest:*
-  # Limit the signals with scope.signals, not with one action per signal.
+  # Limit the signals with scope.signals (the "Signal types" field in the UI).
   scope:
     signals:
       restriction: restricted

@@ -34,9 +34,11 @@ The valid actions are:
 | `ingest:spans` | | Ingestion of spans |
 | `ingest:profiles` | | Ingestion of profiles |
 
-To limit the signals of an ingestion token, use `ingest:*` with `spec.scope.signals`, as in the example above.
-This is what the Dash0 UI does with the **Signal types** field.
-A set of single-signal actions, such as `ingest:logs` and `ingest:spans`, also works, but the Dash0 UI shows an empty **Permissions** field for it.
+There are two ways to limit the signals of an ingestion token:
+
+- Use per-signal actions, such as `ingest:logs` and `ingest:spans`.
+- Use `ingest:*` with `spec.scope.signals`, as in the example above. This is the **Signal types** field in the Dash0 UI.
+
 Profiles need `ingest:profiles` or `ingest:*`.
 
 ~> **Note:** A token without the action for a signal drops that signal's data without an error.
