@@ -8,4 +8,4 @@ component: docs
 note: "The `dash0_auth_token` docs list the valid actions and explain how to rotate a token without downtime. The `dash0_auth_token` and `dash0_dataset` docs explain what happens when you remove a field from the YAML."
 
 # Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
-issues: [0]
+issues: [196]
