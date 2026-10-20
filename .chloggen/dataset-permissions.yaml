@@ -8,7 +8,7 @@ component: datasets
 note: "`dash0_dataset` now manages `spec.permissions`: grants in `dataset_yaml` are applied on create and update, and changes made outside Terraform show as drift."
 
 # Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
-issues: [0]
+issues: [195]
 
 # (Optional) One or more lines of additional information to render under the main note.
 # Use pipe (|) for multiline entries.
