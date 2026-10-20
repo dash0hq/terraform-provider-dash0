@@ -186,6 +186,12 @@ func TestAccDatasetResource_Permissions(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckDatasetDestroyed(slug),
 		Steps: []resource.TestStep{
+			// First, so the post-test destroy runs with a valid config.
+			{
+				Config:      testAccDatasetResourceConfig(withPermissions("[dataset:read, dataset:write]")),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`grants dataset:write`),
+			},
 			// The server ignores permissions on create; the provider applies them.
 			{
 				Config: testAccDatasetResourceConfig(withPermissions("[dataset:read, dataset:createCheckRule]")),
@@ -216,11 +222,6 @@ func TestAccDatasetResource_Permissions(t *testing.T) {
 				Config:             testAccDatasetResourceConfig(withPermissions("[dataset:read, dataset:createSLO]")),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
-			},
-			{
-				Config:      testAccDatasetResourceConfig(withPermissions("[dataset:read, dataset:write]")),
-				PlanOnly:    true,
-				ExpectError: regexp.MustCompile(`grants dataset:write`),
 			},
 		},
 	})
