@@ -19,14 +19,50 @@ description: |-
 {{- end }}
 {{- end }}
 
+## Actions
+
+`spec.actions` sets what the token can do.
+The valid actions are:
+
+| Action | Dash0 UI option | Grants |
+|--------|-----------------|--------|
+| `*` | All permissions | Full access |
+| `*:read` | Reading | Read access to the Dash0 API |
+| `ingest:*` | Ingesting | Ingestion of all signals |
+| `ingest:logs` | | Ingestion of logs |
+| `ingest:metrics` | | Ingestion of metrics |
+| `ingest:spans` | | Ingestion of spans |
+| `ingest:profiles` | | Ingestion of profiles |
+
+There are two ways to limit the signals of an ingestion token:
+
+- Use per-signal actions, such as `ingest:logs` and `ingest:spans`.
+- Use `ingest:*` with `spec.scope.signals`, as in the example above. This is the **Signal types** field in the Dash0 UI.
+
+Profiles need `ingest:profiles` or `ingest:*`.
+
+~> **Note:** A token without the action for a signal drops that signal's data without an error.
+
+See [Auth tokens](https://www.dash0.com/docs/dash0/miscellaneous/glossary/auth-tokens) for the permissions and signal types.
+
 ## Rotating the secret
 
 The secret cannot change in place.
-To rotate it, replace the resource:
+To rotate it without downtime, keep two tokens side by side:
 
-```shell
-terraform apply -replace=dash0_auth_token.ingest
-```
+1. Add a second `dash0_auth_token` resource and apply.
+2. Move the consumers to the secret of the new token.
+3. Remove the old resource and apply again.
+
+`terraform apply -replace=dash0_auth_token.ingest` deletes the old token in the same run, so consumers lose access until they get the new secret.
+`create_before_destroy` only narrows that gap.
+Use `-replace` only when downtime is acceptable.
+
+## Omitted fields
+
+When you remove a field from `auth_token_yaml`, Dash0 keeps its current value and Terraform stops checking that field for drift.
+To reset a field, set it to the value you want (usually the default) and keep it in the YAML.
+See the [Dash0 API reference](https://www.dash0.com/docs/api-reference) for the fields and their defaults.
 
 ## Destroying an auth token
 

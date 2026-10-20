@@ -75,6 +75,12 @@ output "staging_dataset_slug" {
 # }
 ```
 
+## Omitted fields
+
+When you remove a field from `dataset_yaml`, Dash0 keeps its current value and Terraform stops checking that field for drift.
+To reset a field, set it to the value you want (usually the default) and keep it in the YAML.
+See the [Dash0 API reference](https://www.dash0.com/docs/api-reference) for the fields and their defaults.
+
 ## Destroying a dataset
 
 Destroying a dataset is a soft delete.

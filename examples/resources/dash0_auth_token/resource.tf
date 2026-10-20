@@ -14,10 +14,17 @@ kind: Dash0AuthToken
 metadata:
   name: Production ingestion
 spec:
+  # ingest:* is the "Ingesting" option in the Dash0 UI.
   actions:
-    - ingest:spans
-    - ingest:logs
-    - ingest:metrics
+    - ingest:*
+  # Limit the signals with scope.signals (the "Signal types" field in the UI).
+  scope:
+    signals:
+      restriction: restricted
+      types:
+        - logs
+        - metricDataPoints
+        - spans
 YAML
 }
 
@@ -27,9 +34,9 @@ output "ingest_token" {
   sensitive = true
 }
 
-# To rotate the secret, replace the resource:
-#
-#   terraform apply -replace=dash0_auth_token.ingest
+# To rotate the secret without downtime, add a second dash0_auth_token
+# resource, move the consumers to its secret, and remove the old resource in a
+# later apply.
 
 # You can also load the YAML definition from a file:
 #
