@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/rand/v2"
 	"os"
@@ -15,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 
 	dash0 "github.com/dash0hq/dash0-api-client-go"
+	"github.com/dash0hq/terraform-provider-dash0/internal/converter"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
 
@@ -209,9 +209,11 @@ func TestAccDatasetResource_Permissions(t *testing.T) {
 			// Change made outside Terraform shows as drift.
 			{
 				PreConfig: func() {
-					body := `{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0Dataset","metadata":{"name":"Terraform Acceptance Permissions"},` +
-						`"spec":{"permissions":[{"role":"basic_member","actions":["dataset:read"]}]}}`
-					c, err := testAccDatasetClient()
+					body, err := converter.ConvertYAMLToJSON(withPermissions("[dataset:read]"))
+					if err != nil {
+						t.Fatalf("converting YAML: %s", err)
+					}
+					c, err := newSLOAccClient()
 					if err == nil {
 						err = c.UpdateDataset(context.Background(), slug, "", body)
 					}
@@ -227,39 +229,21 @@ func TestAccDatasetResource_Permissions(t *testing.T) {
 	})
 }
 
-// testAccCheckDatasetPermissions checks that the API returns want inside spec.permissions.
+// testAccCheckDatasetPermissions checks that the dataset contains want. Only
+// spec.permissions can: GetDataset strips spec.permittedActions.
 func testAccCheckDatasetPermissions(slug, want string) resource.TestCheckFunc {
 	return func(_ *terraform.State) error {
-		c, err := testAccDatasetClient()
+		c, err := newSLOAccClient()
 		if err != nil {
-			return fmt.Errorf("Error creating client: %s", err)
+			return err
 		}
 		got, err := c.GetDataset(context.Background(), slug)
 		if err != nil {
 			return fmt.Errorf("Error retrieving dataset: %s", err)
 		}
-		var parsed struct {
-			Spec struct {
-				Permissions json.RawMessage `json:"permissions"`
-			} `json:"spec"`
-		}
-		if err := json.Unmarshal([]byte(got), &parsed); err != nil {
-			return err
-		}
-		if !strings.Contains(string(parsed.Spec.Permissions), want) {
-			return fmt.Errorf("spec.permissions %s does not contain %s", parsed.Spec.Permissions, want)
+		if !strings.Contains(got, want) {
+			return fmt.Errorf("dataset %s does not contain %s: %s", slug, want, got)
 		}
 		return nil
 	}
-}
-
-func testAccDatasetClient() (client.Client, error) {
-	return client.NewDash0Client(
-		os.Getenv("DASH0_URL"),
-		dash0.StaticAuthTokenProvider(os.Getenv("DASH0_AUTH_TOKEN")),
-		false,
-		"test",
-		3,
-		"",
-	)
 }

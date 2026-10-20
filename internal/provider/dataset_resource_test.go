@@ -125,7 +125,7 @@ func TestDatasetResource_Create_AppliesPermissionsWithUpdate(t *testing.T) {
 
 			yaml := datasetTestYaml + datasetTestPermissions
 			req := resource.CreateRequest{Plan: tfsdk.Plan{Raw: datasetRaw(tftypes.UnknownValue, "production", yaml), Schema: datasetTestSchema().Schema}}
-			resp := &resource.CreateResponse{State: tfsdk.State{Schema: datasetTestSchema().Schema, Raw: datasetRaw(nil, nil, "")}}
+			resp := &resource.CreateResponse{State: datasetState(nil, nil, "")}
 
 			(&DatasetResource{client: mockClient}).Create(context.Background(), req, resp)
 
@@ -334,11 +334,8 @@ func TestDatasetResource_ModifyPlan(t *testing.T) {
 func datasetPlannedYaml(t *testing.T, stateYaml, configYaml string) string {
 	t.Helper()
 	req := planmodifier.StringRequest{ConfigValue: types.StringValue(configYaml), StateValue: types.StringValue(stateYaml), PlanValue: types.StringValue(configYaml)}
-	resp := &planmodifier.StringResponse{PlanValue: req.PlanValue}
-	for _, m := range datasetTestSchema().Schema.Attributes["dataset_yaml"].(schema.StringAttribute).PlanModifiers {
-		m.PlanModifyString(context.Background(), req, resp)
-	}
-	return resp.PlanValue.ValueString()
+	v, _ := runStringPlanModifiers(context.Background(), datasetTestSchema().Schema.Attributes["dataset_yaml"].(schema.StringAttribute).PlanModifiers, req)
+	return v.ValueString()
 }
 
 func TestDatasetResource_PlanPermissions(t *testing.T) {

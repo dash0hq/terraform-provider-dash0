@@ -30,7 +30,7 @@ const (
 )
 
 // datasetServerManagedFields never participate in drift detection: the
-// resource does not manage them yet, or the server derives them.
+// server derives them.
 var datasetServerManagedFields = []string{
 	"spec.permittedActions",
 	// spec.slug mirrors metadata.labels["dash0.com/id"] and is not part of the
