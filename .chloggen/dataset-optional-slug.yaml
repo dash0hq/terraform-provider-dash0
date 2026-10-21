@@ -1,0 +1,16 @@
+# One of 'breaking', 'deprecation', 'new_component', 'enhancement', 'bug_fix'
+change_type: enhancement
+
+# The name of the component, or a single word describing the area of concern (e.g. dashboards, check_rules, views)
+component: datasets
+
+# A brief description of the change. Surround your text with quotes ("") if it needs to start with a backtick (`).
+note: "`dash0_dataset` no longer requires a slug. Set it in `spec.slug` or `metadata.labels[\"dash0.com/id\"]`, or omit it and Dash0 derives it from `metadata.name`."
+
+# Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
+issues: [0]
+
+# (Optional) One or more lines of additional information to render under the main note.
+# Use pipe (|) for multiline entries.
+subtext: |
+  Without a slug, `id` is known after apply and a later name change updates the dataset in place.

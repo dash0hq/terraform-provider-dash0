@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 
@@ -25,19 +26,14 @@ import (
 const (
 	datasetKind       = "Dash0Dataset"
 	datasetAPIVersion = "dash0.com/v1alpha1"
-	datasetIDLabel    = "dash0.com/id"
-	datasetOriginKey  = "dash0.com/origin"
 )
 
 // datasetServerManagedFields never participate in drift detection: the
 // server derives them.
 var datasetServerManagedFields = []string{
 	"spec.permittedActions",
-	// spec.slug mirrors metadata.labels["dash0.com/id"] and is not part of the
-	// dash0-api-client-go DatasetSpec schema, so it is silently dropped when
-	// GetDataset round-trips the API response through that typed struct. The
-	// raw API response (e.g. from `dash0 -X api`) still carries it, so without
-	// this it would always show as drift between config and state.
+	// spec.slug mirrors metadata.labels["dash0.com/id"] and is returned even
+	// when the config omits it. A slug change is detected through id.
 	"spec.slug",
 }
 
@@ -102,21 +98,27 @@ type datasetModel struct {
 	DatasetYaml types.String `tfsdk:"dataset_yaml"`
 }
 
-// datasetSlugFromYAML returns metadata.labels["dash0.com/id"], the dataset slug.
+// datasetFromYAML parses a dataset document (YAML or JSON).
+func datasetFromYAML(datasetYaml string) (*dash0.DatasetDefinition, error) {
+	body, err := converter.ConvertYAMLToJSON(datasetYaml)
+	if err != nil {
+		return nil, fmt.Errorf("dataset_yaml is not valid YAML: %w", err)
+	}
+	var def dash0.DatasetDefinition
+	if err := json.Unmarshal([]byte(body), &def); err != nil {
+		return nil, fmt.Errorf("dataset_yaml is not a valid dataset: %w", err)
+	}
+	return &def, nil
+}
+
+// datasetSlugFromYAML returns the dataset slug: spec.slug, else
+// metadata.labels["dash0.com/id"], else "" (the server derives it from the name).
 func datasetSlugFromYAML(datasetYaml string) (string, error) {
-	var parsed struct {
-		Metadata struct {
-			Labels map[string]interface{} `yaml:"labels"`
-		} `yaml:"metadata"`
+	def, err := datasetFromYAML(datasetYaml)
+	if err != nil {
+		return "", err
 	}
-	if err := yaml.Unmarshal([]byte(datasetYaml), &parsed); err != nil {
-		return "", fmt.Errorf("dataset_yaml is not valid YAML: %w", err)
-	}
-	slug, _ := parsed.Metadata.Labels[datasetIDLabel].(string)
-	if slug == "" {
-		return "", fmt.Errorf("dataset_yaml must set the dataset slug in metadata.labels[%q]", datasetIDLabel)
-	}
-	return slug, nil
+	return dash0.GetDatasetID(def), nil
 }
 
 // Configure adds the provider configured client to the resource.
@@ -147,7 +149,9 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"~> **Note:** Destroying a dataset soft-deletes it. Dashboards, views, check rules, synthetic checks, recording rules, SLOs and time series aggregations are kept for 30 days; " +
 			"applying the same slug within that time restores them. Spam filters are not restored. After 30 days the dataset, its permissions and those assets are removed. " +
 			"Telemetry is removed as its retention expires.\n\n" +
-			"The slug is set in `metadata.labels[\"dash0.com/id\"]` and cannot change: changing it replaces the dataset " +
+			"The slug is optional. Set it in `spec.slug` or `metadata.labels[\"dash0.com/id\"]`; when both are set, they must match. " +
+			"Without a slug, Dash0 derives it from `metadata.name` on create (for example, `My Staging` becomes `my-staging`) and it does not change when the name changes. " +
+			"The slug cannot change: changing a configured slug replaces the dataset " +
 			"(destroy, then create under the new slug). Spec settings you omit (retention, privacy, processing, permissions) " +
 			"keep the server's values without causing a diff.\n\n" +
 			"`spec.permissions` lists the user, team and role grants on the dataset. When set, it replaces the grants on the server and " +
@@ -164,12 +168,12 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"id": schema.StringAttribute{
-				Description: "The dataset slug, taken from `metadata.labels[\"dash0.com/id\"]` in `dataset_yaml`.",
+				Description: "The dataset slug, taken from `spec.slug` or `metadata.labels[\"dash0.com/id\"]` in `dataset_yaml`, or derived by Dash0 from `metadata.name` when neither is set.",
 				Computed:    true,
 			},
 			"dataset_yaml": schema.StringAttribute{
 				Description: "The dataset definition in YAML, following the Dash0 API dataset document: `apiVersion: dash0.com/v1alpha1`, " +
-					"`kind: Dash0Dataset`, `metadata.name` for the display name, `metadata.labels[\"dash0.com/id\"]` for the slug, " +
+					"`kind: Dash0Dataset`, `metadata.name` for the display name, optionally `metadata.labels[\"dash0.com/id\"]` or `spec.slug` for the slug, " +
 					"and optional `spec` settings (`retention`, `privacy`, `processing`, `preferred`, `permissions`). " +
 					"Server-managed metadata is stripped from the state on read.",
 				Required: true,
@@ -182,7 +186,7 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 }
 
 // ValidateConfig checks dataset_yaml at plan time: syntax, apiVersion, kind,
-// slug, and that no permission grants dataset:write.
+// and that no permission grants dataset:write.
 func (r *DatasetResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	var yamlAttr types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("dataset_yaml"), &yamlAttr)...)
@@ -206,10 +210,6 @@ func (r *DatasetResource) ValidateConfig(ctx context.Context, req resource.Valid
 			fmt.Sprintf("dataset_yaml must declare `kind: %s`; got %q.", datasetKind, kind))
 		return
 	}
-	if _, err := datasetSlugFromYAML(yamlAttr.ValueString()); err != nil {
-		resp.Diagnostics.AddAttributeError(path.Root("dataset_yaml"), "dataset_yaml is missing the dataset slug", err.Error())
-		return
-	}
 	spec, _ := parsed["spec"].(map[string]interface{})
 	permissions, _ := spec["permissions"].([]interface{})
 	for i, p := range permissions {
@@ -223,7 +223,8 @@ func (r *DatasetResource) ValidateConfig(ctx context.Context, req resource.Valid
 }
 
 // ModifyPlan sets id from the configured slug and forces replacement when the
-// slug changes, because the Dash0 API treats the slug as immutable.
+// slug changes, because the Dash0 API treats the slug as immutable. Without a
+// configured slug, id is unknown on create and keeps the state value after.
 func (r *DatasetResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.Plan.Raw.IsNull() {
 		return // destroy
@@ -239,13 +240,19 @@ func (r *DatasetResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	if err != nil {
 		return // ValidateConfig reports it
 	}
+	var stateID types.String
+	if !req.State.Raw.IsNull() {
+		resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("id"), &stateID)...)
+	}
+	if slug == "" {
+		// The server derived the slug on create and it cannot change.
+		if !stateID.IsNull() {
+			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("id"), stateID)...)
+		}
+		return
+	}
 	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("id"), slug)...)
 
-	if req.State.Raw.IsNull() {
-		return // create
-	}
-	var stateID types.String
-	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("id"), &stateID)...)
 	if !stateID.IsNull() && stateID.ValueString() != slug {
 		// Target id, not dataset_yaml: the semantic-equal modifier ignores labels, so
 		// dataset_yaml shows no change on a slug-only edit and Terraform would skip it.
@@ -279,19 +286,13 @@ func (r *DatasetResource) Create(ctx context.Context, req resource.CreateRequest
 	if !ok {
 		return
 	}
-	slug, err := datasetSlugFromYAML(model.DatasetYaml.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Missing dataset slug", err.Error())
-		return
-	}
-
 	model.Origin = types.StringValue("tf_" + uuid.New().String())
-	model.ID = types.StringValue(slug)
-
-	if err := r.client.CreateDataset(ctx, model.Origin.ValueString(), body); err != nil {
+	slug, err := r.client.CreateDataset(ctx, model.Origin.ValueString(), body)
+	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create dataset, got error: %s", err))
 		return
 	}
+	model.ID = types.StringValue(slug)
 
 	tflog.Trace(ctx, "created a dataset resource")
 	resp.Diagnostics.Append(resp.State.Set(ctx, model)...)
@@ -390,20 +391,16 @@ func (r *DatasetResource) ImportState(ctx context.Context, req resource.ImportSt
 		return
 	}
 
-	slug, err := datasetSlugFromYAML(apiResponseJSON)
-	if err != nil {
-		resp.Diagnostics.AddError("Error Importing Dataset", fmt.Sprintf("The API response for %q has no dataset slug: %s", req.ID, err))
+	def, err := datasetFromYAML(apiResponseJSON)
+	slug := dash0.GetDatasetID(def)
+	if err != nil || slug == "" {
+		resp.Diagnostics.AddError("Error Importing Dataset", fmt.Sprintf("The API response for %q has no dataset slug (error: %v)", req.ID, err))
 		return
 	}
 
 	var origin string
-	var parsed struct {
-		Metadata struct {
-			Labels map[string]interface{} `yaml:"labels"`
-		} `yaml:"metadata"`
-	}
-	if yaml.Unmarshal([]byte(apiResponseJSON), &parsed) == nil {
-		origin, _ = parsed.Metadata.Labels[datasetOriginKey].(string)
+	if def.Metadata.Labels != nil && def.Metadata.Labels.Dash0Comorigin != nil {
+		origin = *def.Metadata.Labels.Dash0Comorigin
 	}
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), slug)...)

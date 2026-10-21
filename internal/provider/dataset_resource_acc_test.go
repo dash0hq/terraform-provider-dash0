@@ -250,3 +250,41 @@ func testAccCheckDatasetPermissions(slug, want string) resource.TestCheckFunc {
 		return nil
 	}
 }
+
+// TestAccDatasetResource_DerivedSlug creates a dataset without a slug: the
+// server derives it from the name, and a later name change updates in place.
+func TestAccDatasetResource_DerivedSlug(t *testing.T) {
+	if os.Getenv("TF_ACC") != "1" {
+		t.Skip("Acceptance tests skipped unless TF_ACC=1")
+	}
+
+	// The derived slug is at most 26 characters.
+	suffix := fmt.Sprintf("%d %d", time.Now().Unix()%1000000, rand.IntN(100000))
+	slug := "tf-acc-" + strings.ReplaceAll(suffix, " ", "-")
+	withName := func(name string) string {
+		return fmt.Sprintf("apiVersion: dash0.com/v1alpha1\nkind: Dash0Dataset\nmetadata:\n  name: %s", name)
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckDatasetDestroyed(slug),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccDatasetResourceConfig(withName("TF Acc " + suffix)),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckDatasetExists(datasetResourceName),
+					resource.TestCheckResourceAttr(datasetResourceName, "id", slug),
+				),
+			},
+			{
+				Config: testAccDatasetResourceConfig(withName("TF Acc Renamed " + suffix)),
+				Check:  resource.TestCheckResourceAttr(datasetResourceName, "id", slug),
+			},
+			{
+				Config:   testAccDatasetResourceConfig(withName("TF Acc Renamed " + suffix)),
+				PlanOnly: true,
+			},
+		},
+	})
+}

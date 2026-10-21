@@ -10,34 +10,32 @@ import (
 	dash0 "github.com/dash0hq/dash0-api-client-go"
 )
 
-// CreateDataset creates a dataset with POST /api/datasets. The slug is read
-// from the dash0.com/id label of the provided JSON and is required: it is
-// immutable and the only identifier a dataset has. When origin is non-empty it
-// is stamped onto dash0.com/origin.
+// CreateDataset creates a dataset with POST /api/datasets and returns its slug.
+// The slug comes from spec.slug or the dash0.com/id label; when neither is set
+// the server derives it from metadata.name. The slug is immutable. When origin
+// is non-empty it is stamped onto dash0.com/origin.
 //
 // A create with the slug of a soft-deleted dataset inside the grace period
 // restores that dataset.
-func (c *dash0Client) CreateDataset(ctx context.Context, origin string, datasetJSON string) error {
+func (c *dash0Client) CreateDataset(ctx context.Context, origin string, datasetJSON string) (string, error) {
 	def, err := unmarshalDataset(datasetJSON)
 	if err != nil {
-		return fmt.Errorf("error parsing dataset JSON: %w", err)
-	}
-
-	slug := dash0.GetDatasetID(def)
-	if slug == "" {
-		return fmt.Errorf("dataset JSON must set the dash0.com/id label (the dataset slug)")
+		return "", fmt.Errorf("error parsing dataset JSON: %w", err)
 	}
 
 	setDatasetOrigin(def, origin)
 
-	tflog.Debug(ctx, fmt.Sprintf("Creating dataset with slug: %s", slug))
-
-	if _, err = c.inner.CreateDataset(ctx, def); err != nil {
-		return err
+	created, err := c.inner.CreateDataset(ctx, def)
+	if err != nil {
+		return "", err
 	}
 
+	slug := dash0.GetDatasetID(created)
+	if slug == "" {
+		return "", fmt.Errorf("the API response has no dataset slug")
+	}
 	tflog.Debug(ctx, fmt.Sprintf("Dataset created with slug: %s", slug))
-	return nil
+	return slug, nil
 }
 
 // GetDataset retrieves the dataset with the given slug. Server-managed fields

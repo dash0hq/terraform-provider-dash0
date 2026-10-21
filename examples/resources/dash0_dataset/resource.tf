@@ -2,9 +2,11 @@
 # telemetry with its own retention, privacy, and ingestion settings.
 # Datasets are organization-level resources (no dataset scope).
 #
-# metadata.labels."dash0.com/id" is the dataset slug. It is required and
-# cannot be changed after creation; changing it destroys and re-creates the
-# dataset.
+# The dataset slug is optional. Set it in spec.slug or
+# metadata.labels."dash0.com/id" (when both are set, they must match). Without
+# a slug, Dash0 derives it from metadata.name on create ("My Staging" becomes
+# "my-staging"). The slug cannot change: changing a configured slug destroys
+# and re-creates the dataset.
 #
 # Destroying the resource soft-deletes the dataset. Dashboards, views, check
 # rules, synthetic checks, recording rules, SLOs and time series aggregations
