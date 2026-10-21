@@ -16,8 +16,7 @@ import (
 // is stamped onto dash0.com/origin.
 //
 // A create with the slug of a soft-deleted dataset inside the grace period
-// restores that dataset. The server ignores spec.permissions on create and no
-// follow-up update is made, so permissions are not applied.
+// restores that dataset.
 func (c *dash0Client) CreateDataset(ctx context.Context, origin string, datasetJSON string) error {
 	def, err := unmarshalDataset(datasetJSON)
 	if err != nil {
@@ -42,9 +41,8 @@ func (c *dash0Client) CreateDataset(ctx context.Context, origin string, datasetJ
 }
 
 // GetDataset retrieves the dataset with the given slug. Server-managed fields
-// are stripped so drift detection ignores them. spec.permissions is also
-// cleared: this provider version treats it as read-only, so it must never
-// cause drift. dash0.com/id and dash0.com/origin are kept.
+// are stripped so drift detection ignores them. dash0.com/id and
+// dash0.com/origin are kept.
 func (c *dash0Client) GetDataset(ctx context.Context, slug string) (string, error) {
 	def, err := c.inner.GetDataset(ctx, slug)
 	if err != nil {
@@ -54,7 +52,6 @@ func (c *dash0Client) GetDataset(ctx context.Context, slug string) (string, erro
 	tflog.Debug(ctx, fmt.Sprintf("Dataset retrieved with slug: %s", slug))
 
 	dash0.StripDatasetServerFields(def)
-	def.Spec.Permissions = nil
 
 	return marshalToJSON(def)
 }

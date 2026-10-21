@@ -77,11 +77,27 @@ func TestDatasetResource_Read_ServerDefaultsCauseNoDrift(t *testing.T) {
 	assert.Equal(t, datasetTestYaml, got.DatasetYaml.ValueString())
 }
 
-// permissions are ignored even when the user sets them.
-func TestDatasetResource_Read_PermissionsNeverDrift(t *testing.T) {
-	stateYaml := datasetTestYaml + "\n  permissions:\n    - role: admin\n      actions: [dataset:update]"
-	_, got := datasetRead(t, stateYaml, datasetServerResponse, nil)
+const datasetTestPermissions = `
+  permissions:
+    - teamId: team-a
+      actions: [dataset:read, dataset:delete]
+    - userId: user_1
+      actions: [dataset:read]`
+
+// The API does not return the admin row and may reorder entries and actions:
+// neither is drift.
+func TestDatasetResource_Read_ReorderedPermissionsCauseNoDrift(t *testing.T) {
+	stateYaml := datasetTestYaml + datasetTestPermissions
+	apiResponse := `{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0Dataset","metadata":{"name":"Production","labels":{"dash0.com/id":"production"}},
+	  "spec":{"retention":{"traces":"30d"},"permissions":[{"userId":"user_1","actions":["dataset:read"]},{"teamId":"team-a","actions":["dataset:delete","dataset:read"]}]}}`
+	_, got := datasetRead(t, stateYaml, apiResponse, nil)
 	assert.Equal(t, stateYaml, got.DatasetYaml.ValueString())
+}
+
+// A grant changed outside Terraform shows as drift.
+func TestDatasetResource_Read_PermissionsDriftDetected(t *testing.T) {
+	_, got := datasetRead(t, datasetTestYaml+datasetTestPermissions, datasetServerResponse, nil)
+	assert.Equal(t, datasetServerResponse, got.DatasetYaml.ValueString())
 }
 
 // spec.slug mirrors metadata.labels["dash0.com/id"] and is dropped by

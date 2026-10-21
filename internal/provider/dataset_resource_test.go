@@ -10,6 +10,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
@@ -105,6 +107,22 @@ func TestDatasetResource_Create_StampsOriginAndSlug(t *testing.T) {
 	assert.True(t, strings.HasPrefix(got.Origin.ValueString(), "tf_"))
 	assert.Equal(t, "production", got.ID.ValueString())
 	assert.Equal(t, datasetTestYaml, got.DatasetYaml.ValueString())
+	mockClient.AssertExpectations(t)
+}
+
+// Permissions go in the create body, with no follow-up update: the mock has no
+// UpdateDataset expectation, so a call to it fails the test.
+func TestDatasetResource_Create_SendsPermissionsInCreateBody(t *testing.T) {
+	mockClient := &MockClient{}
+	mockClient.On("CreateDataset", mock.Anything, mock.Anything,
+		mock.MatchedBy(func(body string) bool { return strings.Contains(body, "team-a") })).Return(nil)
+
+	req := resource.CreateRequest{Plan: tfsdk.Plan{Raw: datasetRaw(tftypes.UnknownValue, "production", datasetTestYaml+datasetTestPermissions), Schema: datasetTestSchema().Schema}}
+	resp := &resource.CreateResponse{State: datasetState(nil, nil, "")}
+
+	(&DatasetResource{client: mockClient}).Create(context.Background(), req, resp)
+
+	assert.False(t, resp.Diagnostics.HasError(), resp.Diagnostics)
 	mockClient.AssertExpectations(t)
 }
 
@@ -300,6 +318,29 @@ func TestDatasetResource_ModifyPlan(t *testing.T) {
 	})
 }
 
+// datasetPlannedYaml runs the dataset_yaml plan modifiers and returns the planned value.
+func datasetPlannedYaml(t *testing.T, stateYaml, configYaml string) string {
+	t.Helper()
+	req := planmodifier.StringRequest{ConfigValue: types.StringValue(configYaml), StateValue: types.StringValue(stateYaml), PlanValue: types.StringValue(configYaml)}
+	v, _ := runStringPlanModifiers(context.Background(), datasetTestSchema().Schema.Attributes["dataset_yaml"].(schema.StringAttribute).PlanModifiers, req)
+	return v.ValueString()
+}
+
+func TestDatasetResource_PlanPermissions(t *testing.T) {
+	state := datasetTestYaml + datasetTestPermissions
+	t.Run("permissions-only change is planned", func(t *testing.T) {
+		config := strings.Replace(state, "user_1", "user_2", 1)
+		assert.Equal(t, config, datasetPlannedYaml(t, state, config))
+	})
+	t.Run("entry and action order is not a change", func(t *testing.T) {
+		config := datasetTestYaml + "\n  permissions:\n    - userId: user_1\n      actions: [dataset:read]\n    - teamId: team-a\n      actions: [dataset:delete, dataset:read]"
+		assert.Equal(t, state, datasetPlannedYaml(t, state, config))
+	})
+	t.Run("permissions absent from config are not a change", func(t *testing.T) {
+		assert.Equal(t, state, datasetPlannedYaml(t, state, datasetTestYaml))
+	})
+}
+
 func TestDatasetResource_ValidateConfig(t *testing.T) {
 	validate := func(y string) *resource.ValidateConfigResponse {
 		resp := &resource.ValidateConfigResponse{}
@@ -314,9 +355,11 @@ func TestDatasetResource_ValidateConfig(t *testing.T) {
 	assert.True(t, validate("kind: [").Diagnostics.HasError())
 	assert.True(t, validate("kind: Dash0Team\nmetadata:\n  name: x").Diagnostics.HasError())
 	assert.True(t, validate("apiVersion: dash0.com/v1alpha1\nkind: Dash0Dataset\nmetadata:\n  name: x").Diagnostics.HasError())
-	warned := validate(datasetTestYaml + "\n  permissions: []").Diagnostics
-	assert.Equal(t, 1, warned.WarningsCount())
-	assert.Contains(t, warned.Warnings()[0].Detail(), "ignored on create")
+	assert.Empty(t, validate(datasetTestYaml+datasetTestPermissions).Diagnostics)
+	assert.Empty(t, validate(datasetTestYaml+"\n  permissions: []").Diagnostics)
+	writeGrant := validate(datasetTestYaml + "\n  permissions:\n    - teamId: team-a\n      actions: [dataset:read, dataset:write]").Diagnostics
+	assert.True(t, writeGrant.HasError())
+	assert.Contains(t, writeGrant.Errors()[0].Detail(), "spec.permissions[0] grants dataset:write")
 	// telemetryFilters left the dataset document; it is no longer special-cased.
 	assert.Equal(t, 0, validate(datasetTestYaml+"\n  telemetryFilters: []").Diagnostics.WarningsCount())
 }

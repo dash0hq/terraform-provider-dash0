@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -29,9 +30,8 @@ const (
 )
 
 // datasetServerManagedFields never participate in drift detection: the
-// resource does not manage them yet, or the server derives them.
+// server derives them.
 var datasetServerManagedFields = []string{
-	"spec.permissions",
 	"spec.permittedActions",
 	// spec.slug mirrors metadata.labels["dash0.com/id"] and is not part of the
 	// dash0-api-client-go DatasetSpec schema, so it is silently dropped when
@@ -47,6 +47,8 @@ var datasetServerManagedFields = []string{
 // make its server-filled siblings drift. When the user sets a field, drift on
 // it is detected.
 var datasetServerDefaultedFields = []string{
+	// The API does not return the admin role row, so it never drifts.
+	"spec.permissions",
 	"spec.preferred",
 	"spec.retention",
 	"spec.retention.traces",
@@ -146,9 +148,11 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"applying the same slug within that time restores them. Spam filters are not restored. After 30 days the dataset, its permissions and those assets are removed. " +
 			"Telemetry is removed as its retention expires.\n\n" +
 			"The slug is set in `metadata.labels[\"dash0.com/id\"]` and cannot change: changing it replaces the dataset " +
-			"(destroy, then create under the new slug). `spec.permissions` is not managed by " +
-			"this resource yet: it is ignored on create and when detecting drift. Spec settings you omit (retention, privacy, processing) " +
-			"keep the server's values without causing a diff.",
+			"(destroy, then create under the new slug). Spec settings you omit (retention, privacy, processing, permissions) " +
+			"keep the server's values without causing a diff.\n\n" +
+			"`spec.permissions` lists the user, team and role grants on the dataset. When set, it replaces the grants on the server and " +
+			"changes made outside Terraform show as drift. The admin role grant is managed by Dash0: it is not listed and never changes. " +
+			"A grant cannot include `dataset:write`. An empty list does not remove grants: the server keeps them, so the plan keeps showing a change.",
 
 		Attributes: map[string]schema.Attribute{
 			"origin": schema.StringAttribute{
@@ -166,7 +170,7 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"dataset_yaml": schema.StringAttribute{
 				Description: "The dataset definition in YAML, following the Dash0 API dataset document: `apiVersion: dash0.com/v1alpha1`, " +
 					"`kind: Dash0Dataset`, `metadata.name` for the display name, `metadata.labels[\"dash0.com/id\"]` for the slug, " +
-					"and optional `spec` settings (`retention`, `privacy`, `processing`, `preferred`). " +
+					"and optional `spec` settings (`retention`, `privacy`, `processing`, `preferred`, `permissions`). " +
 					"Server-managed metadata is stripped from the state on read.",
 				Required: true,
 				PlanModifiers: []planmodifier.String{
@@ -177,7 +181,8 @@ func (r *DatasetResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 	}
 }
 
-// ValidateConfig checks dataset_yaml at plan time: syntax, apiVersion, kind and slug.
+// ValidateConfig checks dataset_yaml at plan time: syntax, apiVersion, kind,
+// slug, and that no permission grants dataset:write.
 func (r *DatasetResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	var yamlAttr types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("dataset_yaml"), &yamlAttr)...)
@@ -205,11 +210,14 @@ func (r *DatasetResource) ValidateConfig(ctx context.Context, req resource.Valid
 		resp.Diagnostics.AddAttributeError(path.Root("dataset_yaml"), "dataset_yaml is missing the dataset slug", err.Error())
 		return
 	}
-	if spec, ok := parsed["spec"].(map[string]interface{}); ok {
-		if _, set := spec["permissions"]; set {
-			resp.Diagnostics.AddAttributeWarning(path.Root("dataset_yaml"),
-				"spec.permissions is not managed by dash0_dataset",
-				"spec.permissions is ignored on create and when detecting drift. The server does not apply it on create, and changes made outside Terraform are not reverted.")
+	spec, _ := parsed["spec"].(map[string]interface{})
+	permissions, _ := spec["permissions"].([]interface{})
+	for i, p := range permissions {
+		entry, _ := p.(map[string]interface{})
+		actions, _ := entry["actions"].([]interface{})
+		if slices.Contains(actions, interface{}("dataset:write")) {
+			resp.Diagnostics.AddAttributeError(path.Root("dataset_yaml"), "spec.permissions grants dataset:write",
+				fmt.Sprintf("spec.permissions[%d] grants dataset:write. Dash0 rejects write grants on datasets managed by Terraform: change the dataset in Terraform instead.", i))
 		}
 	}
 }
