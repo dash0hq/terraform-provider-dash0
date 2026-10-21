@@ -5,7 +5,7 @@ subcategory: ""
 description: |-
   Manages a Dash0 dataset. Datasets are organization-level resources identified by an immutable slug.
   ~> Note: Destroying a dataset soft-deletes it. Dashboards, views, check rules, synthetic checks, recording rules, SLOs and time series aggregations are kept for 30 days; applying the same slug within that time restores them. Spam filters are not restored. After 30 days the dataset, its permissions and those assets are removed. Telemetry is removed as its retention expires.
-  The slug is set in metadata.labels["dash0.com/id"] and cannot change: changing it replaces the dataset (destroy, then create under the new slug). Spec settings you omit (retention, privacy, processing, permissions) keep the server's values without causing a diff.
+  The slug is optional. Set it in spec.slug or metadata.labels["dash0.com/id"]; when both are set, they must match. Without a slug, Dash0 derives it from metadata.name on create (for example, My Staging becomes my-staging) and it does not change when the name changes. The slug cannot change: changing a configured slug replaces the dataset (destroy, then create under the new slug). Spec settings you omit (retention, privacy, processing, permissions) keep the server's values without causing a diff.
   spec.permissions lists the user, team and role grants on the dataset. When set, it replaces the grants on the server and changes made outside Terraform show as drift. The admin role grant is managed by Dash0: it is not listed and never changes. A grant cannot include dataset:write. An empty list does not remove grants: the server keeps them, so the plan keeps showing a change.
 ---
 
@@ -15,7 +15,7 @@ Manages a Dash0 dataset. Datasets are organization-level resources identified by
 
 ~> **Note:** Destroying a dataset soft-deletes it. Dashboards, views, check rules, synthetic checks, recording rules, SLOs and time series aggregations are kept for 30 days; applying the same slug within that time restores them. Spam filters are not restored. After 30 days the dataset, its permissions and those assets are removed. Telemetry is removed as its retention expires.
 
-The slug is set in `metadata.labels["dash0.com/id"]` and cannot change: changing it replaces the dataset (destroy, then create under the new slug). Spec settings you omit (retention, privacy, processing, permissions) keep the server's values without causing a diff.
+The slug is optional. Set it in `spec.slug` or `metadata.labels["dash0.com/id"]`; when both are set, they must match. Without a slug, Dash0 derives it from `metadata.name` on create (for example, `My Staging` becomes `my-staging`) and it does not change when the name changes. The slug cannot change: changing a configured slug replaces the dataset (destroy, then create under the new slug). Spec settings you omit (retention, privacy, processing, permissions) keep the server's values without causing a diff.
 
 `spec.permissions` lists the user, team and role grants on the dataset. When set, it replaces the grants on the server and changes made outside Terraform show as drift. The admin role grant is managed by Dash0: it is not listed and never changes. A grant cannot include `dataset:write`. An empty list does not remove grants: the server keeps them, so the plan keeps showing a change.
 
@@ -28,9 +28,11 @@ The dataset document follows the Dash0 API dataset document (`apiVersion: dash0.
 # telemetry with its own retention, privacy, and ingestion settings.
 # Datasets are organization-level resources (no dataset scope).
 #
-# metadata.labels."dash0.com/id" is the dataset slug. It is required and
-# cannot be changed after creation; changing it destroys and re-creates the
-# dataset.
+# The dataset slug is optional. Set it in spec.slug or
+# metadata.labels."dash0.com/id" (when both are set, they must match). Without
+# a slug, Dash0 derives it from metadata.name on create ("My Staging" becomes
+# "my-staging"). The slug cannot change: changing a configured slug destroys
+# and re-creates the dataset.
 #
 # Destroying the resource soft-deletes the dataset. Dashboards, views, check
 # rules, synthetic checks, recording rules, SLOs and time series aggregations
@@ -131,11 +133,11 @@ YAML
 
 ### Required
 
-- `dataset_yaml` (String) The dataset definition in YAML, following the Dash0 API dataset document: `apiVersion: dash0.com/v1alpha1`, `kind: Dash0Dataset`, `metadata.name` for the display name, `metadata.labels["dash0.com/id"]` for the slug, and optional `spec` settings (`retention`, `privacy`, `processing`, `preferred`, `permissions`). Server-managed metadata is stripped from the state on read.
+- `dataset_yaml` (String) The dataset definition in YAML, following the Dash0 API dataset document: `apiVersion: dash0.com/v1alpha1`, `kind: Dash0Dataset`, `metadata.name` for the display name, optionally `metadata.labels["dash0.com/id"]` or `spec.slug` for the slug, and optional `spec` settings (`retention`, `privacy`, `processing`, `preferred`, `permissions`). Server-managed metadata is stripped from the state on read.
 
 ### Read-Only
 
-- `id` (String) The dataset slug, taken from `metadata.labels["dash0.com/id"]` in `dataset_yaml`.
+- `id` (String) The dataset slug, taken from `spec.slug` or `metadata.labels["dash0.com/id"]` in `dataset_yaml`, or derived by Dash0 from `metadata.name` when neither is set.
 - `origin` (String) A unique identifier for the dataset, generated by the provider on creation. Null for datasets imported without an origin.
 
 ## Import

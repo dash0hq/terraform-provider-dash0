@@ -71,19 +71,27 @@ func TestDatasetResource_Schema(t *testing.T) {
 	assert.Contains(t, s.Description, "30 days")
 }
 
-func TestDatasetSlugFromYAML(t *testing.T) {
-	slug, err := datasetSlugFromYAML(datasetTestYaml)
-	assert.NoError(t, err)
-	assert.Equal(t, "production", slug)
+const datasetNoSlugYaml = `apiVersion: dash0.com/v1alpha1
+kind: Dash0Dataset
+metadata:
+  name: Production`
 
-	for _, bad := range []string{
-		"apiVersion: dash0.com/v1alpha1\nkind: Dash0Dataset\nmetadata:\n  name: x",
-		"apiVersion: dash0.com/v1alpha1\nkind: Dash0Dataset\nmetadata:\n  labels:\n    dash0.com/id: \"\"",
-		"kind: [",
+// The slug precedence matches the API: spec.slug, then the dash0.com/id label.
+func TestDatasetSlugFromYAML(t *testing.T) {
+	for name, tc := range map[string]struct{ yaml, want string }{
+		"no slug":        {datasetNoSlugYaml, ""},
+		"label only":     {datasetTestYaml, "production"},
+		"spec.slug only": {datasetNoSlugYaml + "\nspec:\n  slug: prod", "prod"},
+		"both equal":     {datasetTestYaml + "\n  slug: production", "production"},
+		"both differ":    {datasetTestYaml + "\n  slug: prod", "prod"},
 	} {
-		_, err := datasetSlugFromYAML(bad)
-		assert.Error(t, err, bad)
+		slug, err := datasetSlugFromYAML(tc.yaml)
+		assert.NoError(t, err, name)
+		assert.Equal(t, tc.want, slug, name)
 	}
+
+	_, err := datasetSlugFromYAML("kind: [")
+	assert.Error(t, err)
 }
 
 func TestDatasetResource_Create_StampsOriginAndSlug(t *testing.T) {
@@ -91,7 +99,7 @@ func TestDatasetResource_Create_StampsOriginAndSlug(t *testing.T) {
 	r := &DatasetResource{client: mockClient}
 	mockClient.On("CreateDataset", mock.Anything,
 		mock.MatchedBy(func(o string) bool { return strings.HasPrefix(o, "tf_") }),
-		mock.AnythingOfType("string")).Return(nil)
+		mock.AnythingOfType("string")).Return("production", nil)
 
 	req := resource.CreateRequest{Plan: tfsdk.Plan{
 		Raw:    datasetRaw(tftypes.UnknownValue, "production", datasetTestYaml),
@@ -115,7 +123,7 @@ func TestDatasetResource_Create_StampsOriginAndSlug(t *testing.T) {
 func TestDatasetResource_Create_SendsPermissionsInCreateBody(t *testing.T) {
 	mockClient := &MockClient{}
 	mockClient.On("CreateDataset", mock.Anything, mock.Anything,
-		mock.MatchedBy(func(body string) bool { return strings.Contains(body, "team-a") })).Return(nil)
+		mock.MatchedBy(func(body string) bool { return strings.Contains(body, "team-a") })).Return("production", nil)
 
 	req := resource.CreateRequest{Plan: tfsdk.Plan{Raw: datasetRaw(tftypes.UnknownValue, "production", datasetTestYaml+datasetTestPermissions), Schema: datasetTestSchema().Schema}}
 	resp := &resource.CreateResponse{State: datasetState(nil, nil, "")}
@@ -126,30 +134,30 @@ func TestDatasetResource_Create_SendsPermissionsInCreateBody(t *testing.T) {
 	mockClient.AssertExpectations(t)
 }
 
-func TestDatasetResource_Create_MissingSlug(t *testing.T) {
+func TestDatasetResource_Create_NoSlugTakesIDFromAPI(t *testing.T) {
 	mockClient := &MockClient{}
-	r := &DatasetResource{client: mockClient}
+	mockClient.On("CreateDataset", mock.Anything, mock.Anything, mock.Anything).Return("production", nil)
 
-	req := resource.CreateRequest{Plan: tfsdk.Plan{
-		Raw:    datasetRaw(tftypes.UnknownValue, tftypes.UnknownValue, "apiVersion: dash0.com/v1alpha1\nkind: Dash0Dataset\nmetadata:\n  name: x"),
-		Schema: datasetTestSchema().Schema,
-	}}
-	resp := &resource.CreateResponse{State: tfsdk.State{Schema: datasetTestSchema().Schema, Raw: datasetRaw(nil, nil, "")}}
+	req := resource.CreateRequest{Plan: tfsdk.Plan{Raw: datasetRaw(tftypes.UnknownValue, tftypes.UnknownValue, datasetNoSlugYaml), Schema: datasetTestSchema().Schema}}
+	resp := &resource.CreateResponse{State: datasetState(nil, nil, "")}
 
-	r.Create(context.Background(), req, resp)
+	(&DatasetResource{client: mockClient}).Create(context.Background(), req, resp)
 
-	assert.True(t, resp.Diagnostics.HasError())
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "dash0.com/id")
-	mockClient.AssertNotCalled(t, "CreateDataset", mock.Anything, mock.Anything, mock.Anything)
+	assert.False(t, resp.Diagnostics.HasError(), resp.Diagnostics)
+	var got datasetModel
+	resp.State.Get(context.Background(), &got)
+	assert.Equal(t, "production", got.ID.ValueString())
+	assert.Equal(t, datasetNoSlugYaml, got.DatasetYaml.ValueString())
 }
 
 func TestDatasetResource_Create_ClientError(t *testing.T) {
 	mockClient := &MockClient{}
 	r := &DatasetResource{client: mockClient}
-	mockClient.On("CreateDataset", mock.Anything, mock.Anything, mock.Anything).Return(errServer)
+	mockClient.On("CreateDataset", mock.Anything, mock.Anything, mock.Anything).Return("", errServer)
 
+	// spec.slug and the label differ: the API rejects it and the error surfaces.
 	req := resource.CreateRequest{Plan: tfsdk.Plan{
-		Raw:    datasetRaw(tftypes.UnknownValue, "production", datasetTestYaml),
+		Raw:    datasetRaw(tftypes.UnknownValue, "prod", datasetTestYaml+"\n  slug: prod"),
 		Schema: datasetTestSchema().Schema,
 	}}
 	resp := &resource.CreateResponse{State: tfsdk.State{Schema: datasetTestSchema().Schema, Raw: datasetRaw(nil, nil, "")}}
@@ -157,6 +165,7 @@ func TestDatasetResource_Create_ClientError(t *testing.T) {
 	r.Create(context.Background(), req, resp)
 
 	assert.True(t, resp.Diagnostics.HasError())
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), errServer.Error())
 	assert.True(t, resp.State.Raw.IsNull() || resp.State.Raw.Equal(datasetRaw(nil, nil, "")))
 }
 
@@ -316,6 +325,24 @@ func TestDatasetResource_ModifyPlan(t *testing.T) {
 			strings.Replace(datasetTestYaml, "id: production", "id: staging", 1))
 		assert.Equal(t, path.Paths{path.Root("id")}, resp.RequiresReplace)
 	})
+	t.Run("spec.slug change requires replace", func(t *testing.T) {
+		resp := datasetModifyPlan(t, datasetRaw("tf_abc", "production", datasetNoSlugYaml), datasetNoSlugYaml+"\nspec:\n  slug: staging")
+		assert.Equal(t, path.Paths{path.Root("id")}, resp.RequiresReplace)
+	})
+	t.Run("create without slug leaves id unknown", func(t *testing.T) {
+		resp := datasetModifyPlan(t, nullState, datasetNoSlugYaml)
+		assert.False(t, resp.Diagnostics.HasError())
+		var id types.String
+		resp.Plan.GetAttribute(context.Background(), path.Root("id"), &id)
+		assert.True(t, id.IsUnknown())
+	})
+	t.Run("without slug keeps the state id and does not replace", func(t *testing.T) {
+		resp := datasetModifyPlan(t, datasetRaw("tf_abc", "production", datasetNoSlugYaml), strings.Replace(datasetNoSlugYaml, "Production", "Prod", 1))
+		assert.Empty(t, resp.RequiresReplace)
+		var id types.String
+		resp.Plan.GetAttribute(context.Background(), path.Root("id"), &id)
+		assert.Equal(t, "production", id.ValueString())
+	})
 }
 
 // datasetPlannedYaml runs the dataset_yaml plan modifiers and returns the planned value.
@@ -354,12 +381,18 @@ func TestDatasetResource_ValidateConfig(t *testing.T) {
 	assert.Equal(t, 0, validate(datasetTestYaml).Diagnostics.WarningsCount())
 	assert.True(t, validate("kind: [").Diagnostics.HasError())
 	assert.True(t, validate("kind: Dash0Team\nmetadata:\n  name: x").Diagnostics.HasError())
-	assert.True(t, validate("apiVersion: dash0.com/v1alpha1\nkind: Dash0Dataset\nmetadata:\n  name: x").Diagnostics.HasError())
+	assert.Empty(t, validate(datasetNoSlugYaml).Diagnostics, "the slug is optional")
 	assert.Empty(t, validate(datasetTestYaml+datasetTestPermissions).Diagnostics)
 	assert.Empty(t, validate(datasetTestYaml+"\n  permissions: []").Diagnostics)
 	writeGrant := validate(datasetTestYaml + "\n  permissions:\n    - teamId: team-a\n      actions: [dataset:read, dataset:write]").Diagnostics
 	assert.True(t, writeGrant.HasError())
 	assert.Contains(t, writeGrant.Errors()[0].Detail(), "spec.permissions[0] grants dataset:write")
+	assert.Empty(t, validate(datasetTestYaml+"\n  slug: production").Diagnostics, "matching slugs")
+	differ := validate(datasetTestYaml + "\n  slug: prod").Diagnostics
+	assert.True(t, differ.HasError())
+	assert.Contains(t, differ.Errors()[0].Summary(), "differ")
+	// The typed parse fails at validate time, not at apply.
+	assert.True(t, validate(datasetNoSlugYaml+"\nspec:\n  slug: 2024").Diagnostics.HasError())
 	// telemetryFilters left the dataset document; it is no longer special-cased.
 	assert.Equal(t, 0, validate(datasetTestYaml+"\n  telemetryFilters: []").Diagnostics.WarningsCount())
 }
@@ -380,12 +413,32 @@ func (datasetTestProvider) Resources(context.Context) []func() resource.Resource
 	return []func() resource.Resource{NewDatasetResource}
 }
 
-// TestDatasetResource_PlanResourceChange_SlugChangeReplacesID runs the full
-// framework plan: attribute plan modifiers first, then ModifyPlan. The
-// semantic-equal modifier ignores labels, so a slug-only edit leaves
+// The semantic-equal modifier ignores labels, so a slug-only edit leaves
 // dataset_yaml unchanged; the replace must therefore target id.
 func TestDatasetResource_PlanResourceChange_SlugChangeReplacesID(t *testing.T) {
-	ctx := context.Background()
+	renamed := strings.Replace(datasetTestYaml, "id: production", "id: staging", 1)
+	yamlPlan, idPlan, replace := datasetPlanResourceChange(t, datasetTestYaml, renamed)
+
+	assert.Equal(t, datasetTestYaml, yamlPlan, "precondition: dataset_yaml shows no change")
+	assert.Equal(t, "staging", idPlan)
+	assert.Equal(t, []*tftypes.AttributePath{tftypes.NewAttributePath().WithAttributeName("id")}, replace)
+}
+
+// Without a slug in config, the server-derived slug is kept: a name change
+// updates in place.
+func TestDatasetResource_PlanResourceChange_NameChangeWithoutSlugKeepsID(t *testing.T) {
+	renamed := strings.Replace(datasetNoSlugYaml, "Production", "Prod", 1)
+	yamlPlan, idPlan, replace := datasetPlanResourceChange(t, datasetNoSlugYaml, renamed)
+
+	assert.Equal(t, renamed, yamlPlan)
+	assert.Equal(t, "production", idPlan)
+	assert.Empty(t, replace)
+}
+
+// datasetPlanResourceChange plans an update from prior state (id "production")
+// to config through the framework pipeline: attribute plan modifiers, then ModifyPlan.
+func datasetPlanResourceChange(t *testing.T, priorYaml, configYaml string) (yamlPlan, idPlan string, replace []*tftypes.AttributePath) {
+	t.Helper()
 	srv := providerserver.NewProtocol6(datasetTestProvider{})()
 
 	objType := datasetRaw(nil, nil, "").Type()
@@ -395,13 +448,11 @@ func TestDatasetResource_PlanResourceChange_SlugChangeReplacesID(t *testing.T) {
 		return &d
 	}
 
-	renamed := strings.Replace(datasetTestYaml, "id: production", "id: staging", 1)
-	prior := datasetRaw("tf_abc", "production", datasetTestYaml)
-	resp, err := srv.PlanResourceChange(ctx, &tfprotov6.PlanResourceChangeRequest{
+	resp, err := srv.PlanResourceChange(context.Background(), &tfprotov6.PlanResourceChangeRequest{
 		TypeName:         "dash0_dataset",
-		PriorState:       dv(prior),
-		ProposedNewState: dv(datasetRaw("tf_abc", "production", renamed)),
-		Config:           dv(datasetRaw(nil, nil, renamed)),
+		PriorState:       dv(datasetRaw("tf_abc", "production", priorYaml)),
+		ProposedNewState: dv(datasetRaw("tf_abc", "production", configYaml)),
+		Config:           dv(datasetRaw(nil, nil, configYaml)),
 	})
 	assert.NoError(t, err)
 	assert.Empty(t, resp.Diagnostics)
@@ -410,11 +461,7 @@ func TestDatasetResource_PlanResourceChange_SlugChangeReplacesID(t *testing.T) {
 	assert.NoError(t, err)
 	var attrs map[string]tftypes.Value
 	assert.NoError(t, planned.As(&attrs))
-	var yamlPlan, idPlan string
 	assert.NoError(t, attrs["dataset_yaml"].As(&yamlPlan))
 	assert.NoError(t, attrs["id"].As(&idPlan))
-
-	assert.Equal(t, datasetTestYaml, yamlPlan, "precondition: dataset_yaml shows no change")
-	assert.Equal(t, "staging", idPlan)
-	assert.Equal(t, []*tftypes.AttributePath{tftypes.NewAttributePath().WithAttributeName("id")}, resp.RequiresReplace)
+	return yamlPlan, idPlan, resp.RequiresReplace
 }

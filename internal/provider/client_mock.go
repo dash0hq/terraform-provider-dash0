@@ -163,9 +163,9 @@ func (m *MockClient) ResolveNotificationChannel(ctx context.Context, origin stri
 	return args.String(0), args.String(1), args.Error(2)
 }
 
-func (m *MockClient) CreateDataset(ctx context.Context, origin string, datasetJSON string) error {
+func (m *MockClient) CreateDataset(ctx context.Context, origin string, datasetJSON string) (string, error) {
 	args := m.Called(ctx, origin, datasetJSON)
-	return args.Error(0)
+	return args.String(0), args.Error(1)
 }
 
 func (m *MockClient) GetDataset(ctx context.Context, slug string) (string, error) {

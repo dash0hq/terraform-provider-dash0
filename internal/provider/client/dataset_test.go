@@ -83,7 +83,9 @@ func TestCreateDataset_StampsOriginAndPostsSlug(t *testing.T) {
 	var body map[string]any
 	c := newDatasetTestServer(t, http.StatusOK, datasetTestJSON, &method, &path, &body)
 
-	require.NoError(t, c.CreateDataset(context.Background(), "tf_abc", datasetTestJSON))
+	slug, err := c.CreateDataset(context.Background(), "tf_abc", datasetTestJSON)
+	require.NoError(t, err)
+	assert.Equal(t, "staging", slug)
 
 	assert.Equal(t, http.MethodPost, method)
 	assert.Equal(t, "/api/datasets", path)
@@ -98,21 +100,48 @@ func TestCreateDataset_EmptyOriginLeavesOriginUnset(t *testing.T) {
 	var body map[string]any
 	c := newDatasetTestServer(t, http.StatusOK, datasetTestJSON, &method, &path, &body)
 
-	require.NoError(t, c.CreateDataset(context.Background(), "", datasetTestJSON))
+	_, err := c.CreateDataset(context.Background(), "", datasetTestJSON)
+	require.NoError(t, err)
 
 	assert.NotContains(t, datasetLabels(t, body), "dash0.com/origin")
 }
 
-func TestCreateDataset_MissingSlugErrors(t *testing.T) {
+func TestCreateDataset_NoSlugReturnsServerSlug(t *testing.T) {
 	var method, path string
-	c := newDatasetTestServer(t, http.StatusOK, datasetTestJSON, &method, &path, nil)
+	var body map[string]any
+	c := newDatasetTestServer(t, http.StatusOK,
+		`{"kind":"Dash0Dataset","metadata":{"name":"My Staging","labels":{"dash0.com/id":"my-staging"}},"spec":{"slug":"my-staging"}}`,
+		&method, &path, &body)
 
-	err := c.CreateDataset(context.Background(), "tf_abc",
-		`{"kind":"Dash0Dataset","metadata":{"name":"Staging"},"spec":{}}`)
+	slug, err := c.CreateDataset(context.Background(), "tf_abc",
+		`{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0Dataset","metadata":{"name":"My Staging"},"spec":{}}`)
+
+	require.NoError(t, err)
+	assert.Equal(t, "my-staging", slug)
+	assert.NotContains(t, datasetLabels(t, body), "dash0.com/id")
+	assert.NotContains(t, body["spec"], "slug")
+}
+
+// The dataset exists after a 2xx, so a response without a slug falls back to
+// the configured one instead of failing.
+func TestCreateDataset_ResponseWithoutSlugUsesConfiguredSlug(t *testing.T) {
+	var method, path string
+	c := newDatasetTestServer(t, http.StatusOK, `{"kind":"Dash0Dataset","metadata":{"name":"Staging"},"spec":{}}`, &method, &path, nil)
+
+	slug, err := c.CreateDataset(context.Background(), "tf_abc", datasetTestJSON)
+
+	require.NoError(t, err)
+	assert.Equal(t, "staging", slug)
+}
+
+func TestCreateDataset_APIErrorSurfaces(t *testing.T) {
+	var method, path string
+	c := newDatasetTestServer(t, http.StatusBadRequest, `{"error":{"message":"spec.slug and dash0.com/id differ"}}`, &method, &path, nil)
+
+	_, err := c.CreateDataset(context.Background(), "tf_abc", datasetTestJSON)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "dash0.com/id")
-	assert.Empty(t, method, "no request must be sent without a slug")
+	assert.Contains(t, err.Error(), "differ")
 }
 
 func TestGetDataset_StripsServerFieldsAndKeepsIdentityAndPermissions(t *testing.T) {
