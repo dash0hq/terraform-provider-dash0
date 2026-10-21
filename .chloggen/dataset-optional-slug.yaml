@@ -8,7 +8,7 @@ component: datasets
 note: "`dash0_dataset` no longer requires a slug. Set it in `spec.slug` or `metadata.labels[\"dash0.com/id\"]`, or omit it and Dash0 derives it from `metadata.name`."
 
 # Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
-issues: [0]
+issues: [198]
 
 # (Optional) One or more lines of additional information to render under the main note.
 # Use pipe (|) for multiline entries.
