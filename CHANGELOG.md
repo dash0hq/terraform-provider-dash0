@@ -6,6 +6,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.21.0
+
+
+### Breaking Changes
+
+
+- `docs`: The AWS CloudFormation integration guide and example now deploy the v3 template. `ResourcesInstrumentation` and `CollectLambdaLifecycleEvents` are replaced by `EnableLambdaIntegration` (which now also controls Lambda lifecycle events) and the new `EnableMetricsScraping` parameter. (#194)
+
+
+### Enhancements
+
+
+- `datasets`: `dash0_dataset` no longer requires a slug. Set it in `spec.slug` or `metadata.labels["dash0.com/id"]`, or omit it and Dash0 derives it from `metadata.name`. (#198)
+  Without a slug, `id` is known after apply and a later name change updates the dataset in place.
+  
+
+- `datasets`: `dash0_dataset` now manages `spec.permissions`: grants in `dataset_yaml` are applied on create and update, and changes made outside Terraform show as drift. (#195)
+  Omitting `spec.permissions` leaves the grants unchanged, as before.
+  A grant with `dataset:write` now fails at plan time.
+  An empty list does not remove grants yet.
+  
+
+- `docs`: The `dash0_auth_token` docs list the valid actions and explain how to rotate a token without downtime. The `dash0_auth_token` and `dash0_dataset` docs explain what happens when you remove a field from the YAML. (#196)
+
+
+### Bug Fixes
+
+
+- `provider`: Bump dash0-api-client-go to v1.26.0, so dataset and auth token list and read operations work against the current Dash0 API, which now returns list responses as a plain array. (#197)
+
+- `datasets`: `dash0_dataset` no longer shows permanent drift when `dataset_yaml` carries a `spec.slug` field (for example when hand-authored or exported via the raw API). `spec.slug` mirrors `metadata.labels["dash0.com/id"]` and is now ignored for drift detection. (#194)
+
+- `check_rules`: Keep unquoted `y`, `n`, `yes`, `no`, `on`, and `off` label and annotation keys as strings, so a label `y: a` is no longer sent as `"true": a`. (#186)
+
+- `slos`: `dash0_slo` now detects changes to an SLO's labels and annotations in plans and during refresh (#184)
+  Before, editing only the `dash0.com/display-name`, `dash0.com/enabled` or `dash0.com/folder-path`
+  annotation, or a user-defined label or annotation, planned as "No changes", so the edit never reached
+  Dash0. Changes made outside Terraform, for example in the Dash0 UI, never showed up as drift either.
+  Server-managed keys such as `dash0.com/id`, `dash0.com/version` and `dash0.com/created-at` are still
+  ignored, and a missing `dash0.com/enabled` annotation still counts as `"true"`.
+  After you upgrade, the first plan can show an update for SLOs whose metadata in Dash0 differs from your
+  configuration. Applying it sets the metadata in Dash0 to the values in your configuration.
+  
+
 ## 1.20.0
 
 

@@ -1,6 +1,0 @@
-change_type: bug_fix
-component: provider
-note: "Bump dash0-api-client-go to v1.26.0, so dataset and auth token list and read operations work against the current Dash0 API, which now returns list responses as a plain array."
-issues: [197]
-subtext:
-change_logs: []
