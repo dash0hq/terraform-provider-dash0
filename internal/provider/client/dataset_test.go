@@ -106,7 +106,6 @@ func TestCreateDataset_EmptyOriginLeavesOriginUnset(t *testing.T) {
 	assert.NotContains(t, datasetLabels(t, body), "dash0.com/origin")
 }
 
-// Without a slug the server derives one from the name; the wrapper returns it.
 func TestCreateDataset_NoSlugReturnsServerSlug(t *testing.T) {
 	var method, path string
 	var body map[string]any
@@ -121,6 +120,18 @@ func TestCreateDataset_NoSlugReturnsServerSlug(t *testing.T) {
 	assert.Equal(t, "my-staging", slug)
 	assert.NotContains(t, datasetLabels(t, body), "dash0.com/id")
 	assert.NotContains(t, body["spec"], "slug")
+}
+
+// The dataset exists after a 2xx, so a response without a slug falls back to
+// the configured one instead of failing.
+func TestCreateDataset_ResponseWithoutSlugUsesConfiguredSlug(t *testing.T) {
+	var method, path string
+	c := newDatasetTestServer(t, http.StatusOK, `{"kind":"Dash0Dataset","metadata":{"name":"Staging"},"spec":{}}`, &method, &path, nil)
+
+	slug, err := c.CreateDataset(context.Background(), "tf_abc", datasetTestJSON)
+
+	require.NoError(t, err)
+	assert.Equal(t, "staging", slug)
 }
 
 func TestCreateDataset_APIErrorSurfaces(t *testing.T) {

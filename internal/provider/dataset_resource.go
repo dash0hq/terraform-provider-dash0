@@ -210,6 +210,18 @@ func (r *DatasetResource) ValidateConfig(ctx context.Context, req resource.Valid
 			fmt.Sprintf("dataset_yaml must declare `kind: %s`; got %q.", datasetKind, kind))
 		return
 	}
+	// Parse as the API does too, so type errors (for example an unquoted numeric
+	// slug) fail here and not at apply.
+	def, err := datasetFromYAML(yamlAttr.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(path.Root("dataset_yaml"), "Invalid dataset in dataset_yaml", err.Error())
+		return
+	}
+	if def.Spec.Slug != "" && def.Metadata.Labels != nil && def.Metadata.Labels.Dash0Comid != "" && def.Spec.Slug != def.Metadata.Labels.Dash0Comid {
+		resp.Diagnostics.AddAttributeError(path.Root("dataset_yaml"), "spec.slug and dash0.com/id differ",
+			fmt.Sprintf("spec.slug is %q but metadata.labels[\"dash0.com/id\"] is %q. Set one of them, or set both to the same value.", def.Spec.Slug, def.Metadata.Labels.Dash0Comid))
+		return
+	}
 	spec, _ := parsed["spec"].(map[string]interface{})
 	permissions, _ := spec["permissions"].([]interface{})
 	for i, p := range permissions {

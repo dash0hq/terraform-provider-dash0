@@ -30,9 +30,14 @@ func (c *dash0Client) CreateDataset(ctx context.Context, origin string, datasetJ
 		return "", err
 	}
 
+	// The dataset exists now: fall back to the configured slug so state can
+	// still track it when the response omits the slug.
 	slug := dash0.GetDatasetID(created)
 	if slug == "" {
-		return "", fmt.Errorf("the API response has no dataset slug")
+		slug = dash0.GetDatasetID(def)
+	}
+	if slug == "" {
+		return "", fmt.Errorf("dataset %q was created, but the API response has no slug: import it to manage it", dash0.GetDatasetName(def))
 	}
 	tflog.Debug(ctx, fmt.Sprintf("Dataset created with slug: %s", slug))
 	return slug, nil

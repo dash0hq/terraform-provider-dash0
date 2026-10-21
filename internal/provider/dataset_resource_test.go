@@ -387,6 +387,12 @@ func TestDatasetResource_ValidateConfig(t *testing.T) {
 	writeGrant := validate(datasetTestYaml + "\n  permissions:\n    - teamId: team-a\n      actions: [dataset:read, dataset:write]").Diagnostics
 	assert.True(t, writeGrant.HasError())
 	assert.Contains(t, writeGrant.Errors()[0].Detail(), "spec.permissions[0] grants dataset:write")
+	assert.Empty(t, validate(datasetTestYaml+"\n  slug: production").Diagnostics, "matching slugs")
+	differ := validate(datasetTestYaml + "\n  slug: prod").Diagnostics
+	assert.True(t, differ.HasError())
+	assert.Contains(t, differ.Errors()[0].Summary(), "differ")
+	// The typed parse fails at validate time, not at apply.
+	assert.True(t, validate(datasetNoSlugYaml+"\nspec:\n  slug: 2024").Diagnostics.HasError())
 	// telemetryFilters left the dataset document; it is no longer special-cased.
 	assert.Equal(t, 0, validate(datasetTestYaml+"\n  telemetryFilters: []").Diagnostics.WarningsCount())
 }
