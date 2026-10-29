@@ -19,6 +19,7 @@ Each Dash0 asset kind is exposed as a Terraform resource whose primary attribute
 - [`dash0_dataset`](resources/dataset) — organization-level datasets with retention, privacy, and redaction settings.
 - [`dash0_auth_token`](resources/auth-token) — organization-level auth tokens for telemetry ingestion and the Dash0 API.
 - [`dash0_slo`](resources/slo) — service level objectives defined using [OpenSLO](https://openslo.com) v1 YAML.
+- [`dash0_custom_skill`](resources/custom-skill) — organization-level Agent0 custom skills: a `SKILL.md` with its reference files, and who may read or delete them.
 
 ## Actions
 

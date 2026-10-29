@@ -109,6 +109,7 @@ else
     test_dataset.sh
     test_auth_token.sh
     test_time_series_aggregation.sh
+    test_custom_skill.sh
     test_import_check_rule.sh
     test_import_dashboard.sh
     test_import_notification_channel.sh
@@ -121,6 +122,7 @@ else
     test_import_auth_token.sh
     test_import_view.sh
     test_import_time_series_aggregation.sh
+    test_import_custom_skill.sh
     test_actions.sh
   )
 fi
@@ -134,7 +136,8 @@ FAILED_NAMES=()
 # A test exits SKIP_EXIT_CODE when it cannot run at all: the time series
 # aggregation tests when the credential lacks the organization-admin role, and
 # the auth token tests when the API does not serve /api/auth-tokens yet or the
-# credential may not manage auth tokens. Skips are counted and named separately so they
+# credential may not manage auth tokens, and the custom skill tests when the
+# bundled dash0 CLI has no `agent0 skills` command yet. Skips are counted and named separately so they
 # never read as passes in the summary.
 SKIP_EXIT_CODE=77
 SKIPPED=0
@@ -146,6 +149,8 @@ SKIPPABLE_TESTS=(
   test_import_time_series_aggregation.sh
   test_auth_token.sh
   test_import_auth_token.sh
+  test_custom_skill.sh
+  test_import_custom_skill.sh
 )
 
 for test in "${TESTS[@]}"; do
