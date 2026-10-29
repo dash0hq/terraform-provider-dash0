@@ -43,22 +43,49 @@ func TestCreateSamplingRule_IssuesPutWithDatasetQueryParam(t *testing.T) {
 	assert.Equal(t, "dataset=production", req.query)
 }
 
-// TestCreateSamplingRule_DoesNotStampOriginLabel pins that the wrapper does not
-// add a dash0.com/origin or dash0.com/dataset label to the request body: the
-// server derives both from the URL.
-func TestCreateSamplingRule_DoesNotStampOriginLabel(t *testing.T) {
-	c, recorded := newTSATestClient(t, echoSamplingRuleHandler)
+// TestCreateSamplingRule_StampsDatasetLabelOnly pins the body labels the
+// wrapper sets. The server derives the origin from the URL, so no
+// dash0.com/origin label is added. The write endpoints ignore ?dataset= and
+// read the dash0.com/dataset label instead, so the wrapper sets it to the
+// resource's dataset, overriding a different value from the YAML.
+func TestCreateSamplingRule_StampsDatasetLabelOnly(t *testing.T) {
+	ruleJSON := `{
+		"kind": "Dash0Sampling",
+		"metadata": {"name": "keep-errors", "labels": {"dash0.com/dataset": "other"}},
+		"spec": {
+			"enabled": true,
+			"conditions": {"kind": "error", "spec": {}}
+		}
+	}`
 
-	err := c.CreateSamplingRule(t.Context(), "tf_abc", minimalSamplingRuleJSON, "production")
-	require.NoError(t, err)
+	for _, tc := range []struct {
+		name  string
+		write func(c Client) error
+	}{
+		{"create without labels", func(c Client) error {
+			return c.CreateSamplingRule(t.Context(), "tf_abc", minimalSamplingRuleJSON, "production")
+		}},
+		{"create with a different dataset label", func(c Client) error {
+			return c.CreateSamplingRule(t.Context(), "tf_abc", ruleJSON, "production")
+		}},
+		{"update without labels", func(c Client) error {
+			return c.UpdateSamplingRule(t.Context(), "tf_abc", minimalSamplingRuleJSON, "production")
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, recorded := newTSATestClient(t, echoSamplingRuleHandler)
 
-	require.Len(t, *recorded, 1)
-	var sent dash0.SamplingDefinition
-	require.NoError(t, json.Unmarshal((*recorded)[0].body, &sent))
+			require.NoError(t, tc.write(c))
 
-	if sent.Metadata.Labels != nil {
-		assert.Nil(t, sent.Metadata.Labels.Dash0Comorigin, "wrapper must not stamp dash0.com/origin into the body")
-		assert.Nil(t, sent.Metadata.Labels.Dash0Comdataset, "wrapper must not stamp dash0.com/dataset into the body")
+			require.Len(t, *recorded, 1)
+			var sent dash0.SamplingDefinition
+			require.NoError(t, json.Unmarshal((*recorded)[0].body, &sent))
+
+			require.NotNil(t, sent.Metadata.Labels)
+			assert.Nil(t, sent.Metadata.Labels.Dash0Comorigin, "wrapper must not stamp dash0.com/origin into the body")
+			require.NotNil(t, sent.Metadata.Labels.Dash0Comdataset)
+			assert.Equal(t, "production", *sent.Metadata.Labels.Dash0Comdataset)
+		})
 	}
 }
 

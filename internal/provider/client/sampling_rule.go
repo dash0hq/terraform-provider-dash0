@@ -16,19 +16,13 @@ import (
 // create-or-replace convention: PUT-to-origin is idempotent, so a retried
 // create cannot produce a second rule.
 //
-// The request body is passed through untouched — in particular no
-// dash0.com/origin label is stamped into it. The server derives the origin
-// from the URL path.
+// No dash0.com/origin label is stamped into the body; the server derives the
+// origin from the URL path. The dataset label is different, see
+// putSamplingRule.
 func (c *dash0Client) CreateSamplingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error {
-	rule, err := unmarshalSamplingRule(ruleJSON)
-	if err != nil {
-		return fmt.Errorf("error parsing sampling rule JSON: %w", err)
-	}
-
 	tflog.Debug(ctx, fmt.Sprintf("Creating sampling rule with origin: %s", origin))
 
-	_, err = c.inner.UpdateSamplingRule(ctx, origin, rule, &dataset)
-	if err != nil {
+	if err := c.putSamplingRule(ctx, origin, ruleJSON, dataset); err != nil {
 		return err
 	}
 
@@ -54,18 +48,31 @@ func (c *dash0Client) GetSamplingRule(ctx context.Context, origin string, datase
 // UpdateSamplingRule replaces the sampling rule with the given origin. It is
 // identical to CreateSamplingRule — PUT is create-or-replace.
 func (c *dash0Client) UpdateSamplingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error {
-	rule, err := unmarshalSamplingRule(ruleJSON)
-	if err != nil {
-		return fmt.Errorf("error parsing sampling rule JSON: %w", err)
-	}
-
-	_, err = c.inner.UpdateSamplingRule(ctx, origin, rule, &dataset)
-	if err != nil {
+	if err := c.putSamplingRule(ctx, origin, ruleJSON, dataset); err != nil {
 		return err
 	}
 
 	tflog.Debug(ctx, fmt.Sprintf("Sampling rule updated with origin: %s", origin))
 	return nil
+}
+
+// putSamplingRule sends the rule with PUT to the given origin.
+//
+// The sampling rule write endpoints ignore the ?dataset= query parameter and
+// take the dataset from the dash0.com/dataset label in the body, falling back
+// to the default dataset. Reads and deletes honor the query parameter, so
+// without the label a rule would be written to one dataset and looked up in
+// another. The label is always set to the resource's dataset, overriding any
+// value in the YAML.
+func (c *dash0Client) putSamplingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error {
+	rule, err := unmarshalSamplingRule(ruleJSON)
+	if err != nil {
+		return fmt.Errorf("error parsing sampling rule JSON: %w", err)
+	}
+	dash0.SetSamplingRuleDataset(rule, dataset)
+
+	_, err = c.inner.UpdateSamplingRule(ctx, origin, rule, &dataset)
+	return err
 }
 
 func (c *dash0Client) DeleteSamplingRule(ctx context.Context, origin string, dataset string) error {
