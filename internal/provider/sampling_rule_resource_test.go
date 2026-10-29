@@ -662,6 +662,26 @@ func TestSamplingRuleResource_ValidateConfig_EnabledAbsentErrors(t *testing.T) {
 	assert.Equal(t, "sampling_rule_yaml", withPath.Path().String())
 }
 
+// A bare `enabled:` is null, not absent: it is sent as false and normalization
+// strips it, so it would create a disabled rule with a clean plan. A string is
+// not a boolean either and would only fail at apply when decoded.
+func TestSamplingRuleResource_ValidateConfig_EnabledNotBooleanErrors(t *testing.T) {
+	for name, value := range map[string]string{
+		"null":   "enabled:",
+		"string": `enabled: "true"`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := &SamplingRuleResource{}
+			resp := &resource.ValidateConfigResponse{}
+			r.ValidateConfig(context.Background(), samplingRuleValidateConfigRequest(
+				strings.Replace(samplingRuleValidYaml, "enabled: true", value, 1)), resp)
+
+			require.True(t, resp.Diagnostics.HasError(), "a non-boolean spec.enabled must not reach apply")
+			assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "spec.enabled")
+		})
+	}
+}
+
 func TestSamplingRuleResource_ValidateConfig_EnabledFalseIsValid(t *testing.T) {
 	r := &SamplingRuleResource{}
 	resp := &resource.ValidateConfigResponse{}

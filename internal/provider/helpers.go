@@ -28,16 +28,20 @@ func stringOrNull(s string) types.String {
 // asset someone enabled in the Dash0 UI is silently disabled again by the next
 // unrelated apply. Requiring it makes that intent explicit and keeps the field
 // in drift detection.
+//
+// The value must be a boolean, not merely present: a bare `enabled:` is null,
+// which is sent as false and which normalization treats as absent, so it
+// would create a disabled asset with a clean plan.
 func errorIfEnabledAbsent(parsed map[string]interface{}, attribute string, asset string, diags *diag.Diagnostics) {
 	if spec, ok := parsed["spec"].(map[string]interface{}); ok {
-		if _, present := spec["enabled"]; present {
+		if _, isBool := spec["enabled"].(bool); isBool {
 			return
 		}
 	}
 	diags.AddAttributeError(
 		path.Root(attribute),
 		"spec.enabled must be set explicitly",
-		fmt.Sprintf("%s must declare `spec.enabled`. The provider always sends a value for this field, so "+
+		fmt.Sprintf("%s must declare `spec.enabled` as true or false. The provider always sends a value for this field, so "+
 			"omitting it silently creates a disabled %s — and a later apply would switch off a %s that had "+
 			"been enabled outside Terraform. Set `spec.enabled: true` to have the %s take effect, or "+
 			"`spec.enabled: false` to declare it intentionally disabled.",
