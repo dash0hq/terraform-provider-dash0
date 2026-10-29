@@ -1,6 +1,6 @@
 # About the Dash0 Terraform Provider
 
-The Dash0 Terraform Provider manages Dash0 observability assets — dashboards, alerting rules, saved views, synthetic checks, notification channels, spam filters, time series aggregations, teams, datasets, and auth tokens — as Terraform resources.
+The Dash0 Terraform Provider manages Dash0 observability assets — dashboards, alerting rules, saved views, synthetic checks, notification channels, spam filters, time series aggregations, teams, datasets, auth tokens, and AWS metric scrape configurations — as Terraform resources.
 It is published on the [Terraform](https://registry.terraform.io/providers/dash0hq/dash0/latest) and [OpenTofu](https://search.opentofu.org/provider/dash0hq/dash0/latest) registries.
 
 ## Managed assets
@@ -19,6 +19,7 @@ Each Dash0 asset kind is exposed as a Terraform resource whose primary attribute
 - [`dash0_dataset`](resources/dataset) — organization-level datasets with retention, privacy, and redaction settings.
 - [`dash0_auth_token`](resources/auth-token) — organization-level auth tokens for telemetry ingestion and the Dash0 API.
 - [`dash0_slo`](resources/slo) — service level objectives defined using [OpenSLO](https://openslo.com) v1 YAML.
+- [`dash0_aws_metric_scrape_config`](resources/aws-metric-scrape-config) — the CloudWatch namespaces and metrics Dash0 scrapes for an AWS integration.
 
 ## Actions
 

@@ -112,6 +112,11 @@ files:
     title: dash0_auth_token
     description: Terraform resource for Dash0 auth tokens — organization-level credentials for telemetry ingestion and the Dash0 API, with the secret exposed as a sensitive attribute.
 
+  - source: docs/resources/aws_metric_scrape_config.md
+    target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/aws-metric-scrape-config.md
+    title: dash0_aws_metric_scrape_config
+    description: Terraform resource for the CloudWatch metric scrape configuration of a Dash0 AWS integration.
+
   - source: docs/resources/check_rule.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/check-rule.md
     title: dash0_check_rule

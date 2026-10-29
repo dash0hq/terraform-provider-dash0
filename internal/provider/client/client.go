@@ -98,6 +98,13 @@ type Client interface {
 	// a per-spam-filter page).
 	ResolveSpamFilter(ctx context.Context, origin string, dataset string) (string, error)
 
+	// AWS metric scrape configs are addressed by AWS integration id; there is
+	// one per integration. GetAwsMetricScrapeConfig returns the definition
+	// JSON without labels and annotations, plus the dash0.com/origin label.
+	GetAwsMetricScrapeConfig(ctx context.Context, integrationID string) (definitionJSON string, origin string, err error)
+	UpdateAwsMetricScrapeConfig(ctx context.Context, integrationID string, origin string, cfgJSON string) error
+	DeleteAwsMetricScrapeConfig(ctx context.Context, integrationID string) error
+
 	CreateTimeSeriesAggregation(ctx context.Context, origin string, tsaJSON string, dataset string) error
 	GetTimeSeriesAggregation(ctx context.Context, origin string, dataset string) (string, error)
 	UpdateTimeSeriesAggregation(ctx context.Context, origin string, tsaJSON string, dataset string) error

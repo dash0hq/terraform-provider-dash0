@@ -28,3 +28,6 @@ jobs:
           DASH0_AUTH_TOKEN: ${{ secrets.DASH0_AUTH_TOKEN }}
           DASH0_DATASET: ${{ secrets.DASH0_DATASET }}
           DASH0_OTLP_URL: ${{ secrets.DASH0_OTLP_URL }}
+          # An AWS integration whose scrape config the scrape config tests may
+          # replace and clear; they restore its config when they finish.
+          DASH0_AWS_INTEGRATION_ID: ${{ secrets.DASH0_AWS_INTEGRATION_ID }}
