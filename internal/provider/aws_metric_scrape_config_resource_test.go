@@ -86,6 +86,10 @@ func TestAwsMetricScrapeConfigResource_ValidateConfig(t *testing.T) {
 	d := validate(awsScrapeTestIntegrationID, "spec: [").Diagnostics
 	assert.True(t, d.HasError())
 	assert.Contains(t, d.Errors()[0].Summary(), "Invalid YAML")
+
+	d = validate(awsScrapeTestIntegrationID, "apiVersion: dash0.com/v1alpha1\nkind: Dash0AwsMetricScrapeConfig\nspec:\n  namespcaes: []\n").Diagnostics
+	assert.True(t, d.HasError())
+	assert.Contains(t, d.Errors()[0].Summary(), "Invalid AWS metric scrape config")
 }
 
 func TestAwsMetricScrapeConfigResource_Create(t *testing.T) {

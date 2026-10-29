@@ -15,10 +15,13 @@ cleanup() {
   if [[ "$DESTROYED" -eq 0 && -f "${WORK_DIR}/terraform.tfstate" ]]; then
     tf_destroy "$WORK_DIR" >/dev/null 2>&1 || true
   fi
+  local restored=1
   if [[ -f "${WORK_DIR}/original.json" ]]; then
-    aws_scrape_restore "${WORK_DIR}/original.json" || warn "Could not restore the original scrape config of ${AWS_INTEGRATION_ID}"
+    # One retry, then fail the test: a green run must leave the integration as it found it.
+    aws_scrape_restore "${WORK_DIR}/original.json" || aws_scrape_restore "${WORK_DIR}/original.json" || restored=0
   fi
   rm -rf "$WORK_DIR"
+  [[ "$restored" -eq 1 ]] || fail "Could not restore the original scrape config of ${AWS_INTEGRATION_ID}"
 }
 trap cleanup EXIT
 
@@ -136,6 +139,25 @@ tf_apply "$WORK_DIR"
 assert_yaml_equivalent "${WORK_DIR}/scrape-config.yaml" "$(aws_scrape_get)" \
   || fail "Apply did not revert the out-of-band change"
 assert_idempotent "$WORK_DIR"
+
+# ---------------------------------------------------------------------------
+# Step 5b: An empty namespaces list stops scraping and stays in state. The
+# server drops the origin for such a config, which Read must not take for a
+# config cleared outside Terraform.
+# ---------------------------------------------------------------------------
+info "Step 5b: Applying an empty namespaces list..."
+
+cat > "${WORK_DIR}/scrape-config.yaml" <<'YAMLEOF'
+apiVersion: dash0.com/v1alpha1
+kind: Dash0AwsMetricScrapeConfig
+spec:
+  namespaces: []
+YAMLEOF
+
+tf_apply "$WORK_DIR"
+assert_aws_scrape_cleared
+assert_idempotent "$WORK_DIR"
+info "Empty namespaces list stays in state."
 
 # ---------------------------------------------------------------------------
 # Step 6: Destroy

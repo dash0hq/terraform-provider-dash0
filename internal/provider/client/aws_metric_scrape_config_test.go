@@ -58,3 +58,28 @@ func TestUpdateAwsMetricScrapeConfig_SetsOrigin(t *testing.T) {
 
 	assert.Error(t, c.UpdateAwsMetricScrapeConfig(context.Background(), awsScrapeIntegrationID, "tf_x", "not json"))
 }
+
+func TestParseAwsMetricScrapeConfig(t *testing.T) {
+	const prefix = `{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0AwsMetricScrapeConfig",`
+	for name, tc := range map[string]struct {
+		json    string
+		wantErr string
+	}{
+		"valid":                   {json: prefix + `"metadata":{"name":"x","labels":{"custom":"y"}},"spec":{"namespaces":[{"namespace":"AWS/Lambda","metrics":["Errors"]}]}}`},
+		"empty namespaces":        {json: prefix + `"spec":{"namespaces":[]}}`},
+		"misspelled namespaces":   {json: prefix + `"spec":{"namespcaes":[]}}`, wantErr: "spec.namespaces is required"},
+		"null namespaces":         {json: prefix + `"spec":{"namespaces":null}}`, wantErr: "spec.namespaces is required"},
+		"missing spec":            {json: prefix + `"sepc":{"namespaces":[]}}`, wantErr: "spec.namespaces is required"},
+		"unknown spec field":      {json: prefix + `"spec":{"namespaces":[],"integrationFiltre":{}}}`, wantErr: "integrationFiltre"},
+		"unknown namespace field": {json: prefix + `"spec":{"namespaces":[{"namespace":"AWS/Lambda","metrcs":["Errors"]}]}}`, wantErr: "metrcs"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := ParseAwsMetricScrapeConfig(tc.json)
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, tc.wantErr)
+			}
+		})
+	}
+}

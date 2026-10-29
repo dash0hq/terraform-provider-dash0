@@ -14,10 +14,15 @@ import (
 // annotations, origin separately).
 func awsScrapeRead(t *testing.T, stateOrigin interface{}, apiJSON, apiOrigin string, apiErr error) *resource.ReadResponse {
 	t.Helper()
+	return awsScrapeReadYaml(t, awsScrapeTestYaml, stateOrigin, apiJSON, apiOrigin, apiErr)
+}
+
+func awsScrapeReadYaml(t *testing.T, stateYaml string, stateOrigin interface{}, apiJSON, apiOrigin string, apiErr error) *resource.ReadResponse {
+	t.Helper()
 	m := &MockClient{}
 	m.On("GetAwsMetricScrapeConfig", mock.Anything, awsScrapeTestIntegrationID).Return(apiJSON, apiOrigin, apiErr)
 
-	state := awsScrapeState(awsScrapeTestIntegrationID, stateOrigin, awsScrapeTestYaml)
+	state := awsScrapeState(awsScrapeTestIntegrationID, stateOrigin, stateYaml)
 	resp := &resource.ReadResponse{State: state}
 	(&AwsMetricScrapeConfigResource{client: m}).Read(context.Background(), resource.ReadRequest{State: state}, resp)
 	m.AssertExpectations(t)
@@ -58,9 +63,14 @@ func TestAwsMetricScrapeConfigResource_Read(t *testing.T) {
 	})
 
 	t.Run("empty namespaces written by Terraform stay in state", func(t *testing.T) {
-		resp := awsScrapeRead(t, awsScrapeTestOrigin, clearedJSON, awsScrapeTestOrigin, nil)
+		// The server drops the origin when it stores no namespaces and no integration filter.
+		const emptyYaml = "apiVersion: dash0.com/v1alpha1\nkind: Dash0AwsMetricScrapeConfig\nspec:\n  namespaces: []\n"
+		resp := awsScrapeReadYaml(t, emptyYaml, awsScrapeTestOrigin, clearedJSON, "", nil)
+		assert.False(t, resp.Diagnostics.HasError(), resp.Diagnostics)
 		assert.False(t, resp.State.Raw.IsNull())
-		assert.Equal(t, clearedJSON, awsScrapeGetModel(t, resp.State).AwsMetricScrapeConfigYaml.ValueString())
+		got := awsScrapeGetModel(t, resp.State)
+		assert.Equal(t, emptyYaml, got.AwsMetricScrapeConfigYaml.ValueString())
+		assert.Equal(t, awsScrapeTestOrigin, got.Origin.ValueString(), "the origin Terraform wrote stays for the next PUT")
 	})
 
 	t.Run("config without origin but with namespaces stays in state", func(t *testing.T) {

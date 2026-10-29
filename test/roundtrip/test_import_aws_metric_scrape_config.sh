@@ -15,10 +15,13 @@ cleanup() {
   if [[ "$DESTROYED" -eq 0 && -f "${WORK_DIR}/terraform.tfstate" ]]; then
     tf_destroy "$WORK_DIR" >/dev/null 2>&1 || true
   fi
+  local restored=1
   if [[ -f "${WORK_DIR}/original.json" ]]; then
-    aws_scrape_restore "${WORK_DIR}/original.json" || warn "Could not restore the original scrape config of ${AWS_INTEGRATION_ID}"
+    # One retry, then fail the test: a green run must leave the integration as it found it.
+    aws_scrape_restore "${WORK_DIR}/original.json" || aws_scrape_restore "${WORK_DIR}/original.json" || restored=0
   fi
   rm -rf "$WORK_DIR"
+  [[ "$restored" -eq 1 ]] || fail "Could not restore the original scrape config of ${AWS_INTEGRATION_ID}"
 }
 trap cleanup EXIT
 
