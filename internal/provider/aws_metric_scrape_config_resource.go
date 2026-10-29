@@ -88,7 +88,7 @@ func (r *AwsMetricScrapeConfigResource) Schema(_ context.Context, _ resource.Sch
 			"If another API client or Terraform configuration already manages the integration's scrape configuration, " +
 			"this resource takes over its content but Dash0 keeps showing the previous owner. " +
 			"To make Terraform the owner, clear the existing scrape configuration once before the first apply. " +
-			"A scrape configuration created in the Dash0 UI has no owner, so Terraform takes it over directly.\n\n" +
+			"A scrape configuration created in the Dash0 UI has no owner. After you import it, Terraform manages its content but does not set its own origin.\n\n" +
 			"See [About AWS Monitoring](https://dash0.com/docs/dash0/infrastructure/aws/about-aws) for how the AWS integration works.",
 
 		Attributes: map[string]schema.Attribute{
@@ -100,7 +100,7 @@ func (r *AwsMetricScrapeConfigResource) Schema(_ context.Context, _ resource.Sch
 				},
 			},
 			"origin": schema.StringAttribute{
-				Description: "The `dash0.com/origin` label of the scrape configuration, which records who manages it. Generated on creation as `tf_<uuid>` and refreshed from Dash0 on read.",
+				Description: "The `dash0.com/origin` label of the scrape configuration, which records who manages it. Generated on creation as `tf_<uuid>` and refreshed from Dash0 on read. Null for a configuration imported without an origin.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -178,11 +178,8 @@ func (r *AwsMetricScrapeConfigResource) Update(ctx context.Context, req resource
 		return
 	}
 
+	// The origin is planned from state, so an imported config without one keeps none.
 	plan.Origin = state.Origin
-	// An imported config made outside Terraform may have no origin yet.
-	if plan.Origin.ValueString() == "" {
-		plan.Origin = types.StringValue("tf_" + uuid.New().String())
-	}
 	if !r.put(ctx, &plan, &resp.Diagnostics) {
 		return
 	}
@@ -226,7 +223,7 @@ func (r *AwsMetricScrapeConfigResource) Read(ctx context.Context, req resource.R
 	// outside Terraform comes back without origin and without namespaces. The
 	// server also drops the origin when Terraform itself writes no namespaces
 	// and no integration filter, so keep the resource when the state asks for that.
-	serverCleared := origin == "" && !hasAwsScrapeNamespaces(apiJSON)
+	serverCleared := origin == "" && !hasAwsScrapeContent(apiJSON)
 	if serverCleared && !isEmptyAwsScrapeYAML(state.AwsMetricScrapeConfigYaml.ValueString()) {
 		tflog.Debug(ctx, fmt.Sprintf("AWS metric scrape config of integration %s was cleared; removing from state", integrationID))
 		resp.State.RemoveResource(ctx)
@@ -248,9 +245,17 @@ func (r *AwsMetricScrapeConfigResource) Read(ctx context.Context, req resource.R
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func hasAwsScrapeNamespaces(cfgJSON string) bool {
+// hasAwsScrapeContent reports whether the config has namespaces or an integration filter.
+func hasAwsScrapeContent(cfgJSON string) bool {
 	var cfg dash0.AwsMetricScrapeConfigDefinition
-	return json.Unmarshal([]byte(cfgJSON), &cfg) == nil && len(cfg.Spec.Namespaces) > 0
+	return json.Unmarshal([]byte(cfgJSON), &cfg) == nil && !isEmptyAwsScrapeConfig(&cfg)
+}
+
+// isEmptyAwsScrapeConfig reports whether the config has no namespaces and no
+// integration filter, the shape the server stores without an origin. The
+// server drops an empty filter, so [] counts as no filter.
+func isEmptyAwsScrapeConfig(cfg *dash0.AwsMetricScrapeConfigDefinition) bool {
+	return len(cfg.Spec.Namespaces) == 0 && (cfg.Spec.IntegrationFilter == nil || len(*cfg.Spec.IntegrationFilter) == 0)
 }
 
 func parseAwsScrapeYAML(cfgYAML string) (*dash0.AwsMetricScrapeConfigDefinition, error) {
@@ -261,11 +266,9 @@ func parseAwsScrapeYAML(cfgYAML string) (*dash0.AwsMetricScrapeConfigDefinition,
 	return client.ParseAwsMetricScrapeConfig(cfgJSON)
 }
 
-// isEmptyAwsScrapeYAML reports whether the config asks for no namespaces and
-// no integration filter, the shape the server stores without an origin.
 func isEmptyAwsScrapeYAML(cfgYAML string) bool {
 	cfg, err := parseAwsScrapeYAML(cfgYAML)
-	return err == nil && len(cfg.Spec.Namespaces) == 0 && cfg.Spec.IntegrationFilter == nil
+	return err == nil && isEmptyAwsScrapeConfig(cfg)
 }
 
 func (r *AwsMetricScrapeConfigResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -302,7 +305,7 @@ func (r *AwsMetricScrapeConfigResource) ImportState(ctx context.Context, req res
 			fmt.Sprintf("Could not get AWS metric scrape config of integration %s: %s", integrationID, err))
 		return
 	}
-	if origin == "" && !hasAwsScrapeNamespaces(apiJSON) {
+	if origin == "" && !hasAwsScrapeContent(apiJSON) {
 		resp.Diagnostics.AddError("Error Importing AWS Metric Scrape Config",
 			fmt.Sprintf("AWS integration %s has no metric scrape config to import. Create the resource instead.", integrationID))
 		return

@@ -57,6 +57,10 @@ func TestUpdateAwsMetricScrapeConfig_SetsOrigin(t *testing.T) {
 	assert.NotNil(t, sent.Spec.Namespaces, "an empty list must be sent as [], not null")
 
 	assert.Error(t, c.UpdateAwsMetricScrapeConfig(context.Background(), awsScrapeIntegrationID, "tf_x", "not json"))
+
+	require.NoError(t, c.UpdateAwsMetricScrapeConfig(context.Background(), awsScrapeIntegrationID, "",
+		`{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0AwsMetricScrapeConfig","spec":{"namespaces":[]}}`))
+	assert.Nil(t, sent.Metadata.Labels, "an empty origin must not be sent as a label")
 }
 
 func TestParseAwsMetricScrapeConfig(t *testing.T) {

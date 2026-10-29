@@ -112,7 +112,7 @@ func testAccCheckAwsMetricScrapeConfigCleared(integrationID string) resource.Tes
 		if err != nil {
 			return fmt.Errorf("error retrieving AWS metric scrape config: %w", err)
 		}
-		if origin != "" || hasAwsScrapeNamespaces(cfgJSON) {
+		if origin != "" || hasAwsScrapeContent(cfgJSON) {
 			return fmt.Errorf("expected the scrape config to be cleared, got origin %q and %s", origin, cfgJSON)
 		}
 		return nil

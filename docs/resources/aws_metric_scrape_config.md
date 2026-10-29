@@ -7,7 +7,7 @@ description: |-
   Each AWS integration has exactly one scrape configuration. Declare at most one dash0_aws_metric_scrape_config per integration: two resources, configurations or stacks that manage the same integration overwrite each other on every apply. The configuration belongs to the integration's dataset, so the resource has no dataset attribute.
   The spec.namespaces list is the complete set of namespaces to scrape. An empty list (namespaces: []) stops all scraping for the integration.
   Destroying the resource clears the scrape configuration, so Dash0 stops scraping CloudWatch metrics for the integration. The AWS integration itself is kept.
-  Dash0 records the first client that writes a scrape configuration as its owner (the origin) and keeps that owner until the configuration is cleared. If another API client or Terraform configuration already manages the integration's scrape configuration, this resource takes over its content but Dash0 keeps showing the previous owner. To make Terraform the owner, clear the existing scrape configuration once before the first apply. A scrape configuration created in the Dash0 UI has no owner, so Terraform takes it over directly.
+  Dash0 records the first client that writes a scrape configuration as its owner (the origin) and keeps that owner until the configuration is cleared. If another API client or Terraform configuration already manages the integration's scrape configuration, this resource takes over its content but Dash0 keeps showing the previous owner. To make Terraform the owner, clear the existing scrape configuration once before the first apply. A scrape configuration created in the Dash0 UI has no owner. After you import it, Terraform manages its content but does not set its own origin.
   See About AWS Monitoring https://dash0.com/docs/dash0/infrastructure/aws/about-aws for how the AWS integration works.
 ---
 
@@ -21,7 +21,7 @@ The `spec.namespaces` list is the complete set of namespaces to scrape. An empty
 
 Destroying the resource clears the scrape configuration, so Dash0 stops scraping CloudWatch metrics for the integration. The AWS integration itself is kept.
 
-Dash0 records the first client that writes a scrape configuration as its owner (the `origin`) and keeps that owner until the configuration is cleared. If another API client or Terraform configuration already manages the integration's scrape configuration, this resource takes over its content but Dash0 keeps showing the previous owner. To make Terraform the owner, clear the existing scrape configuration once before the first apply. A scrape configuration created in the Dash0 UI has no owner, so Terraform takes it over directly.
+Dash0 records the first client that writes a scrape configuration as its owner (the `origin`) and keeps that owner until the configuration is cleared. If another API client or Terraform configuration already manages the integration's scrape configuration, this resource takes over its content but Dash0 keeps showing the previous owner. To make Terraform the owner, clear the existing scrape configuration once before the first apply. A scrape configuration created in the Dash0 UI has no owner. After you import it, Terraform manages its content but does not set its own origin.
 
 See [About AWS Monitoring](https://dash0.com/docs/dash0/infrastructure/aws/about-aws) for how the AWS integration works.
 
@@ -76,7 +76,7 @@ YAML
 
 ### Read-Only
 
-- `origin` (String) The `dash0.com/origin` label of the scrape configuration, which records who manages it. Generated on creation as `tf_<uuid>` and refreshed from Dash0 on read.
+- `origin` (String) The `dash0.com/origin` label of the scrape configuration, which records who manages it. Generated on creation as `tf_<uuid>` and refreshed from Dash0 on read. Null for a configuration imported without an origin.
 
 ## Import
 

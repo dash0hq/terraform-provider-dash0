@@ -73,6 +73,21 @@ func TestAwsMetricScrapeConfigResource_Read(t *testing.T) {
 		assert.Equal(t, awsScrapeTestOrigin, got.Origin.ValueString(), "the origin Terraform wrote stays for the next PUT")
 	})
 
+	t.Run("config without origin but with an integration filter stays in state", func(t *testing.T) {
+		const filterOnlyJSON = `{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0AwsMetricScrapeConfig","metadata":{},` +
+			`"spec":{"integrationFilter":[{"key":"aws.tag.env","operator":"is","value":"prod"}],"namespaces":[]}}`
+		resp := awsScrapeReadYaml(t, filterOnlyJSON, nil, filterOnlyJSON, "", nil)
+		assert.False(t, resp.State.Raw.IsNull())
+		assert.True(t, awsScrapeGetModel(t, resp.State).Origin.IsNull())
+	})
+
+	t.Run("empty integration filter written by Terraform stays in state", func(t *testing.T) {
+		// The server drops an empty filter along with the origin.
+		const emptyYaml = "apiVersion: dash0.com/v1alpha1\nkind: Dash0AwsMetricScrapeConfig\nspec:\n  integrationFilter: []\n  namespaces: []\n"
+		resp := awsScrapeReadYaml(t, emptyYaml, awsScrapeTestOrigin, clearedJSON, "", nil)
+		assert.False(t, resp.State.Raw.IsNull())
+	})
+
 	t.Run("config without origin but with namespaces stays in state", func(t *testing.T) {
 		resp := awsScrapeRead(t, nil, sortedJSON, "", nil)
 		assert.False(t, resp.State.Raw.IsNull())

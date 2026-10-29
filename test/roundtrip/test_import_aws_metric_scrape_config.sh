@@ -37,8 +37,10 @@ aws_scrape_save "${WORK_DIR}/original.json" || fail "Could not read the scrape c
 write_provider_tf "$WORK_DIR"
 
 # ---------------------------------------------------------------------------
-# Step 1: Write a config via the API (out-of-band), without an origin, like
-# the Dash0 UI does.
+# Step 1: Write a config via the API (out-of-band) without an origin. The
+# server stamps api-<uuid> for a machine token, so this imports a config owned
+# by another API client. Only a user token (the Dash0 UI) stores no origin;
+# that path is covered by the resource's unit tests.
 # ---------------------------------------------------------------------------
 info "Step 1: Writing scrape config via the API..."
 

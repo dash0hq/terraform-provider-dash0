@@ -139,22 +139,17 @@ func TestAwsMetricScrapeConfigResource_Update(t *testing.T) {
 		wantOrigin  func(string) bool
 	}{
 		{"keeps the state origin", awsScrapeTestOrigin, func(o string) bool { return o == awsScrapeTestOrigin }},
-		{"generates an origin for an imported config without one", nil, func(o string) bool {
-			return strings.HasPrefix(o, "tf_") && o != awsScrapeTestOrigin
-		}},
+		// The plan keeps the null origin from state, so a generated one would fail the apply.
+		{"sends no origin for an imported config without one", nil, func(o string) bool { return o == "" }},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			m := &MockClient{}
 			m.On("UpdateAwsMetricScrapeConfig", mock.Anything, awsScrapeTestIntegrationID, mock.MatchedBy(tc.wantOrigin), mock.Anything).Return(nil)
 
-			planOrigin := tc.stateOrigin
-			if planOrigin == nil {
-				planOrigin = tftypes.UnknownValue
-			}
 			req := resource.UpdateRequest{
 				State: awsScrapeState(awsScrapeTestIntegrationID, tc.stateOrigin, awsScrapeTestYaml),
-				Plan:  tfsdk.Plan{Raw: awsScrapeRaw(awsScrapeTestIntegrationID, planOrigin, newYaml), Schema: awsScrapeTestSchema().Schema},
+				Plan:  tfsdk.Plan{Raw: awsScrapeRaw(awsScrapeTestIntegrationID, tc.stateOrigin, newYaml), Schema: awsScrapeTestSchema().Schema},
 			}
 			resp := &resource.UpdateResponse{State: req.State}
 			(&AwsMetricScrapeConfigResource{client: m}).Update(context.Background(), req, resp)
@@ -162,6 +157,7 @@ func TestAwsMetricScrapeConfigResource_Update(t *testing.T) {
 			assert.False(t, resp.Diagnostics.HasError(), resp.Diagnostics)
 			got := awsScrapeGetModel(t, resp.State)
 			assert.True(t, tc.wantOrigin(got.Origin.ValueString()), got.Origin.ValueString())
+			assert.Equal(t, tc.stateOrigin == nil, got.Origin.IsNull(), "origin must match the plan")
 			assert.Equal(t, newYaml, got.AwsMetricScrapeConfigYaml.ValueString())
 			m.AssertExpectations(t)
 		})
@@ -195,6 +191,8 @@ func TestAwsMetricScrapeConfigResource_Delete(t *testing.T) {
 func TestAwsMetricScrapeConfigResource_ImportState(t *testing.T) {
 	const apiJSON = `{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0AwsMetricScrapeConfig","metadata":{"name":"dash0-integration-test"},"spec":{"namespaces":[{"namespace":"AWS/Lambda","metrics":["Errors"]}]}}`
 	const clearedJSON = `{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0AwsMetricScrapeConfig","metadata":{"name":"dash0-integration-test"},"spec":{"namespaces":[]}}`
+	const filterOnlyJSON = `{"apiVersion":"dash0.com/v1alpha1","kind":"Dash0AwsMetricScrapeConfig","metadata":{"name":"dash0-integration-test"},` +
+		`"spec":{"integrationFilter":[{"key":"aws.tag.env","operator":"is","value":"prod"}],"namespaces":[]}}`
 
 	tests := []struct {
 		name       string
@@ -208,6 +206,7 @@ func TestAwsMetricScrapeConfigResource_ImportState(t *testing.T) {
 		{name: "config made in the UI has no origin", id: awsScrapeTestIntegrationID, getJSON: apiJSON, wantOrigin: nil},
 		{name: "config with origin", id: awsScrapeTestIntegrationID, getJSON: apiJSON, getOrigin: awsScrapeTestOrigin, wantOrigin: awsScrapeTestOrigin},
 		{name: "invalid id", id: "dataset,origin", wantErr: "Invalid Import ID"},
+		{name: "config with only an integration filter and no origin", id: awsScrapeTestIntegrationID, getJSON: filterOnlyJSON, wantOrigin: nil},
 		{name: "nothing configured", id: awsScrapeTestIntegrationID, getJSON: clearedJSON, wantErr: "Error Importing"},
 		{name: "integration not found", id: awsScrapeTestIntegrationID, getErr: errNotFound, wantErr: "Error Importing"},
 	}

@@ -33,13 +33,16 @@ func (c *dash0Client) GetAwsMetricScrapeConfig(ctx context.Context, integrationI
 }
 
 // UpdateAwsMetricScrapeConfig replaces the scrape config of the AWS
-// integration with cfgJSON, stamping origin on dash0.com/origin.
+// integration with cfgJSON, stamping origin on dash0.com/origin. An empty
+// origin sends no label, as for a config imported without one.
 func (c *dash0Client) UpdateAwsMetricScrapeConfig(ctx context.Context, integrationID string, origin string, cfgJSON string) error {
 	cfg, err := ParseAwsMetricScrapeConfig(cfgJSON)
 	if err != nil {
 		return err
 	}
-	dash0.SetAwsMetricScrapeConfigOrigin(cfg, origin)
+	if origin != "" {
+		dash0.SetAwsMetricScrapeConfigOrigin(cfg, origin)
+	}
 
 	if _, err := c.inner.UpdateAwsMetricScrapeConfig(ctx, integrationID, cfg); err != nil {
 		return err
