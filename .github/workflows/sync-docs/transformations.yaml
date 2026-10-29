@@ -117,6 +117,11 @@ files:
     title: dash0_check_rule
     description: Terraform resource for Dash0 check rules — PromQL-based alerting conditions defined in the Prometheus Rule format.
 
+  - source: docs/resources/custom_skill.md
+    target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/custom-skill.md
+    title: dash0_custom_skill
+    description: Terraform resource for Agent0 custom skills — organization-level skill files led by a SKILL.md, with read and delete grants for roles, teams, and users.
+
   - source: docs/resources/dashboard.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/dashboard.md
     title: dash0_dashboard

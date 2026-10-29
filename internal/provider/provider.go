@@ -467,6 +467,7 @@ func (p *dash0Provider) Resources(_ context.Context) []func() resource.Resource 
 		NewAuthTokenResource,
 		NewSLOResource,
 		NewTimeSeriesAggregationResource,
+		NewCustomSkillResource,
 	}
 }
 

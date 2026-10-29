@@ -427,6 +427,61 @@ auth_token_preflight() {
   fail "Preflight 'GET /api/auth-tokens' failed for an unexpected reason (exit ${rc})."
 }
 
+# custom_skill_preflight <what>
+#
+# Skips loudly with exit code 77 (counted separately by run_all.sh) when the
+# bundled dash0 CLI has no `agent0 skills` command yet (dash0hq/dash0-cli#337).
+custom_skill_preflight() {
+  local what="$1"
+  if dash0 -X agent0 skills --help >/dev/null 2>&1; then
+    info "Preflight: dash0 CLI supports 'agent0 skills'."
+    return 0
+  fi
+  echo ""
+  echo "############################################################################"
+  echo "## SKIPPED — this test did NOT run:"
+  echo "##   ${what}"
+  echo "##"
+  echo "## The bundled dash0 CLI has no 'agent0 skills' command yet."
+  echo "## This is a KNOWN COVERAGE GAP, not a pass."
+  echo "############################################################################"
+  echo ""
+  exit 77 # skip: counted separately by run_all.sh
+}
+
+# assert_custom_skill_deleted <origin-or-id>
+#
+# A deleted skill drops out of the list, so absence is checked there rather
+# than with a get. Retries up to 10 times with 3s delay.
+assert_custom_skill_deleted() {
+  local identifier="$1"
+  local max_retries=10
+  local delay=3
+
+  for i in $(seq 1 "$max_retries"); do
+    local listing
+    listing="$(dash0 -X agent0 skills list -o json)" \
+      || fail "Could not list custom skills to verify deletion of ${identifier}."
+    if printf '%s' "$listing" | python3 -c "
+import json, sys
+target = sys.argv[1]
+for skill in json.load(sys.stdin) or []:
+    labels = skill.get('metadata', {}).get('labels') or {}
+    if target in (labels.get('dash0.com/origin'), labels.get('dash0.com/id')):
+        sys.exit(1)
+" "$identifier"; then
+      info "Custom skill confirmed deleted via CLI (attempt ${i})."
+      return 0
+    fi
+    if [[ "$i" -lt "$max_retries" ]]; then
+      warn "Custom skill still listed (attempt ${i}/${max_retries}), retrying in ${delay}s..."
+      sleep "$delay"
+    fi
+  done
+
+  fail "Custom skill ${identifier} still listed after ${max_retries} attempts."
+}
+
 # auth_token_get <id-or-origin>
 #
 # The dash0 CLI has no auth-token command, so auth tokens are read through the
