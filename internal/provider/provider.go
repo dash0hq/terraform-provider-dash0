@@ -468,6 +468,7 @@ func (p *dash0Provider) Resources(_ context.Context) []func() resource.Resource 
 		NewSLOResource,
 		NewTimeSeriesAggregationResource,
 		NewSamplingRuleResource,
+		NewAwsMetricScrapeConfigResource,
 	}
 }
 

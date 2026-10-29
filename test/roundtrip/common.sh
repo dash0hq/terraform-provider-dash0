@@ -887,3 +887,84 @@ sys.exit(0 if present else 1)
 
   [[ "$gone" == "yes" ]] || fail "Time series aggregation '${origin}' still returned by list after ${attempts} attempts"
 }
+
+# ---------------------------------------------------------------------------
+# AWS metric scrape config helpers.
+#
+# The dash0 CLI has no command for AWS metric scrape configs, so they are
+# read and written through its raw API command. The config is addressed by the
+# AWS integration id alone; the integration decides the dataset, hence
+# `--dataset ""`. There is one config per integration and no way to create a
+# throwaway integration from a test, so the tests reuse the integration in
+# DASH0_AWS_INTEGRATION_ID and restore its original config when they finish.
+# ---------------------------------------------------------------------------
+
+AWS_INTEGRATION_ID="${DASH0_AWS_INTEGRATION_ID:-}"
+
+# aws_scrape_preflight <what>
+#
+# Skips with exit code 77 when DASH0_AWS_INTEGRATION_ID is unset.
+aws_scrape_preflight() {
+  if [[ -z "$AWS_INTEGRATION_ID" ]]; then
+    echo ""
+    echo "############################################################################"
+    echo "## SKIPPED — this test did NOT run:"
+    echo "##   $1"
+    echo "##"
+    echo "## Set DASH0_AWS_INTEGRATION_ID to the id of an AWS integration whose"
+    echo "## metric scrape config the test may overwrite (it is restored afterwards)."
+    echo "## This is a KNOWN COVERAGE GAP, not a pass."
+    echo "############################################################################"
+    echo ""
+    exit 77 # skip: counted separately by run_all.sh
+  fi
+}
+
+# aws_scrape_get — prints the integration's scrape config JSON.
+aws_scrape_get() {
+  dash0 -X api "/api/aws-metric-scrape-configs/${AWS_INTEGRATION_ID}" --dataset ""
+}
+
+# aws_scrape_put <json_file> — replaces the integration's scrape config.
+aws_scrape_put() {
+  dash0 -X api PUT "/api/aws-metric-scrape-configs/${AWS_INTEGRATION_ID}" --dataset "" -f "$1" >/dev/null
+}
+
+# aws_scrape_clear — clears the integration's scrape config.
+aws_scrape_clear() {
+  dash0 -X api DELETE "/api/aws-metric-scrape-configs/${AWS_INTEGRATION_ID}" --dataset "" >/dev/null
+}
+
+# aws_scrape_field <python-expression over doc> — evaluates it against the
+# current config, e.g. aws_scrape_field "doc['metadata'].get('labels', {}).get('dash0.com/origin', '')".
+aws_scrape_field() {
+  aws_scrape_get | python3 -c "import json, sys; doc = json.load(sys.stdin); print($1)"
+}
+
+# aws_scrape_save <file> — saves the spec of the current config, so that
+# aws_scrape_restore can put it back when the test ends.
+aws_scrape_save() {
+  aws_scrape_get | python3 -c "
+import json, sys
+doc = json.load(sys.stdin)
+json.dump({'apiVersion': doc['apiVersion'], 'kind': doc['kind'], 'metadata': {}, 'spec': doc['spec']}, sys.stdout)
+" > "$1"
+}
+
+# aws_scrape_restore <file> — puts back a config saved by aws_scrape_save, or
+# clears the config when the saved one had no namespaces.
+aws_scrape_restore() {
+  if python3 -c "import json, sys; sys.exit(0 if json.load(open('$1'))['spec'].get('namespaces') else 1)"; then
+    aws_scrape_put "$1"
+  else
+    aws_scrape_clear
+  fi
+}
+
+# assert_aws_scrape_cleared — the config must have no origin and no namespaces.
+assert_aws_scrape_cleared() {
+  local state
+  state="$(aws_scrape_field "(doc['metadata'].get('labels') or {}).get('dash0.com/origin', '') + '|' + str(len(doc['spec'].get('namespaces') or []))")"
+  [[ "$state" == "|0" ]] || fail "Expected a cleared scrape config, got origin|namespaces = ${state}"
+  info "Scrape config confirmed cleared via the API."
+}

@@ -253,6 +253,21 @@ func (m *MockClient) ResolveSpamFilter(ctx context.Context, origin string, datas
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockClient) GetAwsMetricScrapeConfig(ctx context.Context, integrationID string) (string, string, error) {
+	args := m.Called(ctx, integrationID)
+	return args.String(0), args.String(1), args.Error(2)
+}
+
+func (m *MockClient) UpdateAwsMetricScrapeConfig(ctx context.Context, integrationID string, origin string, cfgJSON string) error {
+	args := m.Called(ctx, integrationID, origin, cfgJSON)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteAwsMetricScrapeConfig(ctx context.Context, integrationID string) error {
+	args := m.Called(ctx, integrationID)
+	return args.Error(0)
+}
+
 func (m *MockClient) CreateTimeSeriesAggregation(ctx context.Context, origin string, tsaJSON string, dataset string) error {
 	args := m.Called(ctx, origin, tsaJSON, dataset)
 	return args.Error(0)

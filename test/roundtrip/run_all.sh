@@ -110,6 +110,7 @@ else
     test_auth_token.sh
     test_time_series_aggregation.sh
     test_sampling_rule.sh
+    test_aws_metric_scrape_config.sh
     test_import_check_rule.sh
     test_import_dashboard.sh
     test_import_notification_channel.sh
@@ -123,6 +124,7 @@ else
     test_import_view.sh
     test_import_time_series_aggregation.sh
     test_import_sampling_rule.sh
+    test_import_aws_metric_scrape_config.sh
     test_actions.sh
   )
 fi
@@ -151,6 +153,8 @@ SKIPPABLE_TESTS=(
   test_import_sampling_rule.sh
   test_auth_token.sh
   test_import_auth_token.sh
+  test_aws_metric_scrape_config.sh
+  test_import_aws_metric_scrape_config.sh
 )
 
 for test in "${TESTS[@]}"; do
@@ -164,6 +168,7 @@ for test in "${TESTS[@]}"; do
     -e DASH0_AUTH_TOKEN="${DASH0_AUTH_TOKEN:-}" \
     -e DASH0_DATASET="$DASH0_DATASET" \
     -e DASH0_OTLP_URL="${DASH0_OTLP_URL:-}" \
+    -e DASH0_AWS_INTEGRATION_ID="${DASH0_AWS_INTEGRATION_ID:-}" \
     $MOUNT_DASH0_CONFIG \
     "$IMAGE_NAME" \
     "/tests/${test}"
