@@ -650,6 +650,107 @@ func TestIntegration_TimeSeriesAggregation_CRUD(t *testing.T) {
 	assert.NotEmpty(t, deletes, "expected at least one DELETE to /api/time-series-aggregations/")
 }
 
+// --- Sampling Rule Integration Tests ---
+
+const samplingRuleIntegrationYaml = `    kind: Dash0Sampling
+    metadata:
+      name: integration-keep-errors
+    spec:
+      enabled: true
+      conditions:
+        kind: error
+        spec: {}
+      rateLimit:
+        rate: 1000`
+
+const samplingRuleIntegrationUpdatedYaml = `    kind: Dash0Sampling
+    metadata:
+      name: integration-keep-errors
+    spec:
+      enabled: true
+      conditions:
+        kind: error
+        spec: {}
+      rateLimit:
+        rate: 500`
+
+func samplingRuleIntegrationConfig(body string) string {
+	return fmt.Sprintf(`
+provider "dash0" {}
+resource "dash0_sampling_rule" "test" {
+  dataset = "terraform-test"
+  sampling_rule_yaml = <<-EOT
+%s
+  EOT
+}`, body)
+}
+
+func TestIntegration_SamplingRule_CRUD(t *testing.T) {
+	mock, factories := setupIntegrationTest(t)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: factories,
+		Steps: []resource.TestStep{
+			// Create
+			{
+				Config: samplingRuleIntegrationConfig(samplingRuleIntegrationYaml),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("dash0_sampling_rule.test", "dataset", "terraform-test"),
+					resource.TestCheckResourceAttrSet("dash0_sampling_rule.test", "origin"),
+					func(s *terraform.State) error {
+						puts := mock.getRequests(http.MethodPut, "/api/sampling-rules/")
+						if len(puts) == 0 {
+							return fmt.Errorf("expected at least one PUT to /api/sampling-rules/, got none")
+						}
+						lastPut := puts[len(puts)-1]
+						if !strings.Contains(lastPut.Query, "dataset=terraform-test") {
+							return fmt.Errorf("expected dataset=terraform-test in query, got %s", lastPut.Query)
+						}
+						// Creation goes through PUT-to-origin, never POST.
+						if posts := mock.getRequests(http.MethodPost, "/api/sampling-rules"); len(posts) > 0 {
+							return fmt.Errorf("expected no POST to /api/sampling-rules, got %d", len(posts))
+						}
+						var body map[string]interface{}
+						if err := json.Unmarshal([]byte(lastPut.Body), &body); err != nil {
+							return fmt.Errorf("PUT body is not valid JSON: %s", err)
+						}
+						if body["kind"] != "Dash0Sampling" {
+							return fmt.Errorf("expected kind=Dash0Sampling, got %v", body["kind"])
+						}
+						metadata, _ := body["metadata"].(map[string]interface{})
+						if _, ok := metadata["labels"]; ok {
+							return fmt.Errorf("PUT body must not carry a metadata.labels block, got %v", metadata["labels"])
+						}
+						return nil
+					},
+				),
+			},
+			// Re-apply the same config: the plan must be empty.
+			{
+				Config:   samplingRuleIntegrationConfig(samplingRuleIntegrationYaml),
+				PlanOnly: true,
+			},
+			// Update
+			{
+				Config: samplingRuleIntegrationConfig(samplingRuleIntegrationUpdatedYaml),
+				Check: func(s *terraform.State) error {
+					puts := mock.getRequests(http.MethodPut, "/api/sampling-rules/")
+					if len(puts) < 2 {
+						return fmt.Errorf("expected a second PUT for the update, got %d", len(puts))
+					}
+					if !strings.Contains(puts[len(puts)-1].Body, `"rateLimit":{"rate":500}`) {
+						return fmt.Errorf("expected the updated rate limit in the PUT body, got %s", puts[len(puts)-1].Body)
+					}
+					return nil
+				},
+			},
+		},
+	})
+
+	deletes := mock.getRequests(http.MethodDelete, "/api/sampling-rules/")
+	assert.NotEmpty(t, deletes, "expected at least one DELETE to /api/sampling-rules/")
+}
+
 // --- Dataset Change Forces Recreation ---
 
 func TestIntegration_Dashboard_DatasetChangeRecreates(t *testing.T) {

@@ -137,6 +137,11 @@ files:
     title: dash0_recording_rule
     description: Terraform resource for Dash0 recording rule groups defined in the Prometheus Rule format.
 
+  - source: docs/resources/sampling_rule.md
+    target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/sampling-rule.md
+    title: dash0_sampling_rule
+    description: Terraform resource for Dash0 sampling rules that decide which traces Dash0 keeps, based on errors, OTTL conditions, or a probabilistic share.
+
   - source: docs/resources/slo.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/slo.md
     title: dash0_slo

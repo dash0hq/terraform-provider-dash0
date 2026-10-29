@@ -1,0 +1,21 @@
+kind: Dash0Sampling
+metadata:
+  name: keep-production-errors
+spec:
+  # Without this, the rule is created disabled and keeps no traces.
+  enabled: true
+  display:
+    name: Keep production error traces
+  conditions:
+    # Keep a trace only when every condition below matches.
+    kind: and
+    spec:
+      conditions:
+        - kind: ottl
+          spec:
+            ottl: resource.attributes["deployment.environment.name"] == "production"
+        - kind: error
+          spec: {}
+  # Cap the traces this rule keeps per minute, so an outage cannot flood ingestion.
+  rateLimit:
+    rate: 1000

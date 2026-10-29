@@ -107,6 +107,15 @@ type Client interface {
 	// web app does not expose a per-aggregation page).
 	ResolveTimeSeriesAggregation(ctx context.Context, origin string, dataset string) (string, error)
 
+	CreateSamplingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error
+	GetSamplingRule(ctx context.Context, origin string, dataset string) (string, error)
+	UpdateSamplingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error
+	DeleteSamplingRule(ctx context.Context, origin string, dataset string) error
+	// ResolveSamplingRule returns the server-assigned id of the sampling rule
+	// with the given origin (no deep-link URL — the Dash0 web app does not
+	// expose a per-rule page).
+	ResolveSamplingRule(ctx context.Context, origin string, dataset string) (string, error)
+
 	// SendLogEvent emits a single log record to the Dash0 OTLP/HTTP ingress
 	// endpoint. Unlike every other method on this interface it does not manage
 	// an asset: log events are point-in-time telemetry with no identity, no

@@ -11,7 +11,7 @@ Credentials can also be sourced from a [Dash0 CLI](https://dash0.com/docs/dash0/
 | `auth_token` | string (sensitive) | Conditional | Dash0 auth token. Must start with `auth_` (static token) or `dash0_at_` (OAuth access token). Required unless `DASH0_AUTH_TOKEN` is set or a CLI profile supplies it. |
 | `otlp_url` | string | Optional | Base URL of the Dash0 OTLP/HTTP ingress endpoint (for example, `https://ingress.us-west-2.aws.dash0.com`). Find yours on the [OTLP endpoint settings page](https://app.dash0.com/goto/settings/endpoints?endpoint_type=otlp_http). A different host from `url`. Only the `dash0_log_event` and `dash0_deployment_event` actions need it; every resource works without it. Signal-specific paths such as `/v1/logs` are appended automatically and must not be included. |
 | `profile` | string | Optional | Name of a Dash0 CLI profile whose credentials should be used. Only consulted when neither environment variables nor the `url`/`auth_token`/`otlp_url` attributes are set. |
-| `dataset` | string | Optional | Default dataset used by dataset-scoped resources (dashboards, check rules, recording rules, spam filters, synthetic checks, views) that omit their own `dataset` attribute. Default: `DASH0_DATASET`, then the CLI profile's dataset, then `"default"`. |
+| `dataset` | string | Optional | Default dataset used by dataset-scoped resources (dashboards, check rules, recording rules, sampling rules, spam filters, synthetic checks, views) that omit their own `dataset` attribute. Default: `DASH0_DATASET`, then the CLI profile's dataset, then `"default"`. |
 | `max_retries` | number | Optional | Maximum number of retries for failed API requests. Range: `0`–`5`. Default: `3`. |
 
 ## Environment variables
@@ -124,7 +124,7 @@ Run `dash0 auth login` to re-authenticate, then re-run your Terraform command.
 
 ## Default dataset
 
-Every dataset-scoped resource (`dash0_dashboard`, `dash0_check_rule`, `dash0_recording_rule`, `dash0_spam_filter`, `dash0_synthetic_check`, `dash0_time_series_aggregation`, `dash0_view`) accepts its own `dataset` attribute.
+Every dataset-scoped resource (`dash0_dashboard`, `dash0_check_rule`, `dash0_recording_rule`, `dash0_sampling_rule`, `dash0_spam_filter`, `dash0_synthetic_check`, `dash0_time_series_aggregation`, `dash0_view`) accepts its own `dataset` attribute.
 That attribute is optional: when a resource omits it, the resource inherits the provider-level default instead.
 
 The default resolves in this order and stops at the first source that supplies it:

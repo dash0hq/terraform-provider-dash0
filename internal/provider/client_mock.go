@@ -278,6 +278,31 @@ func (m *MockClient) ResolveTimeSeriesAggregation(ctx context.Context, origin st
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockClient) CreateSamplingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error {
+	args := m.Called(ctx, origin, ruleJSON, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) GetSamplingRule(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockClient) UpdateSamplingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error {
+	args := m.Called(ctx, origin, ruleJSON, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteSamplingRule(ctx context.Context, origin string, dataset string) error {
+	args := m.Called(ctx, origin, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) ResolveSamplingRule(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
+}
+
 func (m *MockClient) SendLogEvent(ctx context.Context, event client.LogEvent, dataset string) error {
 	args := m.Called(ctx, event, dataset)
 	return args.Error(0)

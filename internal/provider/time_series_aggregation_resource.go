@@ -177,7 +177,7 @@ func (r *TimeSeriesAggregationResource) ValidateConfig(ctx context.Context, req 
 		return
 	}
 
-	warnIfCustomLabelsSet(parsed, &resp.Diagnostics)
+	warnIfCustomLabelsSet(parsed, "time_series_aggregation_yaml", &resp.Diagnostics)
 }
 
 // parseAndValidateTimeSeriesAggregationYAML parses the user's document and
@@ -225,69 +225,12 @@ func parseAndValidateTimeSeriesAggregationYAML(document string, diags *diag.Diag
 		return nil
 	}
 
-	errorIfEnabledAbsent(parsed, diags)
+	// TimeSeriesAggregationSpec.Enabled is a non-pointer bool with no omitempty.
+	errorIfEnabledAbsent(parsed, "time_series_aggregation_yaml", "time series aggregation", diags)
 	if diags.HasError() {
 		return nil
 	}
 	return parsed
-}
-
-// errorIfEnabledAbsent requires the user's YAML to declare spec.enabled.
-//
-// The field cannot be left to the server: TimeSeriesAggregationSpec.Enabled is a
-// non-pointer bool with no omitempty, so every write the provider makes asserts
-// a value, and an omitted field is sent as false. Accepting the omission would
-// mean an aggregation someone enabled in the Dash0 UI is silently disabled again
-// by the next unrelated apply. Requiring it makes that intent explicit and keeps
-// the field in drift detection.
-func errorIfEnabledAbsent(parsed map[string]interface{}, diags *diag.Diagnostics) {
-	if spec, ok := parsed["spec"].(map[string]interface{}); ok {
-		if _, present := spec["enabled"]; present {
-			return
-		}
-	}
-	diags.AddAttributeError(
-		path.Root("time_series_aggregation_yaml"),
-		"spec.enabled must be set explicitly",
-		"time_series_aggregation_yaml must declare `spec.enabled`. The provider always sends a value for "+
-			"this field, so omitting it silently creates a disabled aggregation that produces no rollups — "+
-			"and a later apply would switch off an aggregation that had been enabled outside Terraform. "+
-			"Set `spec.enabled: true` to have the aggregation take effect, or `spec.enabled: false` to "+
-			"declare it intentionally disabled.",
-	)
-}
-
-// warnIfCustomLabelsSet emits a Warning when the user's YAML declares
-// metadata.labels.custom. Normalization strips the entire metadata.labels
-// subtree before comparison, so changes to these labels are invisible to drift
-// detection: the plan stays clean no matter what the server stores.
-func warnIfCustomLabelsSet(parsed map[string]interface{}, diags *diag.Diagnostics) {
-	metadata, ok := parsed["metadata"].(map[string]interface{})
-	if !ok {
-		return
-	}
-	labels, ok := metadata["labels"].(map[string]interface{})
-	if !ok {
-		return
-	}
-	custom, ok := labels["custom"].(map[string]interface{})
-	if !ok || len(custom) == 0 {
-		return
-	}
-	keys := make([]string, 0, len(custom))
-	for k := range custom {
-		keys = append(keys, fmt.Sprintf("%v", k))
-	}
-	slices.Sort(keys)
-	diags.AddAttributeWarning(
-		path.Root("time_series_aggregation_yaml"),
-		"metadata.labels.custom is not covered by drift detection",
-		fmt.Sprintf("metadata.labels.custom is declared (keys: %s), but the provider strips the whole "+
-			"metadata.labels subtree before comparing the configuration with the API response. Changes to "+
-			"these labels are therefore silently lossy: they are sent on write, but the plan stays clean "+
-			"whether or not the server stored them, and an out-of-band change to them is never reported.",
-			strings.Join(keys, ", ")),
-	)
 }
 
 // resolveTimeSeriesAggregation populates the aggregation's server-assigned id on
@@ -329,7 +272,7 @@ func (r *TimeSeriesAggregationResource) Create(ctx context.Context, req resource
 	}
 	// The warning is emitted here too, for the same reason: a document that was
 	// unknown at plan time never reached the ValidateConfig call site.
-	warnIfCustomLabelsSet(parsed, &resp.Diagnostics)
+	warnIfCustomLabelsSet(parsed, "time_series_aggregation_yaml", &resp.Diagnostics)
 
 	// Convert YAML to JSON for the API
 	jsonBody, err := converter.ConvertYAMLToJSON(model.TimeSeriesAggregationYaml.ValueString())
@@ -429,7 +372,7 @@ func (r *TimeSeriesAggregationResource) Update(ctx context.Context, req resource
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	warnIfCustomLabelsSet(parsed, &resp.Diagnostics)
+	warnIfCustomLabelsSet(parsed, "time_series_aggregation_yaml", &resp.Diagnostics)
 
 	// Convert YAML to JSON for the API
 	jsonBody, err := converter.ConvertYAMLToJSON(plan.TimeSeriesAggregationYaml.ValueString())
