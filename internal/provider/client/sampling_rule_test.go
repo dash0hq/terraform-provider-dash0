@@ -45,9 +45,9 @@ func TestCreateSamplingRule_IssuesPutWithDatasetQueryParam(t *testing.T) {
 
 // TestCreateSamplingRule_StampsDatasetLabelOnly pins the body labels the
 // wrapper sets. The server derives the origin from the URL, so no
-// dash0.com/origin label is added. The write endpoints ignore ?dataset= and
-// read the dash0.com/dataset label instead, so the wrapper sets it to the
-// resource's dataset, overriding a different value from the YAML.
+// dash0.com/origin label is added. The wrapper sets the dash0.com/dataset label
+// to the resource's dataset, overriding a different value from the YAML, so it
+// always matches ?dataset= (see putSamplingRule).
 func TestCreateSamplingRule_StampsDatasetLabelOnly(t *testing.T) {
 	ruleJSON := `{
 		"kind": "Dash0Sampling",

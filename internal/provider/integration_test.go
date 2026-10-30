@@ -717,9 +717,9 @@ func TestIntegration_SamplingRule_CRUD(t *testing.T) {
 						if body["kind"] != "Dash0Sampling" {
 							return fmt.Errorf("expected kind=Dash0Sampling, got %v", body["kind"])
 						}
-						// The write endpoints read the dataset from the
-						// dash0.com/dataset label, not the query, so that is
-						// the only label the provider stamps.
+						// The provider stamps exactly one label,
+						// dash0.com/dataset, equal to the ?dataset= query
+						// (see putSamplingRule).
 						metadata, _ := body["metadata"].(map[string]interface{})
 						labels, _ := metadata["labels"].(map[string]interface{})
 						if len(labels) != 1 || labels["dash0.com/dataset"] != "terraform-test" {

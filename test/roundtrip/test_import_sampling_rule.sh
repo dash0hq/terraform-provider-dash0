@@ -50,9 +50,9 @@ DISPLAY_NAME="Roundtrip Import Test Sampling Rule ${SUFFIX}"
 # Step 1: Create the rule via the API (out-of-band, no Terraform). A non-`tf_`
 # origin is set so step 6's origin-preservation assertion is meaningful. The
 # rule is disabled and its condition matches no span, so it never changes
-# which traces the dataset keeps. The sampling rule write endpoints ignore
-# `?dataset=` and read the dataset from the `dash0.com/dataset` label, so the
-# body carries it explicitly.
+# which traces the dataset keeps. The body carries the `dash0.com/dataset`
+# label with the same value as `?dataset=`, as the provider sends it: older
+# servers read only the label, and the API will reject a mismatch.
 # ---------------------------------------------------------------------------
 info "Step 1: Creating sampling rule via the API (origin ${OOB_ORIGIN})..."
 

@@ -56,14 +56,9 @@ func (c *dash0Client) UpdateSamplingRule(ctx context.Context, origin string, rul
 	return nil
 }
 
-// putSamplingRule sends the rule with PUT to the given origin.
-//
-// The sampling rule write endpoints ignore the ?dataset= query parameter and
-// take the dataset from the dash0.com/dataset label in the body, falling back
-// to the default dataset. Reads and deletes honor the query parameter, so
-// without the label a rule would be written to one dataset and looked up in
-// another. The label is always set to the resource's dataset, overriding any
-// value in the YAML.
+// putSamplingRule sends the rule with PUT, passing the dataset both as ?dataset=
+// and as the dash0.com/dataset label (overriding the YAML) so they always match:
+// the API will reject a mismatch, and older servers read only the label.
 func (c *dash0Client) putSamplingRule(ctx context.Context, origin string, ruleJSON string, dataset string) error {
 	rule, err := unmarshalSamplingRule(ruleJSON)
 	if err != nil {

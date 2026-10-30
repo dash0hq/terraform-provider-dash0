@@ -86,6 +86,31 @@ info "Created sampling rule with origin: ${ORIGIN}"
 info "Origin prefix check PASSED."
 
 # ---------------------------------------------------------------------------
+# Step 1b: The rule landed in $DATASET, not in the default dataset. Sampling
+# rule writes once ignored ?dataset= and fell back to default, which put
+# enabled test rules into the dev organization's default dataset (SC-920).
+# ---------------------------------------------------------------------------
+info "Step 1b: Verifying the rule was written to dataset ${DATASET}..."
+
+DATASET_OUTPUT="$(sampling_rule_get "$ORIGIN" "$DATASET" 2>&1)" \
+  || fail "Sampling rule ${ORIGIN} cannot be read with ?dataset=${DATASET}: ${DATASET_OUTPUT}"
+
+if [[ "$DATASET" != "default" ]]; then
+  DEFAULT_ORIGINS="$(dash0 -X api "/api/sampling-rules" --dataset default \
+    | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+items = data.get("samplingRules", []) if isinstance(data, dict) else data
+for it in items:
+    print((it.get("metadata", {}).get("labels", {}) or {}).get("dash0.com/origin") or "")
+')" || fail "Could not list sampling rules in the default dataset"
+  if grep -qxF "$ORIGIN" <<<"$DEFAULT_ORIGINS"; then
+    fail "Sampling rule ${ORIGIN} was written to the default dataset instead of ${DATASET}"
+  fi
+fi
+info "Dataset check PASSED."
+
+# ---------------------------------------------------------------------------
 # Step 2: Verify via the API
 # ---------------------------------------------------------------------------
 info "Step 2: Verifying the rule exists via the API..."
