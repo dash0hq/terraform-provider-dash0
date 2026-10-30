@@ -2,7 +2,7 @@
 page_title: "Guide: Import existing Dash0 assets into Terraform"
 subcategory: ""
 description: |-
-  Adopt dashboards, check rules, views, synthetic checks, recording rules, notification channels, spam filters, teams, datasets, auth tokens, SLOs, and time series aggregations that already exist in Dash0 into Terraform state, without recreating them.
+  Adopt dashboards, check rules, views, synthetic checks, recording rules, notification channels, spam filters, teams, datasets, auth tokens, SLOs, time series aggregations, and sampling rules that already exist in Dash0 into Terraform state, without recreating them.
 ---
 
 # Import existing Dash0 assets into Terraform
@@ -23,7 +23,7 @@ Under the JSON list output, the exact field varies by asset kind:
 | Datasets | `.metadata.labels["dash0.com/id"]` (the dataset slug; always set) |
 | Notification channels | `.metadata.labels["dash0.com/id"]` |
 | Recording rules | `.metadata.labels["dash0.com/id"]` |
-| SLOs, spam filters, synthetic checks, views | `.metadata.labels["dash0.com/origin"]` (API-created) or `.metadata.labels["dash0.com/id"]` (UI-created; the origin label is absent) |
+| Sampling rules, SLOs, spam filters, synthetic checks, views | `.metadata.labels["dash0.com/origin"]` (API-created) or `.metadata.labels["dash0.com/id"]` (UI-created; the origin label is absent) |
 | Teams | `.id` (top-level; teams have no `metadata` wrapper in the list response) |
 | Time series aggregations | `.metadata.labels["dash0.com/origin"]` (always set; the origin label is mandatory on every aggregation) |
 | Auth tokens | `.metadata.labels["dash0.com/id"]` (a UUID), or `.metadata.labels["dash0.com/origin"]` when set; either works as the import ID |
@@ -55,6 +55,7 @@ The default `--limit` is 50, so bump it (or paginate) for any organization with 
 Use the value in the `ORIGIN` column when it is populated; when it is empty (typical for assets originally created in the Dash0 UI), use the `ID` column instead — the API accepts either.
 
 The same pattern works for every dataset-scoped asset kind — `dash0 views list`, `dash0 check-rules list`, `dash0 synthetic-checks list`, `dash0 recording-rules list`, `dash0 slos list`, `dash0 -X spam-filters list` (experimental commands need `-X` or `--experimental`), and `dash0 tsa list` (the alias for `dash0 time-series-aggregations list`; every time series aggregation command requires the organization-admin role).
+The CLI has no sampling-rules command yet; list sampling rules with the raw API command `dash0 -X api /api/sampling-rules --dataset "$DATASET"`, which prints them under `.samplingRules`.
 Notification channels are organization-scoped, do not accept `--limit`, and do not offer `-o wide`; use `-o json` or `-o table` instead.
 
 For scripting, the identifier field varies by asset kind (see the table in the previous section).
@@ -72,7 +73,7 @@ dash0 -X notification-channels list -o json \
   | jq -r '.[] | [.metadata.name, .metadata.labels["dash0.com/id"]] | @tsv'
 ```
 
-For views, synthetic checks, spam filters, and SLOs, replace the jq path with `.metadata.labels["dash0.com/origin"] // .metadata.labels["dash0.com/id"]` — the origin label is present on CLI/API/Terraform-created assets and absent on UI-created ones, and the `//` operator falls through to the id label when the origin one is null.
+For views, synthetic checks, spam filters, SLOs, and sampling rules, replace the jq path with `.metadata.labels["dash0.com/origin"] // .metadata.labels["dash0.com/id"]` — the origin label is present on CLI/API/Terraform-created assets and absent on UI-created ones, and the `//` operator falls through to the id label when the origin one is null.
 For check rules, the identifier lives at the top-level `.id` (check rules have no `metadata` wrapper in the list response).
 
 See the [Asset CRUD commands reference](https://dash0.com/docs/dash0/miscellaneous/tooling/dash0-cli/commands#asset-crud-commands) for the full set of `list`/`get` flags and output formats.
@@ -191,7 +192,7 @@ terraform import dash0_dataset.staging "<slug>"
 terraform import dash0_auth_token.ingest "<id-or-origin>"
 ```
 
-Every other asset kind — dashboards, check rules, views, synthetic checks, recording rules, spam filters, SLOs, and time series aggregations — uses the `dataset,identifier` shape.
+Every other asset kind — dashboards, check rules, views, synthetic checks, recording rules, spam filters, SLOs, time series aggregations, and sampling rules — uses the `dataset,identifier` shape.
 
 ## Verifying imported resources
 

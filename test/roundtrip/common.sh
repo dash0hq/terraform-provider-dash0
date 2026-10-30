@@ -477,6 +477,89 @@ assert_auth_token_deleted() {
   fail "Auth token ${id} still returned by API after ${max_retries} attempts."
 }
 
+# sampling_rule_preflight "<what did not run>"
+#
+# Skips loudly with exit code 77 (counted separately by run_all.sh) when the
+# configured credential may not manage sampling rules (403: creating one needs
+# the admin role). Any other failure is a real failure.
+sampling_rule_preflight() {
+  local what="$1"
+  local output rc
+  set +e
+  output="$(dash0 -X api "/api/sampling-rules" --dataset "$DATASET" 2>&1)"
+  rc=$?
+  set -e
+
+  if [[ "$rc" -eq 0 ]]; then
+    info "Preflight: sampling rules API reachable with the configured credentials."
+    return 0
+  fi
+
+  if echo "$output" | grep -qE '403|Forbidden'; then
+    echo ""
+    echo "############################################################################"
+    echo "## SKIPPED — this test did NOT run:"
+    echo "##   ${what}"
+    echo "##"
+    echo "## The configured DASH0_AUTH_TOKEN may not manage sampling rules (403);"
+    echo "## creating a sampling rule requires the admin role."
+    echo "## This is a KNOWN COVERAGE GAP, not a pass."
+    echo "############################################################################"
+    echo ""
+    echo "Preflight command output was:"
+    echo "$output"
+    echo ""
+    exit 77 # skip: counted separately by run_all.sh
+  fi
+
+  echo "$output"
+  fail "Preflight 'GET /api/sampling-rules' failed for an unexpected reason (exit ${rc})."
+}
+
+# sampling_rule_get <origin-or-id> <dataset>
+#
+# The dash0 CLI has no sampling-rules command, so sampling rules are read
+# through the raw API command. Prints the sampling rule JSON (valid YAML) and
+# exits non-zero on 404.
+sampling_rule_get() {
+  dash0 -X api "/api/sampling-rules/$1" --dataset "$2"
+}
+
+# assert_sampling_rule_deleted <origin-or-id> <dataset>
+#
+# Sampling rule deletes are hard, so a deleted rule answers 404 on GET.
+# Succeeds only on a 404; any other failure (auth, network, 5xx) fails the test.
+# Retries up to 10 times with 3s delay to tolerate eventual consistency.
+assert_sampling_rule_deleted() {
+  local id="$1"
+  local dataset="$2"
+  local max_retries=10
+  local delay=3
+
+  for i in $(seq 1 "$max_retries"); do
+    set +e
+    local output
+    output="$(sampling_rule_get "$id" "$dataset" 2>&1)"
+    local rc=$?
+    set -e
+
+    if [[ "$rc" -ne 0 ]]; then
+      if echo "$output" | grep -q "HTTP 404"; then
+        info "Sampling rule confirmed deleted via API (attempt ${i})."
+        return 0
+      fi
+      echo "$output"
+      fail "Could not verify deletion of sampling rule ${id}: API call failed with something other than 404 (exit ${rc})."
+    fi
+    if [[ "$i" -lt "$max_retries" ]]; then
+      warn "Sampling rule still returned by API (attempt ${i}/${max_retries}), retrying in ${delay}s..."
+      sleep "$delay"
+    fi
+  done
+
+  fail "Sampling rule ${id} still returned by API after ${max_retries} attempts."
+}
+
 # assert_deleted_via_tf <work_dir>
 #
 # After destroy, verifies that tofu plan shows the resource needs to be created

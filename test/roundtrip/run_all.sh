@@ -109,6 +109,7 @@ else
     test_dataset.sh
     test_auth_token.sh
     test_time_series_aggregation.sh
+    test_sampling_rule.sh
     test_aws_metric_scrape_config.sh
     test_import_check_rule.sh
     test_import_dashboard.sh
@@ -122,6 +123,7 @@ else
     test_import_auth_token.sh
     test_import_view.sh
     test_import_time_series_aggregation.sh
+    test_import_sampling_rule.sh
     test_import_aws_metric_scrape_config.sh
     test_actions.sh
   )
@@ -134,7 +136,8 @@ PASSED=0
 FAILED=0
 FAILED_NAMES=()
 # A test exits SKIP_EXIT_CODE when it cannot run at all: the time series
-# aggregation tests when the credential lacks the organization-admin role, and
+# aggregation tests when the credential lacks the organization-admin role, the
+# sampling rule tests when the credential may not manage sampling rules, and
 # the auth token tests when the API does not serve /api/auth-tokens yet or the
 # credential may not manage auth tokens. Skips are counted and named separately so they
 # never read as passes in the summary.
@@ -146,6 +149,8 @@ SKIPPED_NAMES=()
 SKIPPABLE_TESTS=(
   test_time_series_aggregation.sh
   test_import_time_series_aggregation.sh
+  test_sampling_rule.sh
+  test_import_sampling_rule.sh
   test_auth_token.sh
   test_import_auth_token.sh
   test_aws_metric_scrape_config.sh
