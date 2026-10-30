@@ -1,11 +1,11 @@
 # One of 'breaking', 'deprecation', 'new_component', 'enhancement', 'bug_fix'
-change_type: enhancement
+change_type: bug_fix
 
 # The name of the component, or a single word describing the area of concern (e.g. dashboards, check_rules, views)
 component: time_series_aggregations
 
 # A brief description of the change. Surround your text with quotes ("") if it needs to start with a backtick (`).
-note: "`spec.enabled` must be `true` or `false`, and other values are rejected at plan time."
+note: "A bare `enabled:` in `spec` no longer creates a disabled aggregation with a clean plan. `spec.enabled` must be `true` or `false`."
 
 # Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
 issues: [202]
@@ -13,4 +13,5 @@ issues: [202]
 # (Optional) One or more lines of additional information to render under the main note.
 # Use pipe (|) for multiline entries.
 subtext: |
-  A bare `enabled:` used to create a disabled aggregation without a diff, and now fails at plan time. Values such as `yes` or `"true"` used to fail at apply time and now also fail at plan time.
+  A configuration with a bare `enabled:` now fails at plan time. Set `spec.enabled: true` or `spec.enabled: false` instead.
+  Values such as `yes` or `"true"` used to fail at apply time and now fail at plan time.
