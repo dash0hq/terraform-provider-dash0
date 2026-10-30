@@ -5,16 +5,18 @@
 # the raw API command (`dash0 -X api`, see sampling_rule_get in common.sh).
 # Sampling rule deletes are hard, so deletion is proven by a 404 on GET.
 #
-# The rule's only condition is an OTTL expression that matches no span, so
-# enabling it in the shared test dataset never changes which traces are kept.
+# The rule is never enabled. Once a dataset has one enabled sampling rule,
+# Dash0 drops every trace that no enabled rule matches, so an enabled test rule
+# drops the dataset's real traces for as long as it exists.
 #
 # Steps:
 #   0. Preflight — creating a sampling rule requires the admin role
 #   1. Create via Terraform, assert a tf_-prefixed origin
 #   2. Verify via the API + YAML equivalence
 #   3. Update (display name + rate limit) and verify via the API
-#  3b. Toggle `spec.enabled` to false and assert it round-trips and settles —
-#      the end-to-end proof that spec.enabled participates in drift detection
+#  3b. Set `spec.enabled: true` in the configuration and assert that the plan
+#      reports a change, without applying it — the end-to-end proof that
+#      spec.enabled participates in drift detection
 #   4. Idempotency
 #   5. Destroy
 #   6. Verify deletion
@@ -49,7 +51,7 @@ kind: Dash0Sampling
 metadata:
   name: roundtrip-test-sampling-rule
 spec:
-  enabled: true
+  enabled: false
   display:
     name: Roundtrip Test Sampling Rule
   conditions:
@@ -137,7 +139,7 @@ kind: Dash0Sampling
 metadata:
   name: roundtrip-test-sampling-rule
 spec:
-  enabled: true
+  enabled: false
   display:
     name: Roundtrip Test Sampling Rule - Updated
   conditions:
@@ -158,32 +160,32 @@ assert_yaml_equivalent "${WORK_DIR}/sampling_rule.yaml" "$API_OUTPUT" \
 info "Update verified via the API."
 
 # ---------------------------------------------------------------------------
-# Step 3b: `spec.enabled` round-trips.
+# Step 3b: `spec.enabled` participates in drift detection.
 #
 # spec.enabled is required by ValidateConfig — the provider always sends a value
-# for it — so it must participate in drift detection: toggling it here and
-# asserting an empty plan afterwards proves the round trip settles.
+# for it — so a change to it must show up in the plan. Only the plan runs:
+# applying `enabled: true` would turn on sampling for the whole dataset and
+# drop every trace the rule does not match (see the header). The configuration
+# is restored before step 4, whose idempotency check proves it settles.
 # ---------------------------------------------------------------------------
-info "Step 3b: Disabling the rule, then asserting the plan settles..."
+info "Step 3b: Setting spec.enabled to true in the configuration and asserting the plan reports it (no apply)..."
 
-sed -i 's/^  enabled: true$/  enabled: false/' "${WORK_DIR}/sampling_rule.yaml"
-grep -q '^  enabled: false$' "${WORK_DIR}/sampling_rule.yaml" \
-  || fail "Test setup: could not switch spec.enabled to false"
-
-TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
-
-API_OUTPUT="$(sampling_rule_get "$ORIGIN" "$DATASET" 2>&1)"
-assert_yaml_equivalent "${WORK_DIR}/sampling_rule.yaml" "$API_OUTPUT" \
-  || fail "API output does not reflect spec.enabled: false after the disable"
+sed -i 's/^  enabled: false$/  enabled: true/' "${WORK_DIR}/sampling_rule.yaml"
+grep -q '^  enabled: true$' "${WORK_DIR}/sampling_rule.yaml" \
+  || fail "Test setup: could not switch spec.enabled to true"
 
 set +e
 TF_VAR_dataset="$DATASET" tf_plan_detailed_exitcode "$WORK_DIR"
 PLAN_RC=$?
 set -e
-if [[ "$PLAN_RC" -ne 0 ]]; then
-  fail "Plan after toggling spec.enabled reported changes (exit ${PLAN_RC}) — spec.enabled is not settling."
+if [[ "$PLAN_RC" -ne 2 ]]; then
+  fail "Plan after changing spec.enabled did not report a change (exit ${PLAN_RC}, expected 2) — spec.enabled is not in drift detection."
 fi
-info "Drift check PASSED: spec.enabled round-trips."
+
+sed -i 's/^  enabled: true$/  enabled: false/' "${WORK_DIR}/sampling_rule.yaml"
+grep -q '^  enabled: false$' "${WORK_DIR}/sampling_rule.yaml" \
+  || fail "Test setup: could not restore spec.enabled to false"
+info "Drift check PASSED: a change to spec.enabled shows up in the plan."
 
 # ---------------------------------------------------------------------------
 # Step 4: Idempotency
