@@ -13,4 +13,4 @@ issues: [202]
 # (Optional) One or more lines of additional information to render under the main note.
 # Use pipe (|) for multiline entries.
 subtext: |
-  The YAML must set `spec.enabled` explicitly. Existing rules can be imported with `dataset,identifier`.
+  The YAML must set `spec.enabled` to `true` or `false`. Existing rules can be imported with `dataset,identifier`.
