@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -753,6 +754,178 @@ func TestIntegration_SamplingRule_CRUD(t *testing.T) {
 
 	deletes := mock.getRequests(http.MethodDelete, "/api/sampling-rules/")
 	assert.NotEmpty(t, deletes, "expected at least one DELETE to /api/sampling-rules/")
+}
+
+// --- Signal-to-Metrics Integration Tests ---
+
+const signalToMetricsIntegrationYaml = `    kind: Dash0SignalToMetrics
+    metadata:
+      name: integration-checkout-errors
+    spec:
+      enabled: true
+      match:
+        signal: spans
+        filters:
+          - key: service.name
+            operator: is
+            value: checkout
+      output:
+        name: checkout_errors
+        interval: 60s`
+
+const signalToMetricsIntegrationUpdatedYaml = `    kind: Dash0SignalToMetrics
+    metadata:
+      name: integration-checkout-errors
+    spec:
+      enabled: true
+      match:
+        signal: spans
+        filters:
+          - key: service.name
+            operator: is
+            value: checkout
+      output:
+        name: checkout_errors
+        interval: 5m`
+
+func signalToMetricsIntegrationConfig(body string) string {
+	return fmt.Sprintf(`
+provider "dash0" {}
+resource "dash0_signal_to_metrics" "test" {
+  dataset = "terraform-test"
+  signal_to_metrics_yaml = <<-EOT
+%s
+  EOT
+}`, body)
+}
+
+func TestIntegration_SignalToMetrics_CRUD(t *testing.T) {
+	mock, factories := setupIntegrationTest(t)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: factories,
+		Steps: []resource.TestStep{
+			// Create
+			{
+				Config: signalToMetricsIntegrationConfig(signalToMetricsIntegrationYaml),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("dash0_signal_to_metrics.test", "dataset", "terraform-test"),
+					resource.TestCheckResourceAttrSet("dash0_signal_to_metrics.test", "origin"),
+					func(s *terraform.State) error {
+						puts := mock.getRequests(http.MethodPut, "/api/signal-to-metrics/")
+						if len(puts) == 0 {
+							return fmt.Errorf("expected at least one PUT to /api/signal-to-metrics/, got none")
+						}
+						lastPut := puts[len(puts)-1]
+						if !strings.Contains(lastPut.Query, "dataset=terraform-test") {
+							return fmt.Errorf("expected dataset=terraform-test in query, got %s", lastPut.Query)
+						}
+						// Creation goes through PUT-to-origin, never POST.
+						if posts := mock.getRequests(http.MethodPost, "/api/signal-to-metrics"); len(posts) > 0 {
+							return fmt.Errorf("expected no POST to /api/signal-to-metrics, got %d", len(posts))
+						}
+						var body map[string]interface{}
+						if err := json.Unmarshal([]byte(lastPut.Body), &body); err != nil {
+							return fmt.Errorf("PUT body is not valid JSON: %s", err)
+						}
+						if body["kind"] != "Dash0SignalToMetrics" {
+							return fmt.Errorf("expected kind=Dash0SignalToMetrics, got %v", body["kind"])
+						}
+						// The dataset label is the only label the provider
+						// sends, set so it cannot contradict the query.
+						metadata, _ := body["metadata"].(map[string]interface{})
+						labels, _ := metadata["labels"].(map[string]interface{})
+						if len(labels) != 1 || labels["dash0.com/dataset"] != "terraform-test" {
+							return fmt.Errorf("expected PUT body labels {dash0.com/dataset: terraform-test}, got %v", metadata["labels"])
+						}
+						return nil
+					},
+				),
+			},
+			// Re-apply the same config: the plan must be empty.
+			{
+				Config:   signalToMetricsIntegrationConfig(signalToMetricsIntegrationYaml),
+				PlanOnly: true,
+			},
+			// Update
+			{
+				Config: signalToMetricsIntegrationConfig(signalToMetricsIntegrationUpdatedYaml),
+				Check: func(s *terraform.State) error {
+					puts := mock.getRequests(http.MethodPut, "/api/signal-to-metrics/")
+					if len(puts) < 2 {
+						return fmt.Errorf("expected a second PUT for the update, got %d", len(puts))
+					}
+					if !strings.Contains(puts[len(puts)-1].Body, `"interval":"5m"`) {
+						return fmt.Errorf("expected the updated interval in the PUT body, got %s", puts[len(puts)-1].Body)
+					}
+					return nil
+				},
+			},
+		},
+	})
+
+	deletes := mock.getRequests(http.MethodDelete, "/api/signal-to-metrics/")
+	assert.NotEmpty(t, deletes, "expected at least one DELETE to /api/signal-to-metrics/")
+}
+
+// TestIntegration_SignalToMetrics_OutOfBandDatasetMoveReplaces covers a rule
+// moved to another dataset outside Terraform. The mock stores resources by
+// path, so like the real backend it finds the rule by origin whatever dataset
+// the GET names. The move must surface as a replacement, not an empty plan.
+func TestIntegration_SignalToMetrics_OutOfBandDatasetMoveReplaces(t *testing.T) {
+	mock, factories := setupIntegrationTest(t)
+
+	var firstOrigin string
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: factories,
+		Steps: []resource.TestStep{
+			{
+				Config: signalToMetricsIntegrationConfig(signalToMetricsIntegrationYaml),
+				Check: func(s *terraform.State) error {
+					firstOrigin = s.RootModule().Resources["dash0_signal_to_metrics.test"].Primary.Attributes["origin"]
+					return nil
+				},
+			},
+			{
+				// Move the stored rule to another dataset, as a PUT with
+				// ?dataset=other-dataset from outside Terraform would.
+				PreConfig: func() {
+					mock.mu.Lock()
+					defer mock.mu.Unlock()
+					key := "/api/signal-to-metrics/" + firstOrigin
+					stored, ok := mock.resources[key]
+					require.True(t, ok, "the rule must be stored under %s", key)
+					moved := strings.Replace(string(stored), `"dash0.com/dataset":"terraform-test"`, `"dash0.com/dataset":"other-dataset"`, 1)
+					require.NotEqual(t, string(stored), moved, "the stored rule must carry the dataset label")
+					mock.resources[key] = []byte(moved)
+				},
+				Config: signalToMetricsIntegrationConfig(signalToMetricsIntegrationYaml),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("dash0_signal_to_metrics.test", plancheck.ResourceActionReplace),
+					},
+				},
+				Check: func(s *terraform.State) error {
+					attrs := s.RootModule().Resources["dash0_signal_to_metrics.test"].Primary.Attributes
+					if attrs["dataset"] != "terraform-test" {
+						return fmt.Errorf("expected dataset terraform-test after the replacement, got %s", attrs["dataset"])
+					}
+					if attrs["origin"] == firstOrigin {
+						return fmt.Errorf("expected a new origin after the replacement, got the old one %s", firstOrigin)
+					}
+					deletes := mock.getRequests(http.MethodDelete, "/api/signal-to-metrics/"+firstOrigin)
+					if len(deletes) != 1 {
+						return fmt.Errorf("expected one DELETE of the moved rule, got %d", len(deletes))
+					}
+					if !strings.Contains(deletes[0].Query, "dataset=other-dataset") {
+						return fmt.Errorf("expected the DELETE to name the dataset the rule is in, got %s", deletes[0].Query)
+					}
+					return nil
+				},
+			},
+		},
+	})
 }
 
 // --- Dataset Change Forces Recreation ---
