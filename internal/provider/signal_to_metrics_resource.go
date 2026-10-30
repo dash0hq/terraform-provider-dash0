@@ -348,6 +348,21 @@ func (r *SignalToMetricsResource) Read(ctx context.Context, req resource.ReadReq
 		return
 	}
 
+	// The backend keys a rule on (organization, origin) and uses ?dataset= on a
+	// GET only to authorize the request, so a rule moved to another dataset out
+	// of band still reads back. Drift detection ignores labels, so without this
+	// the plan would be empty and the next update would silently move the rule
+	// back. Record the dataset the rule is in: a configured dataset then plans a
+	// replacement, and an omitted one adopts the move.
+	if actual := signalToMetricsDatasetLabel(apiResponseJSON); actual != "" && actual != state.Dataset.ValueString() {
+		resp.Diagnostics.AddWarning(
+			"Signal-to-metrics rule moved to another dataset",
+			fmt.Sprintf("The signal-to-metrics rule with origin=%s is in dataset %q, not %q. It was moved outside Terraform.",
+				state.Origin.ValueString(), actual, state.Dataset.ValueString()),
+		)
+		state.Dataset = types.StringValue(actual)
+	}
+
 	tflog.Trace(ctx, "read a signal-to-metrics resource")
 
 	// Compare the current state with the retrieved rule
@@ -489,9 +504,10 @@ func (r *SignalToMetricsResource) ImportState(ctx context.Context, req resource.
 		return
 	}
 
-	// A GET by origin finds the rule whatever dataset the request names, but a
-	// PUT moves the rule into the dataset it names. Adopting the rule under the
-	// wrong dataset would therefore move it on the next apply, so refuse.
+	// The backend keys a rule on (organization, origin), so a GET by origin finds
+	// the rule whatever dataset the request names, but a PUT moves the rule into
+	// the dataset it names. Adopting the rule under the wrong dataset would
+	// therefore move it on the next apply, so refuse.
 	if actual := signalToMetricsDatasetLabel(apiResponseJSON); actual != "" && actual != dataset {
 		resp.Diagnostics.AddError(
 			"Error Importing Signal-to-Metrics Rule",

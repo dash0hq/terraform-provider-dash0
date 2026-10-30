@@ -68,8 +68,9 @@ func (c *dash0Client) UpdateSignalToMetrics(ctx context.Context, origin string, 
 //     resource's dataset instead, so the `dataset` attribute is authoritative
 //     even when the YAML was copied from another dataset.
 //
-// The write endpoints honor ?dataset= on their own; the label is only set so
-// that it cannot contradict the query parameter.
+// PUT honors ?dataset= on its own: the backend keys a rule on (organization,
+// origin), and a PUT moves the rule into the dataset it names. The label is
+// only set so that it cannot contradict the query parameter.
 //
 // The dash0.com/id label is cleared too. The origin in the URL addresses the
 // rule, and an id copied from another rule's document must not be sent along.
@@ -89,6 +90,9 @@ func (c *dash0Client) putSignalToMetrics(ctx context.Context, origin string, rul
 // DeleteSignalToMetrics soft-deletes the signal-to-metrics rule with the given
 // origin. Deleting an already-deleted rule returns an error that
 // dash0.IsNotFound recognizes.
+//
+// The backend uses ?dataset= only to authorize the request and deletes the
+// rule by origin, whatever dataset it is in.
 func (c *dash0Client) DeleteSignalToMetrics(ctx context.Context, origin string, dataset string) error {
 	err := c.inner.DeleteSignalToMetrics(ctx, origin, &dataset)
 	if err != nil {

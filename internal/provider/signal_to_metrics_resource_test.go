@@ -348,6 +348,60 @@ func TestSignalToMetricsResource_Read_DriftOverwritesState(t *testing.T) {
 		"a drifted API response must become the new source of truth")
 }
 
+// TestSignalToMetricsResource_Read_MovedDatasetUpdatesState covers a rule moved
+// to another dataset out of band. The backend keys a rule on (organization,
+// origin), so the GET still finds it, and drift detection ignores labels. Read
+// must record the dataset the rule is in, or the plan stays empty and the next
+// update silently moves the rule back.
+func TestSignalToMetricsResource_Read_MovedDatasetUpdatesState(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &SignalToMetricsResource{client: mockClient}
+
+	// signalToMetricsAPIResponseJSON carries dash0.com/dataset: test-dataset.
+	mockClient.On("GetSignalToMetrics", mock.Anything, "tf_origin", "old-dataset").Return(signalToMetricsAPIResponseJSON, nil)
+
+	state := signalToMetricsState(strPtr("tf_origin"), strPtr("an-id"), strPtr("old-dataset"), strPtr(signalToMetricsValidYaml))
+	resp := resource.ReadResponse{State: state}
+	r.Read(context.Background(), resource.ReadRequest{State: state}, &resp)
+
+	mockClient.AssertExpectations(t)
+	require.False(t, resp.Diagnostics.HasError())
+	require.Equal(t, 1, resp.Diagnostics.WarningsCount())
+	assert.Contains(t, resp.Diagnostics.Warnings()[0].Summary(), "moved to another dataset")
+	assert.Contains(t, resp.Diagnostics.Warnings()[0].Detail(), `is in dataset "test-dataset", not "old-dataset"`)
+
+	var result signalToMetricsModel
+	require.False(t, resp.State.Get(context.Background(), &result).HasError())
+	assert.Equal(t, "test-dataset", result.Dataset.ValueString(), "state must record the dataset the rule is in")
+	assert.Equal(t, signalToMetricsValidYaml, result.SignalToMetricsYaml.ValueString(),
+		"a dataset move alone must not clobber the user's YAML")
+}
+
+// TestSignalToMetricsResource_Read_MissingDatasetLabelKeepsState pins that a
+// response without a dash0.com/dataset label leaves the dataset alone: there is
+// nothing to compare against.
+func TestSignalToMetricsResource_Read_MissingDatasetLabelKeepsState(t *testing.T) {
+	mockClient := &MockClient{}
+	r := &SignalToMetricsResource{client: mockClient}
+
+	unlabeled := strings.Replace(signalToMetricsAPIResponseJSON, `"dash0.com/dataset":"test-dataset",`, "", 1)
+	require.NotEqual(t, signalToMetricsAPIResponseJSON, unlabeled, "fixture must actually differ")
+
+	mockClient.On("GetSignalToMetrics", mock.Anything, "tf_origin", "old-dataset").Return(unlabeled, nil)
+
+	state := signalToMetricsState(strPtr("tf_origin"), strPtr("an-id"), strPtr("old-dataset"), strPtr(signalToMetricsValidYaml))
+	resp := resource.ReadResponse{State: state}
+	r.Read(context.Background(), resource.ReadRequest{State: state}, &resp)
+
+	mockClient.AssertExpectations(t)
+	require.False(t, resp.Diagnostics.HasError())
+	assert.Zero(t, resp.Diagnostics.WarningsCount())
+
+	var result signalToMetricsModel
+	require.False(t, resp.State.Get(context.Background(), &result).HasError())
+	assert.Equal(t, "old-dataset", result.Dataset.ValueString())
+}
+
 // TestSignalToMetricsResource_Read_TombstoneRemovesResource covers an
 // out-of-band delete. Deletes are soft, so a GET after one returns 200 with a
 // dash0.com/deleted-at annotation rather than a 404.
@@ -651,9 +705,10 @@ func TestSignalToMetricsResource_ImportState_TombstoneRefused(t *testing.T) {
 }
 
 // TestSignalToMetricsResource_ImportState_WrongDatasetRefused pins the dataset
-// guard. A GET by origin finds the rule whatever dataset the request names, but
-// a PUT moves the rule into the dataset it names, so an import under the wrong
-// dataset would silently move the rule on the next apply.
+// guard. The backend keys a rule on (organization, origin), so a GET by origin
+// finds the rule whatever dataset the request names, but a PUT moves the rule
+// into the dataset it names, so an import under the wrong dataset would
+// silently move the rule on the next apply.
 func TestSignalToMetricsResource_ImportState_WrongDatasetRefused(t *testing.T) {
 	mockClient := &MockClient{}
 	r := &SignalToMetricsResource{client: mockClient}

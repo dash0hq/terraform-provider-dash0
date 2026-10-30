@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -865,6 +866,66 @@ func TestIntegration_SignalToMetrics_CRUD(t *testing.T) {
 
 	deletes := mock.getRequests(http.MethodDelete, "/api/signal-to-metrics/")
 	assert.NotEmpty(t, deletes, "expected at least one DELETE to /api/signal-to-metrics/")
+}
+
+// TestIntegration_SignalToMetrics_OutOfBandDatasetMoveReplaces covers a rule
+// moved to another dataset outside Terraform. The mock stores resources by
+// path, so like the real backend it finds the rule by origin whatever dataset
+// the GET names. The move must surface as a replacement, not an empty plan.
+func TestIntegration_SignalToMetrics_OutOfBandDatasetMoveReplaces(t *testing.T) {
+	mock, factories := setupIntegrationTest(t)
+
+	var firstOrigin string
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: factories,
+		Steps: []resource.TestStep{
+			{
+				Config: signalToMetricsIntegrationConfig(signalToMetricsIntegrationYaml),
+				Check: func(s *terraform.State) error {
+					firstOrigin = s.RootModule().Resources["dash0_signal_to_metrics.test"].Primary.Attributes["origin"]
+					return nil
+				},
+			},
+			{
+				// Move the stored rule to another dataset, as a PUT with
+				// ?dataset=other-dataset from outside Terraform would.
+				PreConfig: func() {
+					mock.mu.Lock()
+					defer mock.mu.Unlock()
+					key := "/api/signal-to-metrics/" + firstOrigin
+					stored, ok := mock.resources[key]
+					require.True(t, ok, "the rule must be stored under %s", key)
+					moved := strings.Replace(string(stored), `"dash0.com/dataset":"terraform-test"`, `"dash0.com/dataset":"other-dataset"`, 1)
+					require.NotEqual(t, string(stored), moved, "the stored rule must carry the dataset label")
+					mock.resources[key] = []byte(moved)
+				},
+				Config: signalToMetricsIntegrationConfig(signalToMetricsIntegrationYaml),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("dash0_signal_to_metrics.test", plancheck.ResourceActionReplace),
+					},
+				},
+				Check: func(s *terraform.State) error {
+					attrs := s.RootModule().Resources["dash0_signal_to_metrics.test"].Primary.Attributes
+					if attrs["dataset"] != "terraform-test" {
+						return fmt.Errorf("expected dataset terraform-test after the replacement, got %s", attrs["dataset"])
+					}
+					if attrs["origin"] == firstOrigin {
+						return fmt.Errorf("expected a new origin after the replacement, got the old one %s", firstOrigin)
+					}
+					deletes := mock.getRequests(http.MethodDelete, "/api/signal-to-metrics/"+firstOrigin)
+					if len(deletes) != 1 {
+						return fmt.Errorf("expected one DELETE of the moved rule, got %d", len(deletes))
+					}
+					if !strings.Contains(deletes[0].Query, "dataset=other-dataset") {
+						return fmt.Errorf("expected the DELETE to name the dataset the rule is in, got %s", deletes[0].Query)
+					}
+					return nil
+				},
+			},
+		},
+	})
 }
 
 // --- Dataset Change Forces Recreation ---
