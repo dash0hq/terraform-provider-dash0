@@ -968,3 +968,117 @@ assert_aws_scrape_cleared() {
   [[ "$state" == "|0" ]] || fail "Expected a cleared scrape config, got origin|namespaces = ${state}"
   info "Scrape config confirmed cleared via the API."
 }
+
+# ---------------------------------------------------------------------------
+# Signal-to-metrics helpers.
+#
+# The dash0 CLI has no signal-to-metrics command, so rules are read through the
+# raw API command (`dash0 -X api`).
+# ---------------------------------------------------------------------------
+
+# signal_to_metrics_preflight "<what did not run>"
+#
+# Skips loudly with exit code 77 (counted separately by run_all.sh) when the
+# configured credential may not manage signal-to-metrics rules (403). Any other
+# failure is a real failure.
+signal_to_metrics_preflight() {
+  local what="$1"
+  local output rc
+  set +e
+  output="$(dash0 -X api "/api/signal-to-metrics" --dataset "$DATASET" 2>&1)"
+  rc=$?
+  set -e
+
+  if [[ "$rc" -eq 0 ]]; then
+    info "Preflight: signal-to-metrics API reachable with the configured credentials."
+    return 0
+  fi
+
+  if echo "$output" | grep -qE '403|Forbidden'; then
+    echo ""
+    echo "############################################################################"
+    echo "## SKIPPED — this test did NOT run:"
+    echo "##   ${what}"
+    echo "##"
+    echo "## The configured DASH0_AUTH_TOKEN may not manage signal-to-metrics"
+    echo "## rules (403)."
+    echo "## This is a KNOWN COVERAGE GAP, not a pass."
+    echo "############################################################################"
+    echo ""
+    echo "Preflight command output was:"
+    echo "$output"
+    echo ""
+    exit 77 # skip: counted separately by run_all.sh
+  fi
+
+  echo "$output"
+  fail "Preflight 'GET /api/signal-to-metrics' failed for an unexpected reason (exit ${rc})."
+}
+
+# signal_to_metrics_get <origin-or-id> <dataset>
+#
+# Prints the rule JSON (valid YAML). A soft-deleted rule is still printed, with
+# a dash0.com/deleted-at annotation; only a rule that is gone entirely exits
+# non-zero (404).
+signal_to_metrics_get() {
+  dash0 -X api "/api/signal-to-metrics/$1" --dataset "$2"
+}
+
+# assert_signal_to_metrics_deleted <origin-or-id> <dataset>
+#
+# Signal-to-metrics deletes are soft: a deleted rule answers GET with 200 and a
+# dash0.com/deleted-at annotation. Succeeds on that tombstone or on a 404; a
+# live rule, or any other failure (auth, network, 5xx), fails the test.
+# Retries up to 10 times with 3s delay to tolerate eventual consistency.
+assert_signal_to_metrics_deleted() {
+  local id="$1"
+  local dataset="$2"
+  local max_retries=10
+  local delay=3
+  local i output rc
+
+  for i in $(seq 1 "$max_retries"); do
+    set +e
+    output="$(signal_to_metrics_get "$id" "$dataset" 2>&1)"
+    rc=$?
+    set -e
+
+    if [[ "$rc" -ne 0 ]]; then
+      if echo "$output" | grep -q "HTTP 404"; then
+        info "Signal-to-metrics rule confirmed deleted via API: 404 (attempt ${i})."
+        return 0
+      fi
+      echo "$output"
+      fail "Could not verify deletion of signal-to-metrics rule ${id}: API call failed with something other than 404 (exit ${rc})."
+    fi
+
+    # 0 = tombstone, 1 = live, 2 = could not decide.
+    set +e
+    printf '%s' "$output" | python3 -c '
+import json, sys
+try:
+    doc = json.load(sys.stdin)
+except Exception as exc:
+    print("could not parse the GET response: %s" % exc, file=sys.stderr)
+    sys.exit(2)
+annotations = (doc.get("metadata") or {}).get("annotations") or {}
+sys.exit(0 if annotations.get("dash0.com/deleted-at") else 1)
+'
+    rc=$?
+    set -e
+    if [[ "$rc" -eq 0 ]]; then
+      info "Signal-to-metrics rule confirmed deleted via API: tombstone (attempt ${i})."
+      return 0
+    fi
+    if [[ "$rc" -eq 2 ]]; then
+      echo "$output"
+      fail "Could not verify deletion of signal-to-metrics rule ${id}: unreadable GET response."
+    fi
+    if [[ "$i" -lt "$max_retries" ]]; then
+      warn "Signal-to-metrics rule still live (attempt ${i}/${max_retries}), retrying in ${delay}s..."
+      sleep "$delay"
+    fi
+  done
+
+  fail "Signal-to-metrics rule ${id} still live after ${max_retries} attempts."
+}

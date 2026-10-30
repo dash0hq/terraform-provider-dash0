@@ -90,7 +90,7 @@ func providerSchema() schema.Schema {
 			},
 			"dataset": schema.StringAttribute{
 				Optional:    true,
-				Description: "The default [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) used by dataset-scoped resources (dashboards, check rules, recording rules, sampling rules, spam filters, synthetic checks, and views) that omit their own `dataset` attribute. If omitted, the DASH0_DATASET environment variable is used, then the dataset configured on the resolved dash0 CLI profile, then \"default\". A resource can still override this per resource via its own `dataset` attribute.",
+				Description: "The default [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) used by dataset-scoped resources (dashboards, check rules, recording rules, sampling rules, signal-to-metrics rules, spam filters, synthetic checks, and views) that omit their own `dataset` attribute. If omitted, the DASH0_DATASET environment variable is used, then the dataset configured on the resolved dash0 CLI profile, then \"default\". A resource can still override this per resource via its own `dataset` attribute.",
 			},
 			"max_retries": schema.Int64Attribute{
 				Optional:    true,
@@ -468,6 +468,7 @@ func (p *dash0Provider) Resources(_ context.Context) []func() resource.Resource 
 		NewSLOResource,
 		NewTimeSeriesAggregationResource,
 		NewSamplingRuleResource,
+		NewSignalToMetricsResource,
 		NewAwsMetricScrapeConfigResource,
 	}
 }
