@@ -8,7 +8,7 @@ component: spam_filters
 note: "`dash0_spam_filter` can now switch a filter off and on through the `dash0.com/enabled` annotation, and reports a filter disabled outside Terraform as drift."
 
 # Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
-issues: []
+issues: [206]
 
 # (Optional) One or more lines of additional information to render under the primary note.
 # These lines will be padded with 2 spaces and then inserted directly into the document.
