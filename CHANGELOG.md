@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.22.0
+
+
+### New Components
+
+
+- `aws_metric_scrape_configs`: `dash0_aws_metric_scrape_config` resource to manage which CloudWatch namespaces and metrics Dash0 scrapes for an AWS integration. (#200)
+  Each AWS integration has one scrape configuration, addressed by the integration id; import it with `terraform import dash0_aws_metric_scrape_config.<name> <integration-id>`.
+  Destroying the resource clears the configuration and keeps the integration.
+  
+
+- `sampling_rules`: `dash0_sampling_rule` manages the trace sampling rules that decide which traces Dash0 keeps. (#202)
+  The YAML must set `spec.enabled` to `true` or `false`. Existing rules can be imported with `dataset,identifier`.
+  
+
+
+### Bug Fixes
+
+
+- `time_series_aggregations`: A bare `enabled:` in `spec` no longer creates a disabled aggregation with a clean plan. `spec.enabled` must be `true` or `false`. (#202)
+  A configuration with a bare `enabled:` now fails at plan time. Set `spec.enabled: true` or `spec.enabled: false` instead.
+  Values such as `yes` or `"true"` used to fail at apply time and now fail at plan time.
+  
+
 ## 1.21.0
 
 
