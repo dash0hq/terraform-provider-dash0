@@ -217,9 +217,16 @@ func (r *DatasetResource) ValidateConfig(ctx context.Context, req resource.Valid
 		resp.Diagnostics.AddAttributeError(path.Root("dataset_yaml"), "Invalid dataset in dataset_yaml", err.Error())
 		return
 	}
-	if def.Spec.Slug != "" && def.Metadata.Labels != nil && def.Metadata.Labels.Dash0Comid != "" && def.Spec.Slug != def.Metadata.Labels.Dash0Comid {
+	var slug, idLabel string
+	if def.Spec.Slug != nil {
+		slug = *def.Spec.Slug
+	}
+	if def.Metadata.Labels != nil && def.Metadata.Labels.Dash0Comid != nil {
+		idLabel = *def.Metadata.Labels.Dash0Comid
+	}
+	if slug != "" && idLabel != "" && slug != idLabel {
 		resp.Diagnostics.AddAttributeError(path.Root("dataset_yaml"), "spec.slug and dash0.com/id differ",
-			fmt.Sprintf("spec.slug is %q but metadata.labels[\"dash0.com/id\"] is %q. Set one of them, or set both to the same value.", def.Spec.Slug, def.Metadata.Labels.Dash0Comid))
+			fmt.Sprintf("spec.slug is %q but metadata.labels[\"dash0.com/id\"] is %q. Set one of them, or set both to the same value.", slug, idLabel))
 		return
 	}
 	spec, _ := parsed["spec"].(map[string]interface{})
