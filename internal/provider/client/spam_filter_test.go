@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -164,4 +165,74 @@ func TestDeleteSpamFilter_SerializedWithConcurrentUpdateToSameDataset(t *testing
 
 	require.EqualValues(t, 2, attempts, "both the update and the delete should have reached the API")
 	assert.EqualValues(t, 1, maxInFlight, "delete and update to the same dataset must be serialized against each other")
+}
+
+const v1alpha2SpamFilterJSONWithAnnotations = `{
+	"apiVersion": "v1alpha2",
+	"kind": "Dash0SpamFilter",
+	"metadata": {"name": "repro-filter"%s},
+	"spec": {
+		"filter": [{"key": "body", "value": "spam"}],
+		"context": "log"
+	}
+}`
+
+// The upsert sends dash0.com/enabled explicitly, so a config that omits it
+// switches back on a filter that was disabled outside Terraform, and a config
+// that sets it is sent as written.
+func TestUpsertSpamFilter_EnabledAnnotation(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations string
+		want        dash0.SpamFilterAnnotationsDash0Comenabled
+	}{
+		{name: "omitted defaults to true", annotations: "", want: dash0.True},
+		{name: "explicit false is kept", annotations: `, "annotations": {"dash0.com/enabled": "false"}`, want: dash0.False},
+		{name: "explicit true is kept", annotations: `, "annotations": {"dash0.com/enabled": "true"}`, want: dash0.True},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var sent *dash0.SpamFilterV1Alpha2
+			c := &dash0Client{inner: &dash0test.MockClient{
+				UpdateSpamFilterV1Alpha2Func: func(ctx context.Context, originOrID string, filter *dash0.SpamFilterV1Alpha2, dataset *string) (*dash0.SpamFilterV1Alpha2, error) {
+					sent = filter
+					return filter, nil
+				},
+			}}
+
+			body := fmt.Sprintf(v1alpha2SpamFilterJSONWithAnnotations, tt.annotations)
+			require.NoError(t, c.UpdateSpamFilter(context.Background(), "tf_enabled", body, "enabled-annotation-"+tt.name))
+
+			require.NotNil(t, sent)
+			require.NotNil(t, sent.Metadata.Annotations)
+			require.NotNil(t, sent.Metadata.Annotations.Dash0Comenabled)
+			assert.Equal(t, tt.want, *sent.Metadata.Annotations.Dash0Comenabled)
+		})
+	}
+}
+
+// The read path must keep dash0.com/enabled so drift detection can see a
+// filter that was switched off, while still dropping server-managed labels.
+func TestGetSpamFilter_KeepsEnabledAnnotation(t *testing.T) {
+	disabled := dash0.False
+	id := "server-id"
+	c := &dash0Client{inner: &dash0test.MockClient{
+		GetSpamFilterFunc: func(ctx context.Context, originOrID string, dataset *string) (dash0.SpamFilterObject, error) {
+			return &dash0.SpamFilterV1Alpha2{
+				ApiVersion: dash0.V1alpha2,
+				Kind:       dash0.SpamFilterDefinitionV1Alpha2KindDash0SpamFilter,
+				Metadata: dash0.SpamFilterMetadata{
+					Name:        "repro-filter",
+					Annotations: &dash0.SpamFilterAnnotations{Dash0Comenabled: &disabled},
+					Labels:      &dash0.SpamFilterLabels{Dash0Comid: &id},
+				},
+			}, nil
+		},
+	}}
+
+	got, err := c.GetSpamFilter(context.Background(), "tf_enabled", "get-keeps-enabled")
+	require.NoError(t, err)
+	assert.Contains(t, got, `"dash0.com/enabled":"false"`)
+	assert.NotContains(t, got, "server-id", "dash0.com/id is server-managed and must still be stripped")
 }
