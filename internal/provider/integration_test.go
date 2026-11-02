@@ -928,6 +928,92 @@ func TestIntegration_SignalToMetrics_OutOfBandDatasetMoveReplaces(t *testing.T) 
 	})
 }
 
+// TestIntegration_SignalToMetrics_OutOfBandDatasetMoveAdoptedWhenDatasetOmitted
+// covers the other branch of the dataset-move detection: with `dataset`
+// omitted from the resource, a rule moved outside Terraform is adopted. The
+// plan is empty, state records the new dataset, and a later update writes to
+// the dataset the rule is in instead of moving it back.
+func TestIntegration_SignalToMetrics_OutOfBandDatasetMoveAdoptedWhenDatasetOmitted(t *testing.T) {
+	mock, factories := setupIntegrationTest(t)
+
+	config := func(body string) string {
+		return fmt.Sprintf(`
+provider "dash0" {
+  dataset = "terraform-test"
+}
+resource "dash0_signal_to_metrics" "test" {
+  signal_to_metrics_yaml = <<-EOT
+%s
+  EOT
+}`, body)
+	}
+
+	var firstOrigin string
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: factories,
+		Steps: []resource.TestStep{
+			{
+				Config: config(signalToMetricsIntegrationYaml),
+				Check: func(s *terraform.State) error {
+					attrs := s.RootModule().Resources["dash0_signal_to_metrics.test"].Primary.Attributes
+					firstOrigin = attrs["origin"]
+					if attrs["dataset"] != "terraform-test" {
+						return fmt.Errorf("expected the provider default dataset terraform-test, got %s", attrs["dataset"])
+					}
+					return nil
+				},
+			},
+			{
+				PreConfig: func() {
+					mock.mu.Lock()
+					defer mock.mu.Unlock()
+					key := "/api/signal-to-metrics/" + firstOrigin
+					stored, ok := mock.resources[key]
+					require.True(t, ok, "the rule must be stored under %s", key)
+					moved := strings.Replace(string(stored), `"dash0.com/dataset":"terraform-test"`, `"dash0.com/dataset":"other-dataset"`, 1)
+					require.NotEqual(t, string(stored), moved, "the stored rule must carry the dataset label")
+					mock.resources[key] = []byte(moved)
+				},
+				Config: config(signalToMetricsIntegrationYaml),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("dash0_signal_to_metrics.test", plancheck.ResourceActionNoop),
+					},
+				},
+				Check: func(s *terraform.State) error {
+					attrs := s.RootModule().Resources["dash0_signal_to_metrics.test"].Primary.Attributes
+					if attrs["dataset"] != "other-dataset" {
+						return fmt.Errorf("expected state to adopt dataset other-dataset, got %s", attrs["dataset"])
+					}
+					if attrs["origin"] != firstOrigin {
+						return fmt.Errorf("expected the origin to stay %s, got %s", firstOrigin, attrs["origin"])
+					}
+					return nil
+				},
+			},
+			{
+				Config: config(signalToMetricsIntegrationUpdatedYaml),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("dash0_signal_to_metrics.test", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: func(s *terraform.State) error {
+					puts := mock.getRequests(http.MethodPut, "/api/signal-to-metrics/"+firstOrigin)
+					if len(puts) == 0 {
+						return fmt.Errorf("expected a PUT to the adopted rule")
+					}
+					if last := puts[len(puts)-1]; !strings.Contains(last.Query, "dataset=other-dataset") {
+						return fmt.Errorf("expected the update to write to dataset other-dataset, got %s", last.Query)
+					}
+					return nil
+				},
+			},
+		},
+	})
+}
+
 // --- Dataset Change Forces Recreation ---
 
 func TestIntegration_Dashboard_DatasetChangeRecreates(t *testing.T) {
