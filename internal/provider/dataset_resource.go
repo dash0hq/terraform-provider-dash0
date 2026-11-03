@@ -64,6 +64,7 @@ var datasetServerDefaultedFields = []string{
 	"spec.privacy.redaction.cardholderData.enabled",
 	"spec.privacy.redaction.genAi",
 	"spec.privacy.redaction.genAi.conversation",
+	"spec.privacy.redaction.genAi.conversationName",
 	"spec.privacy.redaction.genAi.toolCalls",
 	"spec.privacy.redaction.genAi.errors",
 	"spec.processing",

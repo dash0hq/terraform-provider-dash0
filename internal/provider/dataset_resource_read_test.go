@@ -27,7 +27,7 @@ const datasetServerResponse = `{
       "geoLocation": {"endUser": {"storage": "up_to_country"}},
       "redaction": {
         "cardholderData": {"enabled": false},
-        "genAi": {"conversation": "none", "toolCalls": "none", "errors": "none"}
+        "genAi": {"conversation": "none", "conversationName": "disabled", "toolCalls": "none", "errors": "none"}
       }
     },
     "processing": {"spanEventsToLogs": true, "semanticConventionUpgrades": "latest", "darkplane": {"enabled": true}},
@@ -75,6 +75,20 @@ func TestDatasetResource_Read_ServerDefaultsCauseNoDrift(t *testing.T) {
 	resp, got := datasetRead(t, datasetTestYaml, datasetServerResponse, nil)
 	assert.False(t, resp.Diagnostics.HasError())
 	assert.Equal(t, datasetTestYaml, got.DatasetYaml.ValueString())
+}
+
+// A config that sets some genAi redaction keys must not drift on the ones the
+// server fills in, such as conversationName, which the API returns with its
+// default when the config omits it.
+func TestDatasetResource_Read_ServerDefaultedGenAIKeysCauseNoDrift(t *testing.T) {
+	stateYaml := datasetTestYaml + `
+  privacy:
+    redaction:
+      genAi:
+        conversation: none`
+	resp, got := datasetRead(t, stateYaml, datasetServerResponse, nil)
+	assert.False(t, resp.Diagnostics.HasError())
+	assert.Equal(t, stateYaml, got.DatasetYaml.ValueString())
 }
 
 const datasetTestPermissions = `
