@@ -72,16 +72,22 @@ info "Custom skill created via CLI."
 # ---------------------------------------------------------------------------
 info "Step 2: Discovering identifier via dash0 CLI..."
 
-IDENTIFIER="$(dash0 -X agent0 skills list -o json \
-  | python3 -c "
+dash0 -X agent0 skills list -o json > "${WORK_DIR}/skills.json" \
+  || fail "Failed to list custom skills"
+skill_label() {
+  python3 -c "
 import json, sys
-for skill in json.load(sys.stdin) or []:
-    if skill.get('metadata', {}).get('name') == sys.argv[1]:
-        print(skill['metadata']['labels']['dash0.com/id'])
+for skill in json.load(open(sys.argv[1])) or []:
+    if skill.get('metadata', {}).get('name') == sys.argv[2]:
+        print(skill['metadata']['labels'].get(sys.argv[3]) or '')
         break
-" "$SKILL_NAME")"
+" "${WORK_DIR}/skills.json" "$SKILL_NAME" "$1"
+}
+IDENTIFIER="$(skill_label dash0.com/id)"
 [[ -n "$IDENTIFIER" ]] || fail "Could not discover identifier for ${SKILL_NAME}"
-info "Identifier: ${IDENTIFIER}"
+# The server stamps api-<uuid> when a user-less machine token creates without an origin; only a user token stores none.
+SERVER_ORIGIN="$(skill_label dash0.com/origin)"
+info "Identifier: ${IDENTIFIER} (origin: '${SERVER_ORIGIN}')"
 
 if [[ "$IDENTIFIER" == tf_* ]]; then
   fail "Expected a non-Terraform identifier from a CLI-created skill, got: ${IDENTIFIER}"
@@ -154,8 +160,8 @@ STATE_ORIGIN="$(TF_VAR_dataset="$DATASET" tf_output "$WORK_DIR" origin)"
 if [[ "$STATE_ID" != "$IDENTIFIER" ]]; then
   fail "Expected imported id '${IDENTIFIER}' in state, got '${STATE_ID}'"
 fi
-if [[ -n "$STATE_ORIGIN" ]]; then
-  fail "Expected no origin for a skill created without one, got '${STATE_ORIGIN}' (would indicate re-anchoring)"
+if [[ "$STATE_ORIGIN" != "$SERVER_ORIGIN" ]]; then
+  fail "Expected imported origin '${SERVER_ORIGIN}' in state, got '${STATE_ORIGIN}' (would indicate re-anchoring)"
 fi
 info "Identifier preservation check PASSED."
 
