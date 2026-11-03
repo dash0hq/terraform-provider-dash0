@@ -2,7 +2,7 @@
 page_title: "Guide: Import existing Dash0 assets into Terraform"
 subcategory: ""
 description: |-
-  Adopt dashboards, check rules, views, synthetic checks, recording rules, notification channels, spam filters, teams, datasets, auth tokens, SLOs, time series aggregations, sampling rules, and signal-to-metrics rules that already exist in Dash0 into Terraform state, without recreating them.
+  Adopt dashboards, check rules, views, synthetic checks, recording rules, notification channels, spam filters, teams, datasets, auth tokens, SLOs, time series aggregations, sampling rules, signal-to-metrics rules, and Agent0 custom skills that already exist in Dash0 into Terraform state, without recreating them.
 ---
 
 # Import existing Dash0 assets into Terraform
@@ -27,6 +27,7 @@ Under the JSON list output, the exact field varies by asset kind:
 | Teams | `.id` (top-level; teams have no `metadata` wrapper in the list response) |
 | Time series aggregations | `.metadata.labels["dash0.com/origin"]` (always set; the origin label is mandatory on every aggregation) |
 | Auth tokens | `.metadata.labels["dash0.com/id"]` (a UUID), or `.metadata.labels["dash0.com/origin"]` when set; either works as the import ID |
+| Agent0 custom skills | `.metadata.labels["dash0.com/origin"]` when set, or `.metadata.labels["dash0.com/id"]` (UI-created skills have no origin); either works as the import ID |
 
 For assets created by the Terraform Provider the identifier is a `tf_`-prefixed value; for assets created via the Dash0 UI or CLI it is a UUID (sometimes prefixed `api-`).
 
@@ -58,6 +59,7 @@ The same pattern works for every dataset-scoped asset kind — `dash0 views list
 The CLI has no sampling-rules command yet; list sampling rules with the raw API command `dash0 -X api /api/sampling-rules --dataset "$DATASET"`, which prints them under `.samplingRules`.
 The CLI has no signal-to-metrics command yet; list signal-to-metrics rules with the raw API command `dash0 -X api /api/signal-to-metrics --dataset "$DATASET"`, which prints them under `.signalToMetrics`.
 Notification channels are organization-scoped, do not accept `--limit`, and do not offer `-o wide`; use `-o json` or `-o table` instead.
+Agent0 custom skills are organization-scoped too; list them with `dash0 -X agent0 skills list -o json`.
 
 For scripting, the identifier field varies by asset kind (see the table in the previous section).
 The examples below use dashboards and notification channels:
@@ -184,13 +186,14 @@ Sanity-check the resource addresses in `import.tf` — the sanitizer may still c
 
 ## Organization-scoped assets: identifier only, no dataset
 
-`dash0_notification_channel`, `dash0_team`, `dash0_dataset`, and `dash0_auth_token` are organization-scoped, not dataset-scoped, so their import IDs drop the dataset prefix:
+`dash0_notification_channel`, `dash0_team`, `dash0_dataset`, `dash0_auth_token`, and `dash0_custom_skill` are organization-scoped, not dataset-scoped, so their import IDs drop the dataset prefix:
 
 ```sh
 terraform import dash0_notification_channel.slack_alerts "<identifier>"
 terraform import dash0_team.backend "<identifier>"
 terraform import dash0_dataset.staging "<slug>"
 terraform import dash0_auth_token.ingest "<id-or-origin>"
+terraform import dash0_custom_skill.incident_response "<id-or-origin>"
 ```
 
 Every other asset kind — dashboards, check rules, views, synthetic checks, recording rules, spam filters, SLOs, time series aggregations, sampling rules, and signal-to-metrics rules — uses the `dataset,identifier` shape.
@@ -207,6 +210,9 @@ Beyond that, three things are worth spot-checking:
 - **API-managed `spec.routing.assets` on imported channels.** An imported `dash0_notification_channel` that check rules or synthetic checks bind to shows a populated `spec.routing.assets` — do not copy it into your configuration.
   It is a server-derived back-reference: the API discards any value supplied on write (the provider warns if you set it), and the provider excludes it from drift comparison.
   Bind a check rule via its `dash0.com/notification-channel-ids` annotation, or a synthetic check via its `spec.notifications.channels`.
+
+- **Per-user and imported fields on custom skills.** Remove `metadata.annotations` and `spec.source` from an exported `dash0_custom_skill` before using it as configuration: the provider rejects the per-user `dash0.com/enabled` annotation and `spec.source`.
+  A custom skill created in the Dash0 UI has no origin, so its `origin` attribute stays null and the provider addresses it by `id`.
 
 ~> **Note:** A stubborn `plan` diff on a `dash0_spam_filter` import that survives re-exporting the YAML is almost always an `apiVersion` mismatch — the provider dispatches on it, so `apiVersion: v1alpha1` (the older `spec.contexts` list shape) and `apiVersion: v1alpha2` (the newer `spec.context` single-value shape) are treated as distinct schemas.
 

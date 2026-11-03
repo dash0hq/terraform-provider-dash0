@@ -58,6 +58,15 @@ type Client interface {
 	DeleteNotificationChannel(ctx context.Context, origin string) error
 	ResolveNotificationChannel(ctx context.Context, origin string) (string, string, error)
 
+	// Agent0 custom skills are organization-scoped and addressed by origin or
+	// id. CreateCustomSkill upserts by origin and returns the server-assigned
+	// id. GetCustomSkill returns the definition with server-managed fields
+	// stripped; use CustomSkillIdentity to read its id and origin labels.
+	CreateCustomSkill(ctx context.Context, origin string, skillJSON string) (string, error)
+	GetCustomSkill(ctx context.Context, originOrID string) (string, error)
+	UpdateCustomSkill(ctx context.Context, originOrID string, skillJSON string) error
+	DeleteCustomSkill(ctx context.Context, originOrID string) error
+
 	// Datasets are organization-scoped and addressed by slug (spec.slug or
 	// the dash0.com/id label, immutable). origin is stamped on
 	// dash0.com/origin when non-empty. CreateDataset uses POST (a same-slug

@@ -112,6 +112,7 @@ else
     test_sampling_rule.sh
     test_signal_to_metrics.sh
     test_aws_metric_scrape_config.sh
+    test_custom_skill.sh
     test_import_check_rule.sh
     test_import_dashboard.sh
     test_import_notification_channel.sh
@@ -127,6 +128,7 @@ else
     test_import_sampling_rule.sh
     test_import_signal_to_metrics.sh
     test_import_aws_metric_scrape_config.sh
+    test_import_custom_skill.sh
     test_actions.sh
   )
 fi
@@ -141,8 +143,9 @@ FAILED_NAMES=()
 # aggregation tests when the credential lacks the organization-admin role, the
 # sampling rule tests when the credential may not manage sampling rules, the
 # signal-to-metrics tests when the credential may not manage signal-to-metrics
-# rules, and the auth token tests when the API does not serve /api/auth-tokens
-# yet or the credential may not manage auth tokens. Skips are counted and named separately so they
+# rules, the auth token tests when the API does not serve /api/auth-tokens
+# yet or the credential may not manage auth tokens, and the custom skill tests
+# when the bundled dash0 CLI has no `agent0 skills` command yet. Skips are counted and named separately so they
 # never read as passes in the summary.
 SKIP_EXIT_CODE=77
 SKIPPED=0
@@ -160,6 +163,8 @@ SKIPPABLE_TESTS=(
   test_import_auth_token.sh
   test_aws_metric_scrape_config.sh
   test_import_aws_metric_scrape_config.sh
+  test_custom_skill.sh
+  test_import_custom_skill.sh
 )
 
 for test in "${TESTS[@]}"; do
