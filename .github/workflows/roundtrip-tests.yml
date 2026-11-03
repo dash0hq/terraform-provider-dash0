@@ -7,10 +7,24 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A new push to a pull request cancels that pull request's run that is still
+# going, so two pushes in quick succession don't run the suite twice at once.
+# Runs on main are never cancelled.
+concurrency:
+  group: roundtrip-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   roundtrip:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Every run shares one dataset, organization and AWS integration, so the
+    # suite runs one at a time across all branches. GitHub keeps at most one
+    # job waiting per group: when a third run queues, the waiting one is
+    # cancelled and needs a re-run.
+    concurrency:
+      group: roundtrip-shared-dash0-account
+      cancel-in-progress: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
