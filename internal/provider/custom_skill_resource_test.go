@@ -373,4 +373,10 @@ func TestCustomSkillResource_ImportState(t *testing.T) {
 		require.True(t, resp.Diagnostics.HasError())
 		assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "nope")
 	})
+	t.Run("deleted skill errors", func(t *testing.T) {
+		body := `{"kind":"Dash0Skill","metadata":{"labels":{"dash0.com/id":"` + customSkillTestID + `","dash0.com/origin":"tf_abc"},"annotations":{"dash0.com/deleted-at":"2026-11-02T08:45:10Z"}},"spec":{"files":[]}}`
+		resp, _ := importState(t, "tf_abc", body, nil)
+		require.True(t, resp.Diagnostics.HasError())
+		assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "has been deleted")
+	})
 }

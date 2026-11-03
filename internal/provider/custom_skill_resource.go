@@ -381,6 +381,15 @@ func (r *CustomSkillResource) ImportState(ctx context.Context, req resource.Impo
 		return
 	}
 
+	if isSoftDeleted(apiResponseJSON) {
+		resp.Diagnostics.AddError(
+			"Error Importing Custom Skill",
+			fmt.Sprintf("The custom skill %s has been deleted (it carries a %s annotation) and cannot be imported. "+
+				"Remove the import block and create the skill instead.", req.ID, annotationDeletedAt),
+		)
+		return
+	}
+
 	id, origin := client.CustomSkillIdentity(apiResponseJSON)
 	if id == "" {
 		resp.Diagnostics.AddError(
