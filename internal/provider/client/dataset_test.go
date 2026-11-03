@@ -24,7 +24,7 @@ const datasetTestJSON = `{
     "privacy": {
       "ipAddresses": {"endUser": {"storage": "anonymize"}},
       "geoLocation": {"endUser": {"storage": "up_to_country"}},
-      "redaction": {"cardholderData": {"enabled": true}, "genAi": {"conversation": "redact"}}
+      "redaction": {"cardholderData": {"enabled": true}, "genAi": {"conversation": "redact", "conversationName": "disabled"}}
     },
     "processing": {"spanEventsToLogs": true}
   }
@@ -44,7 +44,7 @@ func assertDatasetSpecShape(t *testing.T, doc map[string]any) {
 	assert.Equal(t, map[string]any{"endUser": map[string]any{"storage": "up_to_country"}}, privacy["geoLocation"])
 	assert.Equal(t, map[string]any{
 		"cardholderData": map[string]any{"enabled": true},
-		"genAi":          map[string]any{"conversation": "redact"},
+		"genAi":          map[string]any{"conversation": "redact", "conversationName": "disabled"},
 	}, privacy["redaction"])
 	assert.Equal(t, map[string]any{"spanEventsToLogs": true}, spec["processing"])
 }
@@ -162,7 +162,7 @@ func TestGetDataset_StripsServerFieldsAndKeepsIdentityAndPermissions(t *testing.
 	    "privacy": {
 	      "ipAddresses": {"endUser": {"storage": "anonymize"}},
 	      "geoLocation": {"endUser": {"storage": "up_to_country"}},
-	      "redaction": {"cardholderData": {"enabled": true}, "genAi": {"conversation": "redact"}}
+	      "redaction": {"cardholderData": {"enabled": true}, "genAi": {"conversation": "redact", "conversationName": "disabled"}}
 	    },
 	    "processing": {"spanEventsToLogs": true}
 	  }
