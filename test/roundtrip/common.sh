@@ -618,6 +618,29 @@ assert_idempotent() {
   done
 }
 
+# Runs `tofu plan -detailed-exitcode` and expects exit code 2 (changes pending).
+# Usage: assert_plan_has_changes <dir> <description of the expected change>
+assert_plan_has_changes() {
+  local dir="$1" what="$2"
+  set +e
+  TF_VAR_dataset="$DATASET" tf_plan_detailed_exitcode "$dir" >/dev/null
+  local exit_code=$?
+  set -e
+  [[ "$exit_code" -eq 2 ]] \
+    || fail "Expected tofu plan to report changes for ${what}, got exit code ${exit_code}."
+}
+
+# Fails unless the dash0 CLI reports the given dash0.com/enabled value for a
+# spam filter.
+# Usage: assert_spam_filter_enabled_via_cli <origin> <true|false>
+assert_spam_filter_enabled_via_cli() {
+  local origin="$1" expected="$2"
+  local cli_output
+  cli_output="$(dash0 -X spam-filters get "$origin" --dataset "$DATASET" -o yaml 2>&1)"
+  echo "$cli_output" | grep -Eq "dash0.com/enabled: \"?${expected}\"?$" \
+    || fail "Expected dash0.com/enabled: ${expected} via CLI, got:\n${cli_output}"
+}
+
 # ---------------------------------------------------------------------------
 # YAML equivalence check with retry (handles eventual consistency).
 # ---------------------------------------------------------------------------

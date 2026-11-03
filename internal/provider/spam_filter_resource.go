@@ -168,7 +168,8 @@ func parseAndValidateSpamFilterYAML(spamFilterYAML string, diags *diag.Diagnosti
 	// boolean would otherwise fail later with an opaque JSON decoding error.
 	if metadata, ok := parsed["metadata"].(map[string]interface{}); ok {
 		if annotations, ok := metadata["annotations"].(map[string]interface{}); ok {
-			if value, present := annotations[converter.AnnotationEnabled]; present {
+			// An empty value decodes to nil and means enabled, like an absent one.
+			if value, present := annotations[converter.AnnotationEnabled]; present && value != nil {
 				if s, isString := value.(string); !isString || (s != "true" && s != "false") {
 					diags.AddAttributeError(
 						path.Root("spam_filter_yaml"),

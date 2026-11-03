@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	dash0 "github.com/dash0hq/dash0-api-client-go"
-	customplanmodifier "github.com/dash0hq/terraform-provider-dash0/internal/provider/planmodifier"
 )
 
 // TestSpamFilterResource_Read_404IsNotHandledAsGone covers the bug reported in
@@ -91,7 +90,7 @@ func TestSpamFilterResource_Read_404IsNotHandledAsGone(t *testing.T) {
 // TestSpamFilterResource_SharingAnnotationIgnored verifies that spam filters
 // do NOT preserve dash0.com/sharing — changes to it should not trigger a replan.
 func TestSpamFilterResource_SharingAnnotationIgnored(t *testing.T) {
-	modifier := customplanmodifier.YAMLSemanticEqual() // no preserved annotation keys
+	modifier := spamFilterYAMLPlanModifier(t)
 
 	configValue := types.StringValue(`
 metadata:
@@ -271,6 +270,15 @@ func TestSpamFilterResource_ValidateConfig(t *testing.T) {
 	assert.False(t, spamFilterValidateConfig(spamFilterYAMLWithEnabled("false")).Diagnostics.HasError())
 	assert.False(t, spamFilterValidateConfig(spamFilterYAMLWithEnabled("true")).Diagnostics.HasError())
 	assert.True(t, spamFilterValidateConfig("metadata: [").Diagnostics.HasError())
+
+	// An empty value decodes to nil, which the comparator and the client both
+	// treat as enabled, so the plan must accept it too.
+	for _, value := range []string{"", "~", "null"} {
+		t.Run("accepts empty enabled "+value, func(t *testing.T) {
+			yamlDoc := strings.Replace(spamFilterYAMLWithEnabled("false"), `dash0.com/enabled: "false"`, "dash0.com/enabled: "+value, 1)
+			assert.False(t, spamFilterValidateConfig(yamlDoc).Diagnostics.HasError())
+		})
+	}
 
 	for _, value := range []string{"false", "true", `"no"`, "0"} {
 		t.Run("rejects enabled "+value, func(t *testing.T) {

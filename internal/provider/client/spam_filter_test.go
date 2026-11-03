@@ -236,3 +236,46 @@ func TestGetSpamFilter_KeepsEnabledAnnotation(t *testing.T) {
 	assert.Contains(t, got, `"dash0.com/enabled":"false"`)
 	assert.NotContains(t, got, "server-id", "dash0.com/id is server-managed and must still be stripped")
 }
+
+const v1alpha1SpamFilterJSONWithAnnotations = `{
+	"apiVersion": "v1alpha1",
+	"kind": "Dash0SpamFilter",
+	"metadata": {"name": "repro-filter"%s},
+	"spec": {
+		"filter": [{"key": "body", "value": "spam"}],
+		"contexts": ["log"]
+	}
+}`
+
+// The v1alpha1 branch of the upsert applies the same dash0.com/enabled default
+// as v1alpha2.
+func TestUpsertSpamFilter_EnabledAnnotation_V1Alpha1(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations string
+		want        dash0.SpamFilterAnnotationsDash0Comenabled
+	}{
+		{name: "omitted defaults to true", annotations: "", want: dash0.True},
+		{name: "explicit false is kept", annotations: `, "annotations": {"dash0.com/enabled": "false"}`, want: dash0.False},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var sent *dash0.SpamFilter
+			c := &dash0Client{inner: &dash0test.MockClient{
+				UpdateSpamFilterFunc: func(ctx context.Context, originOrID string, filter *dash0.SpamFilter, dataset *string) (*dash0.SpamFilter, error) {
+					sent = filter
+					return filter, nil
+				},
+			}}
+
+			body := fmt.Sprintf(v1alpha1SpamFilterJSONWithAnnotations, tt.annotations)
+			require.NoError(t, c.UpdateSpamFilter(context.Background(), "tf_enabled", body, "enabled-annotation-v1alpha1-"+tt.name))
+
+			require.NotNil(t, sent)
+			require.NotNil(t, sent.Metadata.Annotations)
+			require.NotNil(t, sent.Metadata.Annotations.Dash0Comenabled)
+			assert.Equal(t, tt.want, *sent.Metadata.Annotations.Dash0Comenabled)
+		})
+	}
+}

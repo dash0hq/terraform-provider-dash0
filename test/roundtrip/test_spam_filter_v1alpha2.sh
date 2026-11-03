@@ -128,26 +128,6 @@ assert_idempotent "$WORK_DIR"
 # Step 4b/4c: Disable the filter, then re-enable it by omitting the annotation
 # ---------------------------------------------------------------------------
 
-# Fails unless `tofu plan` reports pending changes (exit code 2).
-assert_plan_has_changes() {
-  local dir="$1" what="$2"
-  set +e
-  TF_VAR_dataset="$DATASET" tf_plan_detailed_exitcode "$dir" >/dev/null
-  local exit_code=$?
-  set -e
-  [[ "$exit_code" -eq 2 ]] \
-    || fail "Expected tofu plan to report changes for ${what}, got exit code ${exit_code}."
-}
-
-# Fails unless the CLI reports the given dash0.com/enabled value.
-assert_enabled_via_cli() {
-  local expected="$1"
-  local cli_output
-  cli_output="$(dash0 -X spam-filters get "$ORIGIN" --dataset "$DATASET" -o yaml 2>&1)"
-  echo "$cli_output" | grep -Eq "dash0.com/enabled: \"?${expected}\"?$" \
-    || fail "Expected dash0.com/enabled: ${expected} via CLI, got:\n${cli_output}"
-}
-
 info "Step 4b: Disabling the spam filter via dash0.com/enabled: \"false\"..."
 
 cat > "${WORK_DIR}/spam_filter.yaml" <<'YAMLEOF'
@@ -170,7 +150,7 @@ YAMLEOF
 
 assert_plan_has_changes "$WORK_DIR" "disabling the filter"
 TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
-assert_enabled_via_cli false
+assert_spam_filter_enabled_via_cli "$ORIGIN" false
 assert_idempotent "$WORK_DIR"
 info "Spam filter disabled."
 
@@ -194,7 +174,7 @@ YAMLEOF
 
 assert_plan_has_changes "$WORK_DIR" "re-enabling the filter"
 TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
-assert_enabled_via_cli true
+assert_spam_filter_enabled_via_cli "$ORIGIN" true
 assert_idempotent "$WORK_DIR"
 info "Spam filter re-enabled."
 
