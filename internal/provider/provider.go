@@ -69,7 +69,7 @@ func (p *dash0Provider) Metadata(_ context.Context, _ provider.MetadataRequest, 
 
 func providerSchema() schema.Schema {
 	return schema.Schema{
-		Description: "The Dash0 provider allows you to manage resources on the [Dash0](https://www.dash0.com) observability platform, including dashboards, check rules, recording rules, recording rule groups, synthetic checks, views, and teams. Credentials can be supplied via provider configuration attributes, via the DASH0_API_URL and DASH0_AUTH_TOKEN environment variables, or via a dash0 CLI profile.",
+		Description: "The Dash0 provider allows you to manage resources on the [Dash0](https://www.dash0.com) observability platform, including dashboards, check rules, recording rules, SLOs, synthetic checks, views, notification channels, spam filters, sampling rules, time series aggregations, teams, datasets, auth tokens, and AWS metric scrape configurations. Credentials can be supplied via provider configuration attributes, via the DASH0_API_URL and DASH0_AUTH_TOKEN environment variables, or via a dash0 CLI profile.",
 		Attributes: map[string]schema.Attribute{
 			"url": schema.StringAttribute{
 				Optional:    true,
@@ -90,7 +90,7 @@ func providerSchema() schema.Schema {
 			},
 			"dataset": schema.StringAttribute{
 				Optional:    true,
-				Description: "The default [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) used by dataset-scoped resources (dashboards, check rules, recording rules, sampling rules, spam filters, synthetic checks, and views) that omit their own `dataset` attribute. If omitted, the DASH0_DATASET environment variable is used, then the dataset configured on the resolved dash0 CLI profile, then \"default\". A resource can still override this per resource via its own `dataset` attribute.",
+				Description: "The default [Dash0 dataset](https://dash0.com/docs/dash0/miscellaneous/glossary/datasets) used by dataset-scoped resources (dashboards, check rules, recording rules, sampling rules, SLOs, spam filters, synthetic checks, time series aggregations, and views) that omit their own `dataset` attribute. If omitted, the DASH0_DATASET environment variable is used, then the dataset configured on the resolved dash0 CLI profile, then \"default\". A resource can still override this per resource via its own `dataset` attribute.",
 			},
 			"max_retries": schema.Int64Attribute{
 				Optional:    true,

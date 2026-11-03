@@ -142,7 +142,7 @@ func (r *TimeSeriesAggregationResource) Schema(_ context.Context, _ resource.Sch
 			"time_series_aggregation_yaml": schema.StringAttribute{
 				Description: "The time series aggregation definition in YAML format. The YAML must declare `kind: Dash0TimeSeriesAggregation`, an explicit `spec.enabled`, and a `spec` describing which metrics to match and how to aggregate them. " +
 					"`spec.priority` is defaulted by the server (to `2`) and is excluded from drift detection when omitted from the configuration. " +
-					"All `metadata.labels` are server-managed and ignored during drift detection.",
+					"`metadata.labels` are ignored during drift detection, so the provider warns when `metadata.labels.custom` is set.",
 				Required: true,
 				PlanModifiers: []planmodifier.String{
 					customplanmodifier.YAMLSemanticEqualConditionally(timeSeriesAggregationConditionallyIgnoredFields),
