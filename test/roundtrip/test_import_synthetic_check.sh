@@ -26,7 +26,37 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 WORK_DIR="$(mktemp -d)"
-trap 'rm -rf "$WORK_DIR"' EXIT
+# A per-run name keeps runs that share the dataset, concurrent or earlier, from
+# finding, importing or deleting each other's synthetic checks.
+SC_NAME="roundtrip-import-sc-$(date +%s)-${RANDOM}"
+IDENTIFIER=""
+gone=""
+
+discover_identifier() {
+  dash0 synthetic-checks list --dataset "$DATASET" -o json --limit 500 \
+    | python3 -c "
+import json, sys
+items = json.load(sys.stdin)
+for it in items:
+    if it.get('metadata', {}).get('name') == sys.argv[1]:
+        labels = it.get('metadata', {}).get('labels', {}) or {}
+        print(labels.get('dash0.com/origin') or labels.get('dash0.com/id') or '')
+        break
+" "$SC_NAME"
+}
+
+cleanup() {
+  if [[ "$gone" != "yes" ]]; then
+    [[ -n "$IDENTIFIER" ]] || IDENTIFIER="$(discover_identifier 2>/dev/null)" || true
+    if [[ -n "$IDENTIFIER" ]]; then
+      warn "Deleting synthetic check ${IDENTIFIER} created by this run..."
+      dash0 synthetic-checks delete "$IDENTIFIER" --dataset "$DATASET" --force \
+        || warn "Could not delete synthetic check ${IDENTIFIER}. Delete it by hand."
+    fi
+  fi
+  rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT
 
 info "=== Roundtrip test: terraform import (dash0_synthetic_check) ==="
 info "Working directory: ${WORK_DIR}"
@@ -41,12 +71,12 @@ write_provider_tf "$WORK_DIR"
 # Step 1: Create synthetic check via dash0 CLI (out-of-band, no Terraform).
 # Fixture mirrors test_synthetic_check.sh — a shape known to round-trip.
 # ---------------------------------------------------------------------------
-info "Step 1: Creating synthetic check via dash0 CLI..."
+info "Step 1: Creating synthetic check via dash0 CLI (name ${SC_NAME})..."
 
-cat > "${WORK_DIR}/synthetic_check.yaml" <<'YAMLEOF'
+cat > "${WORK_DIR}/synthetic_check.yaml" <<YAMLEOF
 kind: Dash0SyntheticCheck
 metadata:
-  name: roundtrip-import-sc
+  name: ${SC_NAME}
   labels: {}
 spec:
   enabled: true
@@ -95,17 +125,8 @@ info "Synthetic check created via CLI."
 # ---------------------------------------------------------------------------
 info "Step 2: Discovering identifier via dash0 CLI..."
 
-IDENTIFIER="$(dash0 synthetic-checks list --dataset "$DATASET" -o json --limit 500 \
-  | python3 -c "
-import json, sys
-items = json.load(sys.stdin)
-for it in items:
-    if it.get('metadata', {}).get('name') == 'roundtrip-import-sc':
-        labels = it.get('metadata', {}).get('labels', {}) or {}
-        print(labels.get('dash0.com/origin') or labels.get('dash0.com/id') or '')
-        break
-")"
-[[ -n "$IDENTIFIER" ]] || fail "Could not discover identifier for roundtrip-import-sc"
+IDENTIFIER="$(discover_identifier)"
+[[ -n "$IDENTIFIER" ]] || fail "Could not discover identifier for ${SC_NAME}"
 info "Identifier: ${IDENTIFIER}"
 
 if [[ "$IDENTIFIER" == tf_* ]]; then
@@ -200,7 +221,6 @@ TF_VAR_dataset="$DATASET" tf_destroy "$WORK_DIR"
 info "Step 8b: Verifying server-side deletion via list..."
 # The get endpoint has a longer cache TTL than list; use list (which the test
 # already relies on in step 2) for prompt post-destroy verification.
-gone=""
 for i in $(seq 1 10); do
   set +e
   dash0 synthetic-checks list --dataset "$DATASET" -o json --limit 500 \
