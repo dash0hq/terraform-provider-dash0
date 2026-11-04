@@ -318,6 +318,31 @@ func (m *MockClient) ResolveSamplingRule(ctx context.Context, origin string, dat
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockClient) CreateSignalToMetrics(ctx context.Context, origin string, ruleJSON string, dataset string) error {
+	args := m.Called(ctx, origin, ruleJSON, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) GetSignalToMetrics(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockClient) UpdateSignalToMetrics(ctx context.Context, origin string, ruleJSON string, dataset string) error {
+	args := m.Called(ctx, origin, ruleJSON, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteSignalToMetrics(ctx context.Context, origin string, dataset string) error {
+	args := m.Called(ctx, origin, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) ResolveSignalToMetrics(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
+}
+
 func (m *MockClient) SendLogEvent(ctx context.Context, event client.LogEvent, dataset string) error {
 	args := m.Called(ctx, event, dataset)
 	return args.Error(0)

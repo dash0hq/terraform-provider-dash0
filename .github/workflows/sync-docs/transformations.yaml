@@ -146,6 +146,10 @@ files:
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/sampling-rule.md
     title: dash0_sampling_rule
     description: Terraform resource for Dash0 sampling rules that decide which traces Dash0 keeps, based on errors, OTTL conditions, or a probabilistic share.
+  - source: docs/resources/signal_to_metrics.md
+    target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/signal-to-metrics.md
+    title: dash0_signal_to_metrics
+    description: Terraform resource for Dash0 signal-to-metrics rules that turn matching spans and logs into metrics at ingestion.
 
   - source: docs/resources/slo.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/slo.md

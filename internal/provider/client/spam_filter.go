@@ -61,6 +61,7 @@ func (c *dash0Client) upsertSpamFilter(ctx context.Context, origin, filterJSON, 
 		filter.ApiVersion = dash0.V1alpha2
 		setSpamFilterMetadataOrigin(&filter.Metadata, origin)
 		setSpamFilterMetadataDataset(&filter.Metadata, dataset)
+		setSpamFilterMetadataEnabledDefault(&filter.Metadata)
 
 		tflog.Debug(ctx, fmt.Sprintf("Upserting v1alpha2 spam filter with origin: %s", origin))
 		if _, err := c.inner.UpdateSpamFilterV1Alpha2(ctx, origin, filter, &dataset); err != nil {
@@ -76,6 +77,7 @@ func (c *dash0Client) upsertSpamFilter(ctx context.Context, origin, filterJSON, 
 		filter.ApiVersion = &v1alpha1
 		setSpamFilterMetadataOrigin(&filter.Metadata, origin)
 		setSpamFilterMetadataDataset(&filter.Metadata, dataset)
+		setSpamFilterMetadataEnabledDefault(&filter.Metadata)
 
 		tflog.Debug(ctx, fmt.Sprintf("Upserting v1alpha1 spam filter with origin: %s", origin))
 		if _, err := c.inner.UpdateSpamFilter(ctx, origin, filter, &dataset); err != nil {
@@ -220,16 +222,30 @@ func setSpamFilterMetadataDataset(meta *dash0.SpamFilterMetadata, dataset string
 	meta.Labels.Dash0Comdataset = &dataset
 }
 
+// setSpamFilterMetadataEnabledDefault sends dash0.com/enabled: "true" when the
+// document leaves it out, so that omitting the annotation always means an
+// enabled filter, including one that was switched off outside Terraform.
+// SpamFilterMetadata is shared between v1alpha1 and v1alpha2.
+func setSpamFilterMetadataEnabledDefault(meta *dash0.SpamFilterMetadata) {
+	if meta.Annotations == nil {
+		meta.Annotations = &dash0.SpamFilterAnnotations{}
+	}
+	if meta.Annotations.Dash0Comenabled == nil {
+		enabled := dash0.True
+		meta.Annotations.Dash0Comenabled = &enabled
+	}
+}
+
 // stripSpamFilterMetadataServerFields removes server-generated fields from a
 // spam filter's metadata. The SpamFilterMetadata struct is shared between
 // v1alpha1 and v1alpha2, so the same helper covers both shapes — unlike
 // dash0.StripSpamFilterServerFields which is bound to *SpamFilter (v1alpha1).
+//
+// dash0.com/enabled is kept: it is user intent rather than a server field, and
+// drift detection compares it (see converter.SpamFilterYAMLEquivalent).
 func stripSpamFilterMetadataServerFields(meta *dash0.SpamFilterMetadata) {
 	if meta == nil {
 		return
-	}
-	if meta.Annotations != nil {
-		meta.Annotations.Dash0Comenabled = nil
 	}
 	if meta.Labels != nil {
 		meta.Labels.Dash0Comid = nil

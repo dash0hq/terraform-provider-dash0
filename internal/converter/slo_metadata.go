@@ -13,12 +13,11 @@ import (
 const (
 	dash0MetadataKeyPrefix   = "dash0.com/"
 	sloDisplayNameAnnotation = "dash0.com/display-name"
-	sloEnabledAnnotation     = "dash0.com/enabled"
 )
 
 var storedDash0SLOAnnotations = []string{
 	sloDisplayNameAnnotation,
-	sloEnabledAnnotation,
+	AnnotationEnabled,
 	AnnotationFolderPath,
 	AnnotationSharing,
 }
@@ -70,10 +69,10 @@ func storedSLOAnnotations(annotations map[string]interface{}) map[string]string 
 		delete(stored, sloDisplayNameAnnotation)
 	}
 
-	if enabled, err := strconv.ParseBool(stored[sloEnabledAnnotation]); err != nil || enabled {
-		delete(stored, sloEnabledAnnotation)
+	if enabled, err := strconv.ParseBool(stored[AnnotationEnabled]); err != nil || enabled {
+		delete(stored, AnnotationEnabled)
 	} else {
-		stored[sloEnabledAnnotation] = strconv.FormatBool(enabled)
+		stored[AnnotationEnabled] = strconv.FormatBool(enabled)
 	}
 
 	return stored

@@ -1,0 +1,26 @@
+kind: Dash0SignalToMetrics
+metadata:
+  name: checkout-errors
+spec:
+  # Without this, the rule is created disabled and produces no metric.
+  enabled: true
+  display:
+    name: Checkout errors
+  match:
+    signal: spans
+    # Count the spans of the checkout service that end in an error.
+    filters:
+      - key: service.name
+        operator: is
+        value: checkout
+      - key: otel.span.status.code
+        operator: is
+        value: ERROR
+  output:
+    name: checkout_errors
+    description: Failed spans of the checkout service.
+    interval: 60s
+    # Keep the route as a metric attribute, so errors can be broken down by endpoint.
+    keepSignalAttributes:
+      - operator: is
+        value: http.route
