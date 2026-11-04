@@ -1,8 +1,8 @@
 # One of 'breaking', 'deprecation', 'new_component', 'enhancement', 'bug_fix'
-change_type: bug_fix
+change_type: enhancement
 
 # The name of the component, or a single word describing the area of concern, (e.g. dashboards, check_rules)
-component: time_series_aggregations
+component: docs
 
 # A brief description of the change. Surround your text with quotes ("") if it needs to start with a backtick (`).
 note: "The `dash0_time_series_aggregation` docs no longer claim that every `metadata.labels` entry is server-managed."
