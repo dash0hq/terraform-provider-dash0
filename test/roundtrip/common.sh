@@ -630,6 +630,69 @@ assert_plan_has_changes() {
     || fail "Expected tofu plan to report changes for ${what}, got exit code ${exit_code}."
 }
 
+# Polls a `list -o json` command until the asset with the given identifier is
+# no longer listed, tolerating the list endpoint's caching lag. Only a listing
+# that succeeded and does not contain the asset counts as deleted: a failed
+# list call or output that is not a JSON list is retried, and fails the test
+# after 10 attempts.
+# Usage: assert_gone_from_list <what> <identifier> <match> <list command...>
+#   match: id             the item's top-level `id` (check rules)
+#          extensions-id  `metadata.dash0Extensions.id` (dashboards)
+#          labels         `metadata.labels` `dash0.com/origin` or `dash0.com/id`
+assert_gone_from_list() {
+  local what="$1" target="$2" match="$3"
+  shift 3
+  local listing list_rc state
+  for i in $(seq 1 10); do
+    state="list-failed"
+    set +e
+    listing="$("$@")"
+    list_rc=$?
+    if [[ $list_rc -eq 0 ]]; then
+      printf '%s' "$listing" | python3 -c '
+import json, sys
+
+target, match = sys.argv[1], sys.argv[2]
+
+def identifiers(item):
+    metadata = item.get("metadata") or {}
+    if match == "id":
+        return {item.get("id")}
+    if match == "extensions-id":
+        return {(metadata.get("dash0Extensions") or {}).get("id")}
+    labels = metadata.get("labels") or {}
+    return {labels.get("dash0.com/origin"), labels.get("dash0.com/id")}
+
+try:
+    items = json.load(sys.stdin)
+    listed = any(target in identifiers(item) for item in items)
+except Exception:
+    sys.exit(2)
+sys.exit(0 if listed else 1)
+' "$target" "$match"
+      case $? in
+        0) state="listed" ;;
+        1) state="gone" ;;
+      esac
+    fi
+    set -e
+
+    if [[ "$state" == "gone" ]]; then
+      info "Server-side deletion confirmed via list (attempt ${i})."
+      return 0
+    fi
+    if [[ $i -lt 10 ]]; then
+      if [[ "$state" == "listed" ]]; then
+        warn "${what} still in list (attempt ${i}/10), retrying in 3s..."
+      else
+        warn "Could not list to confirm the ${what} deletion (attempt ${i}/10), retrying in 3s..."
+      fi
+      sleep 3
+    fi
+  done
+  fail "${what} '${target}' was not confirmed deleted after 10 attempts (last result: ${state})"
+}
+
 # Fails unless the dash0 CLI reports the given dash0.com/enabled value for a
 # spam filter.
 # Usage: assert_spam_filter_enabled_via_cli <origin> <true|false>

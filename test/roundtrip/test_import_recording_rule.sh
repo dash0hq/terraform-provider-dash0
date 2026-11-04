@@ -27,8 +27,10 @@ source "${SCRIPT_DIR}/common.sh"
 
 WORK_DIR="$(mktemp -d)"
 # A per-run name keeps runs that share the dataset, concurrent or earlier, from
-# finding, importing or deleting each other's recording rules.
-RR_NAME="roundtrip-import-recording-$(date +%s)-${RANDOM}"
+# finding, importing or deleting each other's recording rules. Lookups match a
+# substring, so the random part is padded to a fixed width: one run's name
+# cannot then be a substring of another's (`-12` would otherwise match `-123`).
+RR_NAME="roundtrip-import-recording-$(date +%s)-$(printf '%05d' "$RANDOM")"
 IDENTIFIER=""
 gone=""
 
@@ -194,27 +196,8 @@ TF_VAR_dataset="$DATASET" tf_destroy "$WORK_DIR"
 info "Step 8b: Verifying server-side deletion via list..."
 # The get endpoint has a longer cache TTL than list; use list (which the test
 # already relies on in step 2) for prompt post-destroy verification.
-for i in $(seq 1 10); do
-  set +e
-  dash0 recording-rules list --dataset "$DATASET" -o json --limit 500 \
-    | python3 -c "
-import json, sys
-items = json.load(sys.stdin)
-target = '$IDENTIFIER'
-sys.exit(0 if any((it.get('metadata', {}).get('labels', {}) or {}).get('dash0.com/id') == target for it in items) else 1)
-"
-  found=$?
-  set -e
-  if [[ $found -ne 0 ]]; then
-    info "Server-side deletion confirmed via list (attempt ${i})."
-    gone="yes"
-    break
-  fi
-  if [[ $i -lt 10 ]]; then
-    warn "Recording rule still in list (attempt ${i}/10), retrying in 3s..."
-    sleep 3
-  fi
-done
-[[ "$gone" == "yes" ]] || fail "Recording rule '${IDENTIFIER}' still returned by list after 10 attempts"
+assert_gone_from_list "Recording rule" "$IDENTIFIER" labels \
+  dash0 recording-rules list --dataset "$DATASET" -o json --limit 500
+gone="yes"
 
 info "=== dash0_recording_rule import roundtrip test PASSED ==="
