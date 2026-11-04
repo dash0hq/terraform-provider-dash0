@@ -1,0 +1,21 @@
+# One of 'breaking', 'deprecation', 'new_component', 'enhancement', 'bug_fix'
+change_type: breaking
+
+# The name of the component, or a single word describing the area of concern, (e.g. dashboards, check_rules)
+component: sampling_rules
+
+# A brief description of the change. Surround your text with quotes ("") if it needs to start with a backtick (`).
+note: "`dash0_sampling_rule` compares `metadata.labels.custom`, so the first apply after upgrading removes custom labels that were added outside Terraform."
+
+# Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
+issues: []
+
+# (Optional) One or more lines of additional information to render under the main note.
+# These lines will be padded with 2 spaces and then inserted directly into the document.
+# Use pipe (|) for multiline entries.
+subtext: |
+  To keep such labels, add them to the YAML before you apply.
+  Before, the provider ignored all of `metadata.labels`, so a change to the custom labels alone produced an empty plan and never reached Dash0.
+  The plan now shows that change, and reports a custom label changed outside Terraform as drift.
+  If your YAML declares custom labels that never reached Dash0, the first plan after upgrading applies them.
+  The warning about `metadata.labels.custom` is gone.

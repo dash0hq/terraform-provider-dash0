@@ -707,7 +707,9 @@ spec:
 	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "Dash0View")
 }
 
-func TestTimeSeriesAggregationResource_ValidateConfig_CustomLabelsWarn(t *testing.T) {
+// The API stores metadata.labels.custom and drift detection compares it, so
+// declaring custom labels needs no warning.
+func TestTimeSeriesAggregationResource_ValidateConfig_CustomLabelsAreValid(t *testing.T) {
 	r := &TimeSeriesAggregationResource{}
 	resp := &resource.ValidateConfigResponse{}
 	r.ValidateConfig(context.Background(), tsaValidateConfigRequest(`
@@ -728,10 +730,7 @@ spec:
 `), resp)
 
 	assert.False(t, resp.Diagnostics.HasError())
-	require.Equal(t, 1, resp.Diagnostics.WarningsCount())
-	assert.Contains(t, resp.Diagnostics.Warnings()[0].Summary(), "metadata.labels.custom")
-	assert.Contains(t, resp.Diagnostics.Warnings()[0].Detail(), "team",
-		"the warning must name the offending key so the user can find it")
+	assert.Zero(t, resp.Diagnostics.WarningsCount())
 }
 
 // spec.enabled is required, not defaulted. TimeSeriesAggregationSpec.Enabled is
@@ -875,15 +874,16 @@ func TestTimeSeriesAggregationResource_Create_EnabledFalseAppliesAtApply(t *test
 	mockClient.AssertCalled(t, "CreateTimeSeriesAggregation", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
-// The custom-labels warning has the same unknown-value blind spot as the hard
-// errors: a document interpolated from a computed attribute skips ValidateConfig
-// entirely, so Create and Update are the only places it can still be emitted.
-// These two tests pin that it is, since a warning that silently stops firing
-// looks exactly like a document with no custom labels.
-func TestTimeSeriesAggregationResource_Create_CustomLabelsWarn(t *testing.T) {
+// sendsCustomLabels matches a request body that carries the team custom label
+// from tsaYamlCustomLabels and samplingRuleYamlCustomLabels.
+var sendsCustomLabels = mock.MatchedBy(func(body string) bool {
+	return strings.Contains(body, `"custom":{"team":"platform"}`)
+})
+
+func TestTimeSeriesAggregationResource_Create_SendsCustomLabels(t *testing.T) {
 	mockClient := &MockClient{}
 	r := &TimeSeriesAggregationResource{client: mockClient, defaultDataset: "default"}
-	mockClient.On("CreateTimeSeriesAggregation", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockClient.On("CreateTimeSeriesAggregation", mock.Anything, mock.Anything, sendsCustomLabels, mock.Anything).Return(nil)
 	mockClient.On("ResolveTimeSeriesAggregation", mock.Anything, mock.Anything, mock.Anything).Return("an-id", nil)
 
 	req := resource.CreateRequest{Plan: tsaPlan(nil, nil, nil, strPtr(tsaYamlCustomLabels))}
@@ -891,17 +891,15 @@ func TestTimeSeriesAggregationResource_Create_CustomLabelsWarn(t *testing.T) {
 
 	r.Create(context.Background(), req, &resp)
 
-	assert.False(t, resp.Diagnostics.HasError(), "custom labels are a warning, not an error")
-	require.Equal(t, 1, resp.Diagnostics.WarningsCount(), "the warning must survive the unknown-value path")
-	assert.Contains(t, resp.Diagnostics.Warnings()[0].Summary(), "metadata.labels.custom")
-	assert.Contains(t, resp.Diagnostics.Warnings()[0].Detail(), "team")
+	mockClient.AssertExpectations(t)
+	assert.False(t, resp.Diagnostics.HasError())
+	assert.Zero(t, resp.Diagnostics.WarningsCount())
 }
 
-func TestTimeSeriesAggregationResource_Update_CustomLabelsWarn(t *testing.T) {
+func TestTimeSeriesAggregationResource_Update_SendsCustomLabels(t *testing.T) {
 	mockClient := &MockClient{}
 	r := &TimeSeriesAggregationResource{client: mockClient}
-	mockClient.On("UpdateTimeSeriesAggregation", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	mockClient.On("ResolveTimeSeriesAggregation", mock.Anything, mock.Anything, mock.Anything).Return("an-id", nil)
+	mockClient.On("UpdateTimeSeriesAggregation", mock.Anything, mock.Anything, sendsCustomLabels, mock.Anything).Return(nil)
 
 	req := resource.UpdateRequest{
 		State: tsaState(strPtr("tf_origin"), strPtr("state-id"), strPtr("test-dataset"), strPtr(tsaValidYaml)),
@@ -911,9 +909,9 @@ func TestTimeSeriesAggregationResource_Update_CustomLabelsWarn(t *testing.T) {
 
 	r.Update(context.Background(), req, &resp)
 
-	assert.False(t, resp.Diagnostics.HasError(), "custom labels are a warning, not an error")
-	require.Equal(t, 1, resp.Diagnostics.WarningsCount(), "the warning must survive the unknown-value path")
-	assert.Contains(t, resp.Diagnostics.Warnings()[0].Summary(), "metadata.labels.custom")
+	mockClient.AssertExpectations(t)
+	assert.False(t, resp.Diagnostics.HasError())
+	assert.Zero(t, resp.Diagnostics.WarningsCount())
 }
 
 // TestTimeSeriesAggregationResource_ValidateConfig_ResourceContextIsNotValidated

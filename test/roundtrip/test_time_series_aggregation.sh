@@ -13,6 +13,8 @@
 #  3b. Toggle `spec.enabled` to false and assert it round-trips and settles —
 #      the end-to-end proof that spec.enabled participates in drift detection
 #      and that the server-defaulted spec.priority does not leak into it
+#  3c. Add, change and remove a `metadata.labels.custom` entry and assert each
+#      change shows in the plan, reaches the API and settles
 #   4. Idempotency
 #   5. Destroy
 #   6. Verify deletion
@@ -177,6 +179,50 @@ if [[ "$PLAN_RC" -ne 0 ]]; then
   fail "Plan after toggling spec.enabled reported changes (exit ${PLAN_RC}) — spec.enabled is not settling, or the server-defaulted spec.priority is leaking into drift detection."
 fi
 info "Drift check PASSED: spec.enabled round-trips and spec.priority does not leak."
+
+# ---------------------------------------------------------------------------
+# Step 3c: `metadata.labels.custom` changes reach the API on their own.
+#
+# The API stores custom labels, so adding, changing or removing them without
+# touching anything else must show in the plan, be applied, and then settle.
+# ---------------------------------------------------------------------------
+info "Step 3c: Adding, changing and removing a custom label..."
+
+write_tsa_with_labels() {
+  local labels="$1"
+  cat > "${WORK_DIR}/tsa.yaml" <<YAMLEOF
+apiVersion: dash0.com/v1alpha1
+kind: Dash0TimeSeriesAggregation
+metadata:
+  name: roundtrip-test-tsa
+${labels}spec:
+  enabled: false
+  display:
+    name: Roundtrip Test TSA - Updated
+  match:
+    metricNameMatcher:
+      operator: is
+      value: http.server.request.duration
+  sample:
+    interval: 10m
+YAMLEOF
+}
+
+for labels in "  labels:
+    custom:
+      team: platform
+" "  labels:
+    custom:
+      team: payments
+" ""; do
+  write_tsa_with_labels "$labels"
+  assert_plan_has_changes "$WORK_DIR" "a custom label change"
+  TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
+  # With no labels configured, a custom label the server kept fails this too.
+  assert_yaml_equivalent_eventually "${WORK_DIR}/tsa.yaml" "dash0 time-series-aggregations" "$ORIGIN" "$DATASET"
+  assert_idempotent "$WORK_DIR"
+done
+info "Custom labels round-trip PASSED."
 
 # ---------------------------------------------------------------------------
 # Step 4: Idempotency

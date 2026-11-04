@@ -628,20 +628,15 @@ func TestSamplingRuleResource_ValidateConfig_WrongKind(t *testing.T) {
 	}
 }
 
-func TestSamplingRuleResource_ValidateConfig_CustomLabelsWarn(t *testing.T) {
+// The API stores metadata.labels.custom and drift detection compares it, so
+// declaring custom labels needs no warning.
+func TestSamplingRuleResource_ValidateConfig_CustomLabelsAreValid(t *testing.T) {
 	r := &SamplingRuleResource{}
 	resp := &resource.ValidateConfigResponse{}
 	r.ValidateConfig(context.Background(), samplingRuleValidateConfigRequest(samplingRuleYamlCustomLabels), resp)
 
 	assert.False(t, resp.Diagnostics.HasError())
-	require.Equal(t, 1, resp.Diagnostics.WarningsCount())
-	assert.Contains(t, resp.Diagnostics.Warnings()[0].Summary(), "metadata.labels.custom")
-	assert.Contains(t, resp.Diagnostics.Warnings()[0].Detail(), "team",
-		"the warning must name the offending key so the user can find it")
-
-	withPath, ok := resp.Diagnostics.Warnings()[0].(diag.DiagnosticWithPath)
-	require.True(t, ok)
-	assert.Equal(t, "sampling_rule_yaml", withPath.Path().String())
+	assert.Zero(t, resp.Diagnostics.WarningsCount())
 }
 
 // spec.enabled is required, not defaulted. SamplingSpec.Enabled is a
@@ -726,12 +721,10 @@ func TestSamplingRuleResource_Update_EnabledAbsentIsRejectedAtApply(t *testing.T
 	mockClient.AssertNotCalled(t, "UpdateSamplingRule", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
-// The custom-labels warning has the same unknown-value blind spot as the hard
-// errors, so Create and Update must emit it too.
-func TestSamplingRuleResource_Create_CustomLabelsWarn(t *testing.T) {
+func TestSamplingRuleResource_Create_SendsCustomLabels(t *testing.T) {
 	mockClient := &MockClient{}
 	r := &SamplingRuleResource{client: mockClient, defaultDataset: "default"}
-	mockClient.On("CreateSamplingRule", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockClient.On("CreateSamplingRule", mock.Anything, mock.Anything, sendsCustomLabels, mock.Anything).Return(nil)
 	mockClient.On("ResolveSamplingRule", mock.Anything, mock.Anything, mock.Anything).Return("an-id", nil)
 
 	req := resource.CreateRequest{Plan: samplingRulePlan(nil, nil, nil, strPtr(samplingRuleYamlCustomLabels))}
@@ -739,15 +732,15 @@ func TestSamplingRuleResource_Create_CustomLabelsWarn(t *testing.T) {
 
 	r.Create(context.Background(), req, &resp)
 
-	assert.False(t, resp.Diagnostics.HasError(), "custom labels are a warning, not an error")
-	require.Equal(t, 1, resp.Diagnostics.WarningsCount(), "the warning must survive the unknown-value path")
-	assert.Contains(t, resp.Diagnostics.Warnings()[0].Summary(), "metadata.labels.custom")
+	mockClient.AssertExpectations(t)
+	assert.False(t, resp.Diagnostics.HasError())
+	assert.Zero(t, resp.Diagnostics.WarningsCount())
 }
 
-func TestSamplingRuleResource_Update_CustomLabelsWarn(t *testing.T) {
+func TestSamplingRuleResource_Update_SendsCustomLabels(t *testing.T) {
 	mockClient := &MockClient{}
 	r := &SamplingRuleResource{client: mockClient}
-	mockClient.On("UpdateSamplingRule", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockClient.On("UpdateSamplingRule", mock.Anything, mock.Anything, sendsCustomLabels, mock.Anything).Return(nil)
 
 	req := resource.UpdateRequest{
 		State: samplingRuleState(strPtr("tf_origin"), strPtr("state-id"), strPtr("test-dataset"), strPtr(samplingRuleValidYaml)),
@@ -757,7 +750,7 @@ func TestSamplingRuleResource_Update_CustomLabelsWarn(t *testing.T) {
 
 	r.Update(context.Background(), req, &resp)
 
-	assert.False(t, resp.Diagnostics.HasError(), "custom labels are a warning, not an error")
-	require.Equal(t, 1, resp.Diagnostics.WarningsCount(), "the warning must survive the unknown-value path")
-	assert.Contains(t, resp.Diagnostics.Warnings()[0].Summary(), "metadata.labels.custom")
+	mockClient.AssertExpectations(t)
+	assert.False(t, resp.Diagnostics.HasError())
+	assert.Zero(t, resp.Diagnostics.WarningsCount())
 }

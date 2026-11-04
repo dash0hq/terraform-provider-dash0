@@ -17,6 +17,8 @@
 #  3b. Set `spec.enabled: true` in the configuration and assert that the plan
 #      reports a change, without applying it — the end-to-end proof that
 #      spec.enabled participates in drift detection
+#  3c. Add, change and remove a `metadata.labels.custom` entry and assert each
+#      change shows in the plan, reaches the API and settles
 #   4. Idempotency
 #   5. Destroy
 #   6. Verify deletion
@@ -186,6 +188,51 @@ sed -i 's/^  enabled: true$/  enabled: false/' "${WORK_DIR}/sampling_rule.yaml"
 grep -q '^  enabled: false$' "${WORK_DIR}/sampling_rule.yaml" \
   || fail "Test setup: could not restore spec.enabled to false"
 info "Drift check PASSED: a change to spec.enabled shows up in the plan."
+
+# ---------------------------------------------------------------------------
+# Step 3c: `metadata.labels.custom` changes reach the API on their own.
+#
+# The API stores custom labels, so adding, changing or removing them without
+# touching anything else must show in the plan, be applied, and then settle.
+# ---------------------------------------------------------------------------
+info "Step 3c: Adding, changing and removing a custom label..."
+
+write_sampling_rule_with_labels() {
+  local labels="$1"
+  cat > "${WORK_DIR}/sampling_rule.yaml" <<YAMLEOF
+kind: Dash0Sampling
+metadata:
+  name: roundtrip-test-sampling-rule
+${labels}spec:
+  enabled: false
+  display:
+    name: Roundtrip Test Sampling Rule - Updated
+  conditions:
+    kind: ottl
+    spec:
+      ottl: span.name == "dash0-terraform-roundtrip-matches-nothing"
+  rateLimit:
+    rate: 50
+YAMLEOF
+}
+
+for labels in "  labels:
+    custom:
+      team: platform
+" "  labels:
+    custom:
+      team: payments
+" ""; do
+  write_sampling_rule_with_labels "$labels"
+  assert_plan_has_changes "$WORK_DIR" "a custom label change"
+  TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
+  API_OUTPUT="$(sampling_rule_get "$ORIGIN" "$DATASET" 2>&1)"
+  # With no labels configured, a custom label the server kept fails this too.
+  assert_yaml_equivalent "${WORK_DIR}/sampling_rule.yaml" "$API_OUTPUT" \
+    || fail "API output does not match the configured custom labels"
+  assert_idempotent "$WORK_DIR"
+done
+info "Custom labels round-trip PASSED."
 
 # ---------------------------------------------------------------------------
 # Step 4: Idempotency

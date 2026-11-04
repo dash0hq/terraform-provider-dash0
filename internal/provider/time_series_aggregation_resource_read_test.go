@@ -123,7 +123,49 @@ spec:
 `,
 			apiResponse:       `{"kind":"Dash0TimeSeriesAggregation","metadata":{"name":"rollup","labels":{"dash0.com/origin":"tf_abc","dash0.com/id":"11111111-1111-1111-1111-111111111111","dash0.com/dataset":"default","dash0.com/version":"3","dash0.com/source":"terraform"}},"spec":{"enabled":true,"match":{"metricNameMatcher":{"operator":"is","value":"http.server.request.duration"}},"sample":{"interval":"5m"}}}`,
 			expectYamlUpdated: false,
-			why:               "the whole metadata.labels subtree is server-managed and stripped before comparison",
+			why:               "the dash0.com/ labels are server-managed and stripped before comparison",
+		},
+		{
+			name: "metadata.labels.custom changed out of band - drift",
+			stateYaml: `kind: Dash0TimeSeriesAggregation
+metadata:
+  name: rollup
+  labels:
+    custom:
+      team: platform
+spec:
+  enabled: true
+  match:
+    metricNameMatcher:
+      operator: is
+      value: http.server.request.duration
+  sample:
+    interval: 5m
+`,
+			apiResponse:       `{"kind":"Dash0TimeSeriesAggregation","metadata":{"name":"rollup","labels":{"custom":{"team":"payments"},"dash0.com/id":"11111111-1111-1111-1111-111111111111","dash0.com/version":"3"}},"spec":{"enabled":true,"match":{"metricNameMatcher":{"operator":"is","value":"http.server.request.duration"}},"sample":{"interval":"5m"}}}`,
+			expectYamlUpdated: true,
+			why:               "the API stores metadata.labels.custom, so a change to it made outside Terraform is drift",
+		},
+		{
+			name: "metadata.labels.custom unchanged next to server-managed labels - equivalent",
+			stateYaml: `kind: Dash0TimeSeriesAggregation
+metadata:
+  name: rollup
+  labels:
+    custom:
+      team: platform
+spec:
+  enabled: true
+  match:
+    metricNameMatcher:
+      operator: is
+      value: http.server.request.duration
+  sample:
+    interval: 5m
+`,
+			apiResponse:       `{"kind":"Dash0TimeSeriesAggregation","metadata":{"name":"rollup","labels":{"custom":{"team":"platform"},"dash0.com/id":"11111111-1111-1111-1111-111111111111","dash0.com/version":"3"}},"spec":{"enabled":true,"match":{"metricNameMatcher":{"operator":"is","value":"http.server.request.duration"}},"sample":{"interval":"5m"}}}`,
+			expectYamlUpdated: false,
+			why:               "matching custom labels must not report drift because of the server-managed keys beside them",
 		},
 		{
 			name: "spec.sample.interval changed out of band - drift",
