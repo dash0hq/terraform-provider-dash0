@@ -5,7 +5,7 @@ change_type: enhancement
 component: docs
 
 # A brief description of the change. Surround your text with quotes ("") if it needs to start with a backtick (`).
-note: "The `dash0_time_series_aggregation` docs no longer claim that every `metadata.labels` entry is server-managed."
+note: "The provider's `dataset` attribute documentation lists SLOs and time series aggregations among the resources that use the default dataset."
 
 # Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
 issues: [208]
@@ -13,6 +13,4 @@ issues: [208]
 # (Optional) One or more lines of additional information to render under the main note.
 # These lines will be padded with 2 spaces and then inserted directly into the document.
 # Use pipe (|) for multiline entries.
-subtext: |
-  The API stores `metadata.labels.custom`, and the provider sends it, but drift detection ignores it, so the provider warns when it is set.
-  The provider's `dataset` attribute documentation now lists time series aggregations and SLOs among the resources that inherit it.
+subtext:
