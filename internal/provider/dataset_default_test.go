@@ -187,6 +187,26 @@ spec:
 			m.On("ResolveSamplingRule", mock.Anything, mock.Anything, dataset).Return("test-id", nil)
 		},
 	},
+	{
+		name:        "signal_to_metrics",
+		newResource: NewSignalToMetricsResource,
+		yamlAttr:    "signal_to_metrics_yaml",
+		yamlValue: `kind: Dash0SignalToMetrics
+metadata:
+  name: checkout-errors
+spec:
+  enabled: true
+  match:
+    signal: spans
+  output:
+    name: checkout_errors
+    interval: 60s`,
+		hasURL: false,
+		mockSetup: func(m *MockClient, dataset string) {
+			m.On("CreateSignalToMetrics", mock.Anything, mock.Anything, mock.Anything, dataset).Return(nil)
+			m.On("ResolveSignalToMetrics", mock.Anything, mock.Anything, dataset).Return("test-id", nil)
+		},
+	},
 }
 
 // buildOmittedDatasetCreatePlan builds a minimal Create plan for a
@@ -225,11 +245,11 @@ func buildOmittedDatasetCreatePlan(yamlAttr, yamlValue string, hasURL bool) tfsd
 }
 
 // TestDatasetScopedResources_Create_InheritsProviderDefaultDataset covers all
-// nine dataset-scoped resources, verifying each resource's own Create path
+// ten dataset-scoped resources, verifying each resource's own Create path
 // falls back to the provider-level default dataset when the resource omits
 // its own `dataset` attribute. Each resource has a distinct client call, so
 // this cannot be collapsed into a single shared code path -- the table
-// exists precisely to exercise all nine independently.
+// exists precisely to exercise all ten independently.
 func TestDatasetScopedResources_Create_InheritsProviderDefaultDataset(t *testing.T) {
 	const providerDefault = "provider-default-dataset"
 
@@ -283,6 +303,7 @@ var datasetSchemaCases = []datasetSchemaCase{
 	{"slo", NewSLOResource},
 	{"time_series_aggregation", NewTimeSeriesAggregationResource},
 	{"sampling_rule", NewSamplingRuleResource},
+	{"signal_to_metrics", NewSignalToMetricsResource},
 }
 
 // nonNullEmptyObject returns a known (non-null), attribute-less object value,
@@ -316,7 +337,7 @@ func runStringPlanModifiers(ctx context.Context, modifiers []planmodifier.String
 
 // TestDatasetScopedResources_DatasetPlanModifiers exercises the `dataset`
 // attribute's real plan modifiers -- UseStateForUnknown then RequiresReplace
-// -- for all nine dataset-scoped resources, at the planning stage rather than
+// -- for all ten dataset-scoped resources, at the planning stage rather than
 // through Create. This is deliberately independent of any provider-level
 // default: plan modifiers never see the provider configuration, so a
 // resource's own prior state is the only thing an omitted `dataset` can pin

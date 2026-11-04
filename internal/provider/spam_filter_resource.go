@@ -25,9 +25,10 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &SpamFilterResource{}
-	_ resource.ResourceWithConfigure   = &SpamFilterResource{}
-	_ resource.ResourceWithImportState = &SpamFilterResource{}
+	_ resource.Resource                   = &SpamFilterResource{}
+	_ resource.ResourceWithConfigure      = &SpamFilterResource{}
+	_ resource.ResourceWithImportState    = &SpamFilterResource{}
+	_ resource.ResourceWithValidateConfig = &SpamFilterResource{}
 )
 
 // NewSpamFilterResource is a helper function to simplify the provider implementation.
@@ -78,7 +79,9 @@ func (r *SpamFilterResource) Schema(_ context.Context, _ resource.SchemaRequest,
 	resp.Schema = schema.Schema{
 		Description: "Manages a Dash0 Spam Filter. Spam filters allow you to drop noisy or unwanted telemetry data " +
 			"before it is stored, reducing costs and improving signal-to-noise ratio. " +
-			"Filters are scoped to a dataset and can target logs, spans, or metrics.\n\n" +
+			"Filters are scoped to a dataset and can target logs, spans, metric data points, web events, or profile samples.\n\n" +
+			"To switch a filter off without deleting it, set the `dash0.com/enabled` annotation to `\"false\"`. " +
+			"A filter that omits the annotation is enabled, so Terraform switches it back on if it was disabled outside Terraform.\n\n" +
 			"See [Set Spam Filters](https://dash0.com/docs/dash0/cost-control/spam-filters) for more details.",
 
 		Attributes: map[string]schema.Attribute{
@@ -108,16 +111,80 @@ func (r *SpamFilterResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			"spam_filter_yaml": schema.StringAttribute{
 				Description: "The spam filter definition in YAML format. " +
 					"The YAML must include a `metadata.name` field and a `spec` with a `filter` (list of key-value matchers) " +
-					"and either `contexts` (`v1alpha1`, a list of signal types: `log`, `span`, `datapoint` or `web_event`) or " +
-					"`context` (`v1alpha2`, a single signal type out of `log`, `span`, `datapoint` or `web_event`). The " +
-					"`apiVersion` field determines which shape is expected. ",
+					"and either `contexts` (`v1alpha1`, a list holding exactly one signal type) or " +
+					"`context` (`v1alpha2`, a single signal type). The signal type is one of `log`, `span`, `datapoint`, " +
+					"`web_event` or `profile_sample`. The `apiVersion` field determines which shape is expected. " +
+					"The optional `metadata.annotations` key `dash0.com/enabled` takes the quoted string `\"true\"` (the default) or `\"false\"`. " +
+					"`metadata.labels` is not covered by drift detection.",
 				Required: true,
 				PlanModifiers: []planmodifier.String{
-					customplanmodifier.YAMLSemanticEqual(),
+					customplanmodifier.YAMLSemanticEqualComparing(converter.SpamFilterYAMLEquivalent),
 				},
 			},
 		},
 	}
+}
+
+// ValidateConfig runs plan-time validation for spam_filter_yaml so users see
+// problems on `terraform plan` rather than on the subsequent apply.
+func (r *SpamFilterResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var model spamFilterModel
+	diags := req.Config.Get(ctx, &model)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if model.SpamFilterYaml.IsNull() || model.SpamFilterYaml.IsUnknown() {
+		return
+	}
+
+	parsed := parseAndValidateSpamFilterYAML(model.SpamFilterYaml.ValueString(), &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	warnIfCustomLabelsSet(parsed, "spam_filter_yaml", &resp.Diagnostics)
+}
+
+// parseAndValidateSpamFilterYAML parses the user's document and checks the
+// invariants the provider depends on, appending errors to diags. It returns
+// nil when any of them fails.
+//
+// Create and Update call it too: ValidateConfig returns early when the value
+// is unknown at plan time (the YAML interpolates another resource's computed
+// attribute), and by Create and Update the value is always known.
+func parseAndValidateSpamFilterYAML(spamFilterYAML string, diags *diag.Diagnostics) map[string]interface{} {
+	var parsed map[string]interface{}
+	if err := yaml.Unmarshal([]byte(spamFilterYAML), &parsed); err != nil {
+		diags.AddAttributeError(
+			path.Root("spam_filter_yaml"),
+			"Invalid YAML",
+			fmt.Sprintf("Spam filter definition is not valid YAML: %s", err),
+		)
+		return nil
+	}
+
+	// The API types dash0.com/enabled as a string enum. An unquoted YAML
+	// boolean would otherwise fail later with an opaque JSON decoding error.
+	if metadata, ok := parsed["metadata"].(map[string]interface{}); ok {
+		if annotations, ok := metadata["annotations"].(map[string]interface{}); ok {
+			// An empty value decodes to nil and means enabled, like an absent one.
+			if value, present := annotations[converter.AnnotationEnabled]; present && value != nil {
+				if s, isString := value.(string); !isString || (s != "true" && s != "false") {
+					diags.AddAttributeError(
+						path.Root("spam_filter_yaml"),
+						"Invalid dash0.com/enabled annotation",
+						fmt.Sprintf("metadata.annotations.%s must be the quoted string \"true\" or \"false\", got %v (%T). "+
+							"Quote the value, for example `dash0.com/enabled: \"false\"`.",
+							converter.AnnotationEnabled, value, value),
+					)
+					return nil
+				}
+			}
+		}
+	}
+
+	return parsed
 }
 
 // resolveSpamFilter populates the spam filter's server-assigned id on the
@@ -150,16 +217,12 @@ func (r *SpamFilterResource) Create(ctx context.Context, req resource.CreateRequ
 		model.Dataset = types.StringValue(r.defaultDataset)
 	}
 
-	// Validate YAML format
-	var spamFilterYaml interface{}
-	err := yaml.Unmarshal([]byte(model.SpamFilterYaml.ValueString()), &spamFilterYaml)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Invalid YAML",
-			fmt.Sprintf("Spam filter definition is not valid YAML: %s", err),
-		)
+	// Re-validate here, not just in ValidateConfig: see parseAndValidateSpamFilterYAML.
+	parsed := parseAndValidateSpamFilterYAML(model.SpamFilterYaml.ValueString(), &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
 		return
 	}
+	warnIfCustomLabelsSet(parsed, "spam_filter_yaml", &resp.Diagnostics)
 
 	// Convert YAML to JSON for the API
 	jsonBody, err := converter.ConvertYAMLToJSON(model.SpamFilterYaml.ValueString())
@@ -208,7 +271,7 @@ func (r *SpamFilterResource) Read(ctx context.Context, req resource.ReadRequest,
 	if state.SpamFilterYaml.ValueString() != "" {
 		stateYAML := state.SpamFilterYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored, nil)
+		equivalent, err := converter.SpamFilterYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored)
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Spam Filter Comparison Error",
@@ -247,16 +310,12 @@ func (r *SpamFilterResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	// Validate YAML format
-	var spamFilterYaml interface{}
-	err := yaml.Unmarshal([]byte(plan.SpamFilterYaml.ValueString()), &spamFilterYaml)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Invalid YAML",
-			fmt.Sprintf("Spam filter definition is not valid YAML: %s", err),
-		)
+	// Re-validate here for the same reason as in Create.
+	parsed := parseAndValidateSpamFilterYAML(plan.SpamFilterYaml.ValueString(), &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
 		return
 	}
+	warnIfCustomLabelsSet(parsed, "spam_filter_yaml", &resp.Diagnostics)
 
 	// Convert YAML to JSON for the API
 	jsonBody, err := converter.ConvertYAMLToJSON(plan.SpamFilterYaml.ValueString())

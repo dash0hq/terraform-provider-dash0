@@ -9,6 +9,8 @@
 #   2. Verify it exists via dash0 CLI
 #   3. Update a field and re-apply via Terraform
 #   4. Re-apply without changes (idempotency)
+#   4b. Disable via dash0.com/enabled: "false", verify via CLI, idempotency
+#   4c. Omit the annotation, verify the filter is enabled again, idempotency
 #   5. Destroy the resource via Terraform
 #   6. Verify deletion via Terraform
 
@@ -121,6 +123,60 @@ info "Update verified via CLI."
 # ---------------------------------------------------------------------------
 info "Step 4: Re-applying without changes (idempotency test)..."
 assert_idempotent "$WORK_DIR"
+
+# ---------------------------------------------------------------------------
+# Step 4b/4c: Disable the filter, then re-enable it by omitting the annotation
+# ---------------------------------------------------------------------------
+
+info "Step 4b: Disabling the spam filter via dash0.com/enabled: \"false\"..."
+
+cat > "${WORK_DIR}/spam_filter.yaml" <<'YAMLEOF'
+apiVersion: v1alpha2
+kind: Dash0SpamFilter
+metadata:
+  name: Drop debug logs (updated)
+  annotations:
+    dash0.com/enabled: "false"
+spec:
+  context: log
+  filter:
+    - key: "severity_text"
+      operator: "is"
+      value: "DEBUG"
+    - key: "service.name"
+      operator: "starts_with"
+      value: "noisy-"
+YAMLEOF
+
+assert_plan_has_changes "$WORK_DIR" "disabling the filter"
+TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
+assert_spam_filter_enabled_via_cli "$ORIGIN" false
+assert_idempotent "$WORK_DIR"
+info "Spam filter disabled."
+
+info "Step 4c: Omitting dash0.com/enabled re-enables the spam filter..."
+
+cat > "${WORK_DIR}/spam_filter.yaml" <<'YAMLEOF'
+apiVersion: v1alpha2
+kind: Dash0SpamFilter
+metadata:
+  name: Drop debug logs (updated)
+spec:
+  context: log
+  filter:
+    - key: "severity_text"
+      operator: "is"
+      value: "DEBUG"
+    - key: "service.name"
+      operator: "starts_with"
+      value: "noisy-"
+YAMLEOF
+
+assert_plan_has_changes "$WORK_DIR" "re-enabling the filter"
+TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
+assert_spam_filter_enabled_via_cli "$ORIGIN" true
+assert_idempotent "$WORK_DIR"
+info "Spam filter re-enabled."
 
 # ---------------------------------------------------------------------------
 # Step 5: Destroy

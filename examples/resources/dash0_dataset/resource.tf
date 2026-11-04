@@ -9,8 +9,9 @@
 # and re-creates the dataset.
 #
 # Destroying the resource soft-deletes the dataset. Dashboards, views, check
-# rules, synthetic checks, recording rules, SLOs and time series aggregations
-# are kept for 30 days; applying the same slug within that time restores them.
+# rules, synthetic checks, recording rules, SLOs, time series aggregations and
+# signal-to-metrics rules are kept for 30 days; applying the same slug within
+# that time restores them.
 # Spam filters are not restored. After 30 days the dataset, its permissions and
 # those assets are removed. Telemetry is removed as its retention expires.
 #

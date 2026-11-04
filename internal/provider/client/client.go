@@ -122,6 +122,14 @@ type Client interface {
 	// with the given origin (no deep-link URL — the Dash0 web app does not
 	// expose a per-rule page).
 	ResolveSamplingRule(ctx context.Context, origin string, dataset string) (string, error)
+	CreateSignalToMetrics(ctx context.Context, origin string, ruleJSON string, dataset string) error
+	GetSignalToMetrics(ctx context.Context, origin string, dataset string) (string, error)
+	UpdateSignalToMetrics(ctx context.Context, origin string, ruleJSON string, dataset string) error
+	DeleteSignalToMetrics(ctx context.Context, origin string, dataset string) error
+	// ResolveSignalToMetrics returns the server-assigned id of the
+	// signal-to-metrics rule with the given origin (no deep-link URL — the
+	// Dash0 web app does not expose a per-rule page).
+	ResolveSignalToMetrics(ctx context.Context, origin string, dataset string) (string, error)
 
 	// SendLogEvent emits a single log record to the Dash0 OTLP/HTTP ingress
 	// endpoint. Unlike every other method on this interface it does not manage

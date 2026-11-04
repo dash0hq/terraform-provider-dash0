@@ -4,7 +4,7 @@ page_title: "dash0_dataset Resource - Dash0"
 subcategory: ""
 description: |-
   Manages a Dash0 dataset. Datasets are organization-level resources identified by an immutable slug.
-  ~> Note: Destroying a dataset soft-deletes it. Dashboards, views, check rules, synthetic checks, recording rules, SLOs and time series aggregations are kept for 30 days; applying the same slug within that time restores them. Spam filters are not restored. After 30 days the dataset, its permissions and those assets are removed. Telemetry is removed as its retention expires.
+  ~> Note: Destroying a dataset soft-deletes it. Dashboards, views, check rules, synthetic checks, recording rules, SLOs, time series aggregations and signal-to-metrics rules are kept for 30 days; applying the same slug within that time restores them. Spam filters are not restored. After 30 days the dataset, its permissions and those assets are removed. Telemetry is removed as its retention expires.
   The slug is optional. Set it in spec.slug or metadata.labels["dash0.com/id"]; when both are set, they must match. Without a slug, Dash0 derives it from metadata.name on create (for example, My Staging becomes my-staging) and it does not change when the name changes. The slug cannot change: changing a configured slug replaces the dataset (destroy, then create under the new slug). Spec settings you omit (retention, privacy, processing, permissions) keep the server's values without causing a diff.
   spec.permissions lists the user, team and role grants on the dataset. When set, it replaces the grants on the server and changes made outside Terraform show as drift. The admin role grant is managed by Dash0: it is not listed and never changes. A grant cannot include dataset:write. An empty list does not remove grants: the server keeps them, so the plan keeps showing a change.
 ---
@@ -13,7 +13,7 @@ description: |-
 
 Manages a Dash0 dataset. Datasets are organization-level resources identified by an immutable slug.
 
-~> **Note:** Destroying a dataset soft-deletes it. Dashboards, views, check rules, synthetic checks, recording rules, SLOs and time series aggregations are kept for 30 days; applying the same slug within that time restores them. Spam filters are not restored. After 30 days the dataset, its permissions and those assets are removed. Telemetry is removed as its retention expires.
+~> **Note:** Destroying a dataset soft-deletes it. Dashboards, views, check rules, synthetic checks, recording rules, SLOs, time series aggregations and signal-to-metrics rules are kept for 30 days; applying the same slug within that time restores them. Spam filters are not restored. After 30 days the dataset, its permissions and those assets are removed. Telemetry is removed as its retention expires.
 
 The slug is optional. Set it in `spec.slug` or `metadata.labels["dash0.com/id"]`; when both are set, they must match. Without a slug, Dash0 derives it from `metadata.name` on create (for example, `My Staging` becomes `my-staging`) and it does not change when the name changes. The slug cannot change: changing a configured slug replaces the dataset (destroy, then create under the new slug). Spec settings you omit (retention, privacy, processing, permissions) keep the server's values without causing a diff.
 
@@ -35,8 +35,9 @@ The dataset document follows the Dash0 API dataset document (`apiVersion: dash0.
 # and re-creates the dataset.
 #
 # Destroying the resource soft-deletes the dataset. Dashboards, views, check
-# rules, synthetic checks, recording rules, SLOs and time series aggregations
-# are kept for 30 days; applying the same slug within that time restores them.
+# rules, synthetic checks, recording rules, SLOs, time series aggregations and
+# signal-to-metrics rules are kept for 30 days; applying the same slug within
+# that time restores them.
 # Spam filters are not restored. After 30 days the dataset, its permissions and
 # those assets are removed. Telemetry is removed as its retention expires.
 #
@@ -99,7 +100,7 @@ See the [Dash0 API reference](https://www.dash0.com/docs/api-reference) for the 
 ## Destroying a dataset
 
 Destroying a dataset is a soft delete.
-Dashboards, views, check rules, synthetic checks, recording rules, SLOs and time series aggregations are kept for 30 days.
+Dashboards, views, check rules, synthetic checks, recording rules, SLOs, time series aggregations and signal-to-metrics rules are kept for 30 days.
 Apply the same configuration again within that time to restore them.
 Spam filters are not restored.
 After 30 days, the dataset, its permissions and those assets are removed.
