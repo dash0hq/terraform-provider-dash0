@@ -116,11 +116,12 @@ func (r *SignalToMetricsResource) Schema(_ context.Context, _ resource.SchemaReq
 			"signal_to_metrics_yaml": schema.StringAttribute{
 				Description: "The signal-to-metrics rule definition in YAML format. The YAML must declare `kind: Dash0SignalToMetrics`, an explicit `spec.enabled`, `spec.match` (the source signal and its filters), and `spec.output` (the metric name and interval). " +
 					"`spec.targetDatasetMode: original` is the default and is treated as equal to an omitted field. " +
-					"The server-managed `metadata.labels` and `metadata.annotations` are ignored. " +
-					"Any other label (such as `custom`) or annotation (including `dash0.com/folder-path` and `dash0.com/sharing`) is rejected: for signal-to-metrics rules, the Dash0 API drops it or does not return it, so Terraform could not track it.",
+					"The `dash0.com/folder-path` and `dash0.com/sharing` metadata annotations are supported, and changes to them trigger a resource update. " +
+					"Dash0 does not return them for signal-to-metrics rules yet, so a change made outside Terraform is detected only once it does, and `dash0.com/sharing` has no effect on access for this resource type. " +
+					"The other server-managed `metadata.labels` and `metadata.annotations` are ignored, and any other label (such as `custom`) or annotation is rejected, because the Dash0 API would drop it.",
 				Required: true,
 				PlanModifiers: []planmodifier.String{
-					customplanmodifier.YAMLSemanticEqualNormalizing(normalizeSignalToMetricsDefaults),
+					customplanmodifier.YAMLSemanticEqualNormalizing(normalizeSignalToMetricsDefaults, signalToMetricsComparedAnnotations...),
 				},
 			},
 		},
@@ -237,26 +238,27 @@ var signalToMetricsLabelKeys = []string{
 	"dash0.com/version",
 }
 
-// signalToMetricsAnnotationKeys are the annotations a GET returns: the server
-// timestamps, which the provider strips before a PUT.
-var signalToMetricsAnnotationKeys = []string{
+// signalToMetricsComparedAnnotations are the annotations the user manages.
+// See signalToMetricsReturnedAnnotations for how drift detection treats them.
+var signalToMetricsComparedAnnotations = []string{
+	converter.AnnotationFolderPath,
+	converter.AnnotationSharing,
+}
+
+// signalToMetricsAnnotationKeys are the annotations a signal-to-metrics rule
+// carries: the user-managed ones, and the server timestamps, which the
+// provider strips before a PUT and drift detection ignores.
+var signalToMetricsAnnotationKeys = append([]string{
 	"dash0.com/created-at",
 	"dash0.com/deleted-at",
 	"dash0.com/updated-at",
-}
+}, signalToMetricsComparedAnnotations...)
 
 // errorIfSignalToMetricsUnsupportedMetadata rejects labels and annotations
-// that a signal-to-metrics rule cannot keep.
-//
-// Drift detection ignores metadata.labels and metadata.annotations, so a key
-// the API does not return would never show up in a plan:
-//   - A label outside signalToMetricsLabelKeys (custom, team, and so on) is
-//     dropped when the document is decoded for the API: SignalToMetricsLabels
-//     has no field for it.
-//   - dash0.com/folder-path and dash0.com/sharing are sent, but a GET does not
-//     return them, so Terraform could not tell whether they took effect or
-//     changed. Comparing them would show a change on every plan instead.
-//   - Any other annotation is dropped on decode, like an unknown label.
+// that a signal-to-metrics rule cannot keep. SignalToMetricsLabels and
+// SignalToMetricsGroupAnnotations have no field for any other key, so it is
+// dropped when the document is decoded for the API. Drift detection ignores
+// labels and the other annotations, so the loss would never show up in a plan.
 //
 // A key whose value is null or an empty mapping loses nothing and is accepted.
 // An error is used rather than a warning, because a warning would let the
@@ -279,12 +281,37 @@ func errorIfSignalToMetricsUnsupportedMetadata(parsed map[string]interface{}, di
 		diags.AddAttributeError(
 			path.Root("signal_to_metrics_yaml"),
 			"metadata.annotations has keys that signal-to-metrics rules do not support",
-			fmt.Sprintf("metadata.annotations declares %s, but signal-to-metrics rules carry only the server-managed timestamps (%s). "+
-				"The Dash0 API does not return dash0.com/folder-path or dash0.com/sharing for these rules and drops any other annotation, "+
-				"so Terraform could not detect a change to them. Remove them from signal_to_metrics_yaml.",
+			fmt.Sprintf("metadata.annotations declares %s, but signal-to-metrics rules carry only these annotations: %s. "+
+				"The Dash0 API would drop the others, and the plan could not show it. "+
+				"Remove them from signal_to_metrics_yaml.",
 				strings.Join(keys, ", "), strings.Join(signalToMetricsAnnotationKeys, ", ")),
 		)
 	}
+}
+
+// signalToMetricsReturnedAnnotations returns the signalToMetricsComparedAnnotations
+// that an API response carries, for Read to compare.
+//
+// The provider sends dash0.com/folder-path and dash0.com/sharing on a PUT,
+// and the backend stores them, but a GET does not return them yet. Comparing
+// a key the response lacks would show a change on every plan, and ignoring it
+// for good would hide a change made outside Terraform once the API returns
+// it. So Read compares a key only when the response has it. The plan modifier
+// compares them always, so a change in the config still plans an update.
+func signalToMetricsReturnedAnnotations(apiResponseJSON string) []string {
+	var parsed map[string]interface{}
+	if err := yaml.Unmarshal([]byte(apiResponseJSON), &parsed); err != nil {
+		return nil
+	}
+	metadata, _ := parsed["metadata"].(map[string]interface{})
+	annotations, _ := metadata["annotations"].(map[string]interface{})
+	var returned []string
+	for _, key := range signalToMetricsComparedAnnotations {
+		if _, ok := annotations[key]; ok {
+			returned = append(returned, key)
+		}
+	}
+	return returned
 }
 
 // unsupportedMetadataKeys returns the sorted keys of a labels or annotations
@@ -421,7 +448,8 @@ func (r *SignalToMetricsResource) Read(ctx context.Context, req resource.ReadReq
 	if state.SignalToMetricsYaml.ValueString() != "" {
 		stateYAML := normalizeSignalToMetricsDefaults(state.SignalToMetricsYaml.ValueString())
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, normalizeSignalToMetricsDefaults(apiResponseJSON), additionalIgnored, nil)
+		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, normalizeSignalToMetricsDefaults(apiResponseJSON), additionalIgnored,
+			signalToMetricsReturnedAnnotations(apiResponseJSON))
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Signal-to-Metrics Rule Comparison Error",

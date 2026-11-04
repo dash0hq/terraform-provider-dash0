@@ -844,27 +844,28 @@ func TestSignalToMetricsResource_ValidateConfig_UnsupportedLabelsAreNamedSorted(
 		"the error must name the offending keys, sorted, and leave out the server-managed ones")
 }
 
-// dash0.com/folder-path and dash0.com/sharing are sent, but a GET does not
-// return them, so they can be neither compared nor ignored safely. Unknown
-// annotations are dropped on decode.
+// An annotation SignalToMetricsGroupAnnotations has no field for is dropped
+// on decode.
 func TestSignalToMetricsResource_ValidateConfig_UnsupportedAnnotationsError(t *testing.T) {
-	for name, key := range map[string]string{
-		"folder path": "dash0.com/folder-path",
-		"sharing":     "dash0.com/sharing",
-		"unknown":     "example.com/owner",
-	} {
-		t.Run(name, func(t *testing.T) {
-			r := &SignalToMetricsResource{}
-			resp := &resource.ValidateConfigResponse{}
-			r.ValidateConfig(context.Background(), signalToMetricsValidateConfigRequest(
-				strings.Replace(signalToMetricsValidYaml, "  name: checkout-errors\n",
-					"  name: checkout-errors\n  annotations:\n    "+key+": /a\n", 1)), resp)
+	r := &SignalToMetricsResource{}
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), signalToMetricsValidateConfigRequest(
+		signalToMetricsYamlWithAnnotations("    example.com/owner: checkout\n    dash0.com/folder-path: /a\n")), resp)
 
-			require.True(t, resp.Diagnostics.HasError(), "an annotation Terraform cannot track must not reach apply")
-			assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "metadata.annotations")
-			assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), key)
-		})
-	}
+	require.True(t, resp.Diagnostics.HasError(), "an annotation the API drops must not reach apply")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "metadata.annotations")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "declares example.com/owner, but",
+		"the error must name only the unsupported key")
+}
+
+// dash0.com/folder-path and dash0.com/sharing are user-managed, as on dashboards.
+func TestSignalToMetricsResource_ValidateConfig_FolderPathAndSharingAreValid(t *testing.T) {
+	r := &SignalToMetricsResource{}
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), signalToMetricsValidateConfigRequest(
+		signalToMetricsYamlWithAnnotations("    dash0.com/folder-path: /a\n    dash0.com/sharing: team:a\n")), resp)
+
+	assert.False(t, resp.Diagnostics.HasError(), "%v", resp.Diagnostics)
 }
 
 // A document copied from a GET carries the server-managed labels and the

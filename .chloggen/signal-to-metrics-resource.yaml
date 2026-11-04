@@ -14,4 +14,4 @@ issues: [203]
 # Use pipe (|) for multiline entries.
 subtext: |
   The YAML must set `spec.enabled` to `true` or `false`. Existing rules can be imported with `dataset,identifier`.
-  Labels and annotations other than the server-managed ones, including `dash0.com/folder-path` and `dash0.com/sharing`, are rejected, because Dash0 does not return them for these rules.
+  The `dash0.com/folder-path` and `dash0.com/sharing` annotations are supported. Other labels and annotations, such as `metadata.labels.custom`, are rejected, because Dash0 would drop them.
