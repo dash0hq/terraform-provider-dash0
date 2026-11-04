@@ -23,6 +23,8 @@
 #   3. Export its YAML via the CLI and write the Terraform resource shell
 #   4. `terraform import` with the `dataset,identifier` ID
 #   5. `terraform plan` reports no changes
+#  5b. The custom label set out of band is in state: dropping it from the
+#      configuration plans a change
 #   6. The imported origin is preserved in state (no fresh tf_ prefix)
 #   7. Modify the YAML + apply — the imported resource is manageable
 #   8. Destroy + verify server-side deletion via list
@@ -68,6 +70,8 @@ metadata:
   name: roundtrip-import-tsa
   labels:
     "dash0.com/origin": "${OOB_ORIGIN}"
+    custom:
+      team: platform
 spec:
   enabled: true
   display:
@@ -153,6 +157,12 @@ info "Import completed."
 # ---------------------------------------------------------------------------
 info "Step 5: Asserting terraform plan reports no changes after import..."
 assert_idempotent "$WORK_DIR"
+
+# ---------------------------------------------------------------------------
+# Step 5b: The custom label set out of band was imported and is compared.
+# ---------------------------------------------------------------------------
+info "Step 5b: Verifying the imported custom labels are in state and compared..."
+assert_imported_custom_labels "$WORK_DIR" "${WORK_DIR}/tsa.yaml" team platform
 
 # ---------------------------------------------------------------------------
 # Step 6: Origin preservation.
