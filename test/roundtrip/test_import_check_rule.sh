@@ -33,8 +33,10 @@ source "${SCRIPT_DIR}/common.sh"
 WORK_DIR="$(mktemp -d)"
 # A per-run alert name keeps runs that share the dataset, concurrent or earlier,
 # from finding, importing or deleting each other's check rules. The API stores
-# the rule name as `<group_name> - <alert_name>`.
-ALERT_NAME="roundtrip-import-alert-$(date +%s)-${RANDOM}"
+# the rule name as `<group_name> - <alert_name>`, so lookups match a substring.
+# The random part is padded to a fixed width so that one run's name cannot be a
+# substring of another's (`-12` would otherwise match `-123`).
+ALERT_NAME="roundtrip-import-alert-$(date +%s)-$(printf '%05d' "$RANDOM")"
 IDENTIFIER=""
 gone=""
 
@@ -233,27 +235,8 @@ TF_VAR_dataset="$DATASET" tf_destroy "$WORK_DIR"
 info "Step 8b: Verifying server-side deletion via list..."
 # The get endpoint has a longer cache TTL than list; use list (which the test
 # already relies on in step 2) for prompt post-destroy verification.
-for i in $(seq 1 10); do
-  set +e
-  dash0 check-rules list --dataset "$DATASET" -o json --limit 500 \
-    | python3 -c "
-import json, sys
-items = json.load(sys.stdin)
-target = '$IDENTIFIER'
-sys.exit(0 if any(it.get('id') == target for it in items) else 1)
-"
-  found=$?
-  set -e
-  if [[ $found -ne 0 ]]; then
-    info "Server-side deletion confirmed via list (attempt ${i})."
-    gone="yes"
-    break
-  fi
-  if [[ $i -lt 10 ]]; then
-    warn "Check rule still in list (attempt ${i}/10), retrying in 3s..."
-    sleep 3
-  fi
-done
-[[ "$gone" == "yes" ]] || fail "Check rule '${IDENTIFIER}' still returned by list after 10 attempts"
+assert_gone_from_list "Check rule" "$IDENTIFIER" id \
+  dash0 check-rules list --dataset "$DATASET" -o json --limit 500
+gone="yes"
 
 info "=== dash0_check_rule import roundtrip test PASSED ==="
