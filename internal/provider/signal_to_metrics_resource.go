@@ -116,7 +116,8 @@ func (r *SignalToMetricsResource) Schema(_ context.Context, _ resource.SchemaReq
 			"signal_to_metrics_yaml": schema.StringAttribute{
 				Description: "The signal-to-metrics rule definition in YAML format. The YAML must declare `kind: Dash0SignalToMetrics`, an explicit `spec.enabled`, `spec.match` (the source signal and its filters), and `spec.output` (the metric name and interval). " +
 					"`spec.targetDatasetMode: original` is the default and is treated as equal to an omitted field. " +
-					"`metadata.labels` and `metadata.annotations` are server-managed and ignored, and `metadata.labels.custom` is rejected because signal-to-metrics rules have no custom labels.",
+					"The server-managed `metadata.labels` and `metadata.annotations` are ignored. " +
+					"Any other label (such as `custom`) or annotation (including `dash0.com/folder-path` and `dash0.com/sharing`) is rejected: for signal-to-metrics rules, the Dash0 API drops it or does not return it, so Terraform could not track it.",
 				Required: true,
 				PlanModifiers: []planmodifier.String{
 					customplanmodifier.YAMLSemanticEqualNormalizing(normalizeSignalToMetricsDefaults),
@@ -218,40 +219,91 @@ func parseAndValidateSignalToMetricsYAML(document string, diags *diag.Diagnostic
 
 	// SignalToMetricsSpec.Enabled is a non-pointer bool with no omitempty.
 	errorIfEnabledAbsent(parsed, "signal_to_metrics_yaml", "signal to metrics rule", diags)
-	errorIfSignalToMetricsCustomLabelsSet(parsed, diags)
+	errorIfSignalToMetricsUnsupportedMetadata(parsed, diags)
 	if diags.HasError() {
 		return nil
 	}
 	return parsed
 }
 
-// errorIfSignalToMetricsCustomLabelsSet rejects metadata.labels.custom.
+// signalToMetricsLabelKeys are the labels a signal-to-metrics rule carries.
+// All of them are server-managed: the provider strips or overwrites them
+// before a PUT, and drift detection ignores them.
+var signalToMetricsLabelKeys = []string{
+	"dash0.com/dataset",
+	"dash0.com/id",
+	"dash0.com/origin",
+	"dash0.com/source",
+	"dash0.com/version",
+}
+
+// signalToMetricsAnnotationKeys are the annotations a GET returns: the server
+// timestamps, which the provider strips before a PUT.
+var signalToMetricsAnnotationKeys = []string{
+	"dash0.com/created-at",
+	"dash0.com/deleted-at",
+	"dash0.com/updated-at",
+}
+
+// errorIfSignalToMetricsUnsupportedMetadata rejects labels and annotations
+// that a signal-to-metrics rule cannot keep.
 //
-// SignalToMetricsLabels has no custom field, so the labels are dropped when
-// the document is decoded for the API and never reach the server. Normalization
-// strips metadata.labels before comparison, so the loss would never show up in
-// a plan either. An error is used rather than the shared warnIfCustomLabelsSet,
-// whose message says the labels are sent on write: here they are not, and a
-// warning would let the config claim labels the rule does not carry.
-func errorIfSignalToMetricsCustomLabelsSet(parsed map[string]interface{}, diags *diag.Diagnostics) {
+// Drift detection ignores metadata.labels and metadata.annotations, so a key
+// the API does not return would never show up in a plan:
+//   - A label outside signalToMetricsLabelKeys (custom, team, and so on) is
+//     dropped when the document is decoded for the API: SignalToMetricsLabels
+//     has no field for it.
+//   - dash0.com/folder-path and dash0.com/sharing are sent, but a GET does not
+//     return them, so Terraform could not tell whether they took effect or
+//     changed. Comparing them would show a change on every plan instead.
+//   - Any other annotation is dropped on decode, like an unknown label.
+//
+// A key whose value is null or an empty mapping loses nothing and is accepted.
+// An error is used rather than a warning, because a warning would let the
+// config claim metadata the rule does not carry.
+func errorIfSignalToMetricsUnsupportedMetadata(parsed map[string]interface{}, diags *diag.Diagnostics) {
 	metadata, _ := parsed["metadata"].(map[string]interface{})
-	labels, _ := metadata["labels"].(map[string]interface{})
-	custom, _ := labels["custom"].(map[string]interface{})
-	if len(custom) == 0 {
-		return
+
+	if keys := unsupportedMetadataKeys(metadata["labels"], signalToMetricsLabelKeys); len(keys) > 0 {
+		diags.AddAttributeError(
+			path.Root("signal_to_metrics_yaml"),
+			"metadata.labels has keys that signal-to-metrics rules do not support",
+			fmt.Sprintf("metadata.labels declares %s, but signal-to-metrics rules carry only the server-managed labels (%s). "+
+				"The Dash0 API would drop the other labels, and the plan could not show it. "+
+				"Remove them from signal_to_metrics_yaml.",
+				strings.Join(keys, ", "), strings.Join(signalToMetricsLabelKeys, ", ")),
+		)
 	}
-	keys := make([]string, 0, len(custom))
-	for k := range custom {
+
+	if keys := unsupportedMetadataKeys(metadata["annotations"], signalToMetricsAnnotationKeys); len(keys) > 0 {
+		diags.AddAttributeError(
+			path.Root("signal_to_metrics_yaml"),
+			"metadata.annotations has keys that signal-to-metrics rules do not support",
+			fmt.Sprintf("metadata.annotations declares %s, but signal-to-metrics rules carry only the server-managed timestamps (%s). "+
+				"The Dash0 API does not return dash0.com/folder-path or dash0.com/sharing for these rules and drops any other annotation, "+
+				"so Terraform could not detect a change to them. Remove them from signal_to_metrics_yaml.",
+				strings.Join(keys, ", "), strings.Join(signalToMetricsAnnotationKeys, ", ")),
+		)
+	}
+}
+
+// unsupportedMetadataKeys returns the sorted keys of a labels or annotations
+// mapping that are not in supported and whose value is not empty. A value
+// that is not a mapping fails the API decode at apply, so it is left alone.
+func unsupportedMetadataKeys(value interface{}, supported []string) []string {
+	entries, _ := value.(map[string]interface{})
+	var keys []string
+	for k, v := range entries {
+		if slices.Contains(supported, k) || v == nil {
+			continue
+		}
+		if nested, ok := v.(map[string]interface{}); ok && len(nested) == 0 {
+			continue
+		}
 		keys = append(keys, k)
 	}
 	slices.Sort(keys)
-	diags.AddAttributeError(
-		path.Root("signal_to_metrics_yaml"),
-		"metadata.labels.custom is not supported for signal-to-metrics rules",
-		fmt.Sprintf("metadata.labels.custom is declared (keys: %s), but signal-to-metrics rules have no custom labels: "+
-			"the Dash0 API would drop them, and the plan could not show it. Remove metadata.labels.custom from "+
-			"signal_to_metrics_yaml.", strings.Join(keys, ", ")),
-	)
+	return keys
 }
 
 // signalToMetricsDatasetLabel returns the dash0.com/dataset label of an API

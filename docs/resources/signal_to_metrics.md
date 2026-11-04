@@ -30,7 +30,7 @@ resource "dash0_signal_to_metrics" "checkout_errors" {
 
 ### Required
 
-- `signal_to_metrics_yaml` (String) The signal-to-metrics rule definition in YAML format. The YAML must declare `kind: Dash0SignalToMetrics`, an explicit `spec.enabled`, `spec.match` (the source signal and its filters), and `spec.output` (the metric name and interval). `spec.targetDatasetMode: original` is the default and is treated as equal to an omitted field. `metadata.labels` and `metadata.annotations` are server-managed and ignored, and `metadata.labels.custom` is rejected because signal-to-metrics rules have no custom labels.
+- `signal_to_metrics_yaml` (String) The signal-to-metrics rule definition in YAML format. The YAML must declare `kind: Dash0SignalToMetrics`, an explicit `spec.enabled`, `spec.match` (the source signal and its filters), and `spec.output` (the metric name and interval). `spec.targetDatasetMode: original` is the default and is treated as equal to an omitted field. The server-managed `metadata.labels` and `metadata.annotations` are ignored. Any other label (such as `custom`) or annotation (including `dash0.com/folder-path` and `dash0.com/sharing`) is rejected: for signal-to-metrics rules, the Dash0 API drops it or does not return it, so Terraform could not track it.
 
 ### Optional
 

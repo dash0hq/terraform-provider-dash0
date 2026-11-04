@@ -804,13 +804,80 @@ func TestSignalToMetricsResource_ValidateConfig_CustomLabelsError(t *testing.T) 
 	r.ValidateConfig(context.Background(), signalToMetricsValidateConfigRequest(signalToMetricsYamlCustomLabels), resp)
 
 	require.True(t, resp.Diagnostics.HasError(), "custom labels would be dropped, so they must not reach apply")
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "metadata.labels.custom")
-	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "cost-center, team",
-		"the error must name the offending keys, sorted, so the user can find them")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "metadata.labels")
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "declares custom,")
 
 	withPath, ok := resp.Diagnostics.Errors()[0].(diag.DiagnosticWithPath)
 	require.True(t, ok)
 	assert.Equal(t, "signal_to_metrics_yaml", withPath.Path().String())
+}
+
+// Every label outside the server-managed set is dropped on decode, whatever
+// its key or shape, so each one is rejected like metadata.labels.custom.
+func TestSignalToMetricsResource_ValidateConfig_UnsupportedLabelsError(t *testing.T) {
+	for name, labels := range map[string]string{
+		"other key":          "    team: checkout\n",
+		"list-valued custom": "    custom: [checkout]\n",
+		"several keys":       "    team: checkout\n    custom:\n      tier: gold\n    dash0.com/dataset: test-dataset\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := &SignalToMetricsResource{}
+			resp := &resource.ValidateConfigResponse{}
+			r.ValidateConfig(context.Background(), signalToMetricsValidateConfigRequest(
+				strings.Replace(signalToMetricsValidYaml, "  name: checkout-errors\n", "  name: checkout-errors\n  labels:\n"+labels, 1)), resp)
+
+			require.True(t, resp.Diagnostics.HasError(), "a label the API drops must not reach apply")
+			assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "metadata.labels")
+		})
+	}
+}
+
+func TestSignalToMetricsResource_ValidateConfig_UnsupportedLabelsAreNamedSorted(t *testing.T) {
+	r := &SignalToMetricsResource{}
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), signalToMetricsValidateConfigRequest(
+		strings.Replace(signalToMetricsValidYaml, "  name: checkout-errors\n",
+			"  name: checkout-errors\n  labels:\n    team: checkout\n    custom:\n      tier: gold\n    dash0.com/id: abc\n", 1)), resp)
+
+	require.True(t, resp.Diagnostics.HasError())
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "declares custom, team, but",
+		"the error must name the offending keys, sorted, and leave out the server-managed ones")
+}
+
+// dash0.com/folder-path and dash0.com/sharing are sent, but a GET does not
+// return them, so they can be neither compared nor ignored safely. Unknown
+// annotations are dropped on decode.
+func TestSignalToMetricsResource_ValidateConfig_UnsupportedAnnotationsError(t *testing.T) {
+	for name, key := range map[string]string{
+		"folder path": "dash0.com/folder-path",
+		"sharing":     "dash0.com/sharing",
+		"unknown":     "example.com/owner",
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := &SignalToMetricsResource{}
+			resp := &resource.ValidateConfigResponse{}
+			r.ValidateConfig(context.Background(), signalToMetricsValidateConfigRequest(
+				strings.Replace(signalToMetricsValidYaml, "  name: checkout-errors\n",
+					"  name: checkout-errors\n  annotations:\n    "+key+": /a\n", 1)), resp)
+
+			require.True(t, resp.Diagnostics.HasError(), "an annotation Terraform cannot track must not reach apply")
+			assert.Contains(t, resp.Diagnostics.Errors()[0].Summary(), "metadata.annotations")
+			assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), key)
+		})
+	}
+}
+
+// A document copied from a GET carries the server-managed labels and the
+// timestamp annotations. They are ignored, not rejected.
+func TestSignalToMetricsResource_ValidateConfig_ServerManagedMetadataIsValid(t *testing.T) {
+	r := &SignalToMetricsResource{}
+	resp := &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), signalToMetricsValidateConfigRequest(signalToMetricsAPIResponseJSON), resp)
+	assert.False(t, resp.Diagnostics.HasError(), "%v", resp.Diagnostics)
+
+	resp = &resource.ValidateConfigResponse{}
+	r.ValidateConfig(context.Background(), signalToMetricsValidateConfigRequest(signalToMetricsTombstoneJSON), resp)
+	assert.False(t, resp.Diagnostics.HasError(), "dash0.com/deleted-at is server-managed too: %v", resp.Diagnostics)
 }
 
 func TestSignalToMetricsResource_ValidateConfig_EmptyCustomLabelsAreValid(t *testing.T) {
