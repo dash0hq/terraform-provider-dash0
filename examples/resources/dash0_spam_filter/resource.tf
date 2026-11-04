@@ -33,3 +33,23 @@ spec:
       value: "DEBUG"
 EOF
 }
+
+# Set dash0.com/enabled to "false" to keep a filter but stop it from dropping data.
+resource "dash0_spam_filter" "paused_filter" {
+  dataset = "default"
+
+  spam_filter_yaml = <<-EOF
+apiVersion: v1alpha2
+kind: Dash0SpamFilter
+metadata:
+  name: Drop synthetic traffic
+  annotations:
+    dash0.com/enabled: "false"
+spec:
+  context: span
+  filter:
+    - key: "user_agent.original"
+      operator: "contains"
+      value: "synthetic-monitor"
+EOF
+}

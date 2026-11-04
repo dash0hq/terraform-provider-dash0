@@ -16,6 +16,9 @@ import (
 const (
 	AnnotationSharing    = "dash0.com/sharing"
 	AnnotationFolderPath = "dash0.com/folder-path"
+	// AnnotationEnabled switches an SLO or a spam filter on or off. Dash0
+	// treats an absent value as "true".
+	AnnotationEnabled = "dash0.com/enabled"
 )
 
 // ignoredFields are always removed when comparing resource YAMLs.
