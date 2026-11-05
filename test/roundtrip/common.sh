@@ -630,6 +630,41 @@ assert_plan_has_changes() {
     || fail "Expected tofu plan to report changes for ${what}, got exit code ${exit_code}."
 }
 
+# Proves that an imported asset's custom labels are in state and compared:
+# the exported YAML must carry metadata.labels.custom.<key> = <value>, and a
+# configuration without the custom labels must then plan a change. The YAML
+# file is restored before returning.
+# Usage: assert_imported_custom_labels <dir> <yaml file> <key> <value>
+assert_imported_custom_labels() {
+  local dir="$1" yaml_file="$2" key="$3" value="$4"
+  local original="${yaml_file}.with-custom-labels"
+
+  python3 - "$yaml_file" "$key" "$value" <<'PYEOF' \
+    || fail "The exported YAML does not carry metadata.labels.custom.${key}=${value}; the API or CLI dropped it."
+import sys, yaml
+path, key, value = sys.argv[1:4]
+with open(path) as f:
+    doc = yaml.safe_load(f)
+custom = ((doc.get("metadata") or {}).get("labels") or {}).get("custom") or {}
+sys.exit(0 if str(custom.get(key)) == value else 1)
+PYEOF
+
+  cp "$yaml_file" "$original"
+  python3 - "$yaml_file" <<'PYEOF'
+import sys, yaml
+path = sys.argv[1]
+with open(path) as f:
+    doc = yaml.safe_load(f)
+doc["metadata"]["labels"].pop("custom")
+with open(path, "w") as f:
+    yaml.safe_dump(doc, f, sort_keys=False)
+PYEOF
+
+  assert_plan_has_changes "$dir" "removing the imported custom labels from the configuration"
+  mv "$original" "$yaml_file"
+  info "Imported custom labels are in state and compared."
+}
+
 # Polls a `list -o json` command until the asset with the given identifier is
 # no longer listed, tolerating the list endpoint's caching lag. Only a listing
 # that proves the asset is absent counts as deleted. These are retried, and

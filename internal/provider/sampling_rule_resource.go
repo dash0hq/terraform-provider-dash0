@@ -115,10 +115,10 @@ func (r *SamplingRuleResource) Schema(_ context.Context, _ resource.SchemaReques
 			"sampling_rule_yaml": schema.StringAttribute{
 				Description: "The sampling rule definition in YAML format. The YAML must declare `kind: Dash0Sampling`, an explicit `spec.enabled`, and `spec.conditions`, a tree of `probabilistic`, `ottl`, `error` and `and` conditions. " +
 					"`spec.display.name` and `spec.rateLimit` are optional. " +
-					"`metadata.labels` are ignored during drift detection, so the provider warns when `metadata.labels.custom` is set.",
+					"`metadata.labels.custom` holds your own labels and is covered by drift detection. The other `metadata.labels` keys are server-managed and ignored.",
 				Required: true,
 				PlanModifiers: []planmodifier.String{
-					customplanmodifier.YAMLSemanticEqual(),
+					customplanmodifier.YAMLSemanticEqualComparing(converter.CustomLabelsYAMLEquivalent),
 				},
 			},
 		},
@@ -141,24 +141,18 @@ func (r *SamplingRuleResource) ValidateConfig(ctx context.Context, req resource.
 		return
 	}
 
-	parsed := parseAndValidateSamplingRuleYAML(model.SamplingRuleYaml.ValueString(), &resp.Diagnostics)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	warnIfCustomLabelsSet(parsed, "sampling_rule_yaml", &resp.Diagnostics)
+	parseAndValidateSamplingRuleYAML(model.SamplingRuleYaml.ValueString(), &resp.Diagnostics)
 }
 
 // parseAndValidateSamplingRuleYAML parses the user's document and enforces
-// every invariant the provider depends on, appending errors to diags. It
-// returns nil when any of them fails.
+// every invariant the provider depends on, appending errors to diags.
 //
 // This is shared by ValidateConfig, Create, and Update rather than living in
 // ValidateConfig alone. ValidateConfig cannot see a value that is unknown at
 // plan time — the ordinary case when the YAML interpolates another resource's
 // computed attribute — and returns early. Create and Update always have a
 // known value, so they are the backstop that an unknown cannot slip past.
-func parseAndValidateSamplingRuleYAML(document string, diags *diag.Diagnostics) map[string]interface{} {
+func parseAndValidateSamplingRuleYAML(document string, diags *diag.Diagnostics) {
 	var parsed map[string]interface{}
 	if err := yaml.Unmarshal([]byte(document), &parsed); err != nil {
 		diags.AddAttributeError(
@@ -166,7 +160,7 @@ func parseAndValidateSamplingRuleYAML(document string, diags *diag.Diagnostics) 
 			"Invalid YAML in sampling_rule_yaml",
 			fmt.Sprintf("sampling_rule_yaml is not valid YAML: %s", err),
 		)
-		return nil
+		return
 	}
 
 	// An empty, whitespace-only, or explicitly null document unmarshals into a
@@ -177,7 +171,7 @@ func parseAndValidateSamplingRuleYAML(document string, diags *diag.Diagnostics) 
 			"sampling_rule_yaml is empty or not a YAML mapping",
 			"sampling_rule_yaml must be a YAML mapping following the Dash0Sampling envelope (kind, metadata, spec).",
 		)
-		return nil
+		return
 	}
 
 	// The Dash0 operator's Dash0SamplingRule custom resource has a different
@@ -189,15 +183,11 @@ func parseAndValidateSamplingRuleYAML(document string, diags *diag.Diagnostics) 
 			fmt.Sprintf("sampling_rule_yaml must declare `kind: Dash0Sampling`; got %q. The dash0_sampling_rule "+
 				"resource only manages the Dash0Sampling kind of the Dash0 API.", kind),
 		)
-		return nil
+		return
 	}
 
 	// SamplingSpec.Enabled is a non-pointer bool with no omitempty.
 	errorIfEnabledAbsent(parsed, "sampling_rule_yaml", "sampling rule", diags)
-	if diags.HasError() {
-		return nil
-	}
-	return parsed
 }
 
 // resolveSamplingRule populates the rule's server-assigned id on the model by
@@ -233,11 +223,10 @@ func (r *SamplingRuleResource) Create(ctx context.Context, req resource.CreateRe
 	// Re-validate here, not just in ValidateConfig: the value is always known by
 	// Create, so this is the point an unknown-at-plan-time document cannot slip
 	// past. See parseAndValidateSamplingRuleYAML.
-	parsed := parseAndValidateSamplingRuleYAML(model.SamplingRuleYaml.ValueString(), &resp.Diagnostics)
+	parseAndValidateSamplingRuleYAML(model.SamplingRuleYaml.ValueString(), &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	warnIfCustomLabelsSet(parsed, "sampling_rule_yaml", &resp.Diagnostics)
 
 	// Convert YAML to JSON for the API
 	jsonBody, err := converter.ConvertYAMLToJSON(model.SamplingRuleYaml.ValueString())
@@ -286,7 +275,7 @@ func (r *SamplingRuleResource) Read(ctx context.Context, req resource.ReadReques
 	if state.SamplingRuleYaml.ValueString() != "" {
 		stateYAML := state.SamplingRuleYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, converter.ConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored, nil)
+		equivalent, err := converter.CustomLabelsYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored)
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Sampling Rule Comparison Error",
@@ -333,11 +322,10 @@ func (r *SamplingRuleResource) Update(ctx context.Context, req resource.UpdateRe
 
 	// Re-validate here for the same reason as in Create: ValidateConfig cannot
 	// see a document that was unknown at plan time.
-	parsed := parseAndValidateSamplingRuleYAML(plan.SamplingRuleYaml.ValueString(), &resp.Diagnostics)
+	parseAndValidateSamplingRuleYAML(plan.SamplingRuleYaml.ValueString(), &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	warnIfCustomLabelsSet(parsed, "sampling_rule_yaml", &resp.Diagnostics)
 
 	// Convert YAML to JSON for the API
 	jsonBody, err := converter.ConvertYAMLToJSON(plan.SamplingRuleYaml.ValueString())

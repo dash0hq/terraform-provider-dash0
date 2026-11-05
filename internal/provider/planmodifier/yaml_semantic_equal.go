@@ -64,6 +64,16 @@ func YAMLSemanticEqualComparing(equivalent func(yamlA, yamlB string, additionalI
 	}
 }
 
+// YAMLSemanticEqualConditionallyComparing combines YAMLSemanticEqualConditionally
+// and YAMLSemanticEqualComparing: conditionallyIgnoredFields replaces the shared
+// converter.ConditionallyIgnoredFields, and equivalent decides equivalence.
+func YAMLSemanticEqualConditionallyComparing(conditionallyIgnoredFields []string, equivalent func(yamlA, yamlB string, additionalIgnoredFields []string) (bool, error)) planmodifier.String {
+	return yamlSemanticEqualModifier{
+		conditionallyIgnoredFields: conditionallyIgnoredFields,
+		equivalent:                 equivalent,
+	}
+}
+
 // YAMLSemanticEqualConditionallyWith combines YAMLSemanticEqualConditionally
 // and YAMLSemanticEqualWith: conditionallyIgnoredFields are ignored only when
 // absent from the config, alwaysIgnoredFields are always ignored.

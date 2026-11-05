@@ -142,10 +142,10 @@ func (r *TimeSeriesAggregationResource) Schema(_ context.Context, _ resource.Sch
 			"time_series_aggregation_yaml": schema.StringAttribute{
 				Description: "The time series aggregation definition in YAML format. The YAML must declare `kind: Dash0TimeSeriesAggregation`, an explicit `spec.enabled`, and a `spec` describing which metrics to match and how to aggregate them. " +
 					"`spec.priority` is defaulted by the server (to `2`) and is excluded from drift detection when omitted from the configuration. " +
-					"All `metadata.labels` are server-managed and ignored during drift detection.",
+					"`metadata.labels.custom` holds your own labels and is covered by drift detection. The other `metadata.labels` keys are server-managed and ignored.",
 				Required: true,
 				PlanModifiers: []planmodifier.String{
-					customplanmodifier.YAMLSemanticEqualConditionally(timeSeriesAggregationConditionallyIgnoredFields),
+					customplanmodifier.YAMLSemanticEqualConditionallyComparing(timeSeriesAggregationConditionallyIgnoredFields, converter.CustomLabelsYAMLEquivalent),
 				},
 			},
 		},
@@ -172,17 +172,11 @@ func (r *TimeSeriesAggregationResource) ValidateConfig(ctx context.Context, req 
 		return
 	}
 
-	parsed := parseAndValidateTimeSeriesAggregationYAML(model.TimeSeriesAggregationYaml.ValueString(), &resp.Diagnostics)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	warnIfCustomLabelsSet(parsed, "time_series_aggregation_yaml", &resp.Diagnostics)
+	parseAndValidateTimeSeriesAggregationYAML(model.TimeSeriesAggregationYaml.ValueString(), &resp.Diagnostics)
 }
 
 // parseAndValidateTimeSeriesAggregationYAML parses the user's document and
 // enforces every invariant the provider depends on, appending errors to diags.
-// It returns nil when any of them fails.
 //
 // This is shared by ValidateConfig, Create, and Update rather than living in
 // ValidateConfig alone. ValidateConfig cannot see a value that is unknown at
@@ -192,7 +186,7 @@ func (r *TimeSeriesAggregationResource) ValidateConfig(ctx context.Context, req 
 // cannot slip past. Without it an omitted spec.enabled reaches the API as
 // false, is stripped from drift comparison as an absent zero value, and leaves
 // a permanently disabled aggregation with a permanently clean plan.
-func parseAndValidateTimeSeriesAggregationYAML(document string, diags *diag.Diagnostics) map[string]interface{} {
+func parseAndValidateTimeSeriesAggregationYAML(document string, diags *diag.Diagnostics) {
 	var parsed map[string]interface{}
 	if err := yaml.Unmarshal([]byte(document), &parsed); err != nil {
 		diags.AddAttributeError(
@@ -200,7 +194,7 @@ func parseAndValidateTimeSeriesAggregationYAML(document string, diags *diag.Diag
 			"Invalid YAML in time_series_aggregation_yaml",
 			fmt.Sprintf("time_series_aggregation_yaml is not valid YAML: %s", err),
 		)
-		return nil
+		return
 	}
 
 	// An empty, whitespace-only, or explicitly null document unmarshals into a
@@ -212,7 +206,7 @@ func parseAndValidateTimeSeriesAggregationYAML(document string, diags *diag.Diag
 			"time_series_aggregation_yaml is empty or not a YAML mapping",
 			"time_series_aggregation_yaml must be a YAML mapping following the Dash0TimeSeriesAggregation CRD envelope (kind, metadata, spec).",
 		)
-		return nil
+		return
 	}
 
 	if kind, _ := parsed["kind"].(string); kind != "Dash0TimeSeriesAggregation" {
@@ -222,15 +216,11 @@ func parseAndValidateTimeSeriesAggregationYAML(document string, diags *diag.Diag
 			fmt.Sprintf("time_series_aggregation_yaml must declare `kind: Dash0TimeSeriesAggregation`; got %q. The "+
 				"dash0_time_series_aggregation resource only manages the Dash0TimeSeriesAggregation CRD kind.", kind),
 		)
-		return nil
+		return
 	}
 
 	// TimeSeriesAggregationSpec.Enabled is a non-pointer bool with no omitempty.
 	errorIfEnabledAbsent(parsed, "time_series_aggregation_yaml", "time series aggregation", diags)
-	if diags.HasError() {
-		return nil
-	}
-	return parsed
 }
 
 // resolveTimeSeriesAggregation populates the aggregation's server-assigned id on
@@ -266,13 +256,10 @@ func (r *TimeSeriesAggregationResource) Create(ctx context.Context, req resource
 	// Re-validate here, not just in ValidateConfig: the value is always known by
 	// Create, so this is the point an unknown-at-plan-time document cannot slip
 	// past. See parseAndValidateTimeSeriesAggregationYAML.
-	parsed := parseAndValidateTimeSeriesAggregationYAML(model.TimeSeriesAggregationYaml.ValueString(), &resp.Diagnostics)
+	parseAndValidateTimeSeriesAggregationYAML(model.TimeSeriesAggregationYaml.ValueString(), &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	// The warning is emitted here too, for the same reason: a document that was
-	// unknown at plan time never reached the ValidateConfig call site.
-	warnIfCustomLabelsSet(parsed, "time_series_aggregation_yaml", &resp.Diagnostics)
 
 	// Convert YAML to JSON for the API
 	jsonBody, err := converter.ConvertYAMLToJSON(model.TimeSeriesAggregationYaml.ValueString())
@@ -321,7 +308,7 @@ func (r *TimeSeriesAggregationResource) Read(ctx context.Context, req resource.R
 	if state.TimeSeriesAggregationYaml.ValueString() != "" {
 		stateYAML := state.TimeSeriesAggregationYaml.ValueString()
 		additionalIgnored := converter.FieldsAbsentFromYAML(stateYAML, timeSeriesAggregationConditionallyIgnoredFields)
-		equivalent, err := converter.ResourceYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored, nil)
+		equivalent, err := converter.CustomLabelsYAMLEquivalent(stateYAML, apiResponseJSON, additionalIgnored)
 		if err != nil {
 			resp.Diagnostics.AddWarning(
 				"Time Series Aggregation Comparison Error",
@@ -368,11 +355,10 @@ func (r *TimeSeriesAggregationResource) Update(ctx context.Context, req resource
 
 	// Re-validate here for the same reason as in Create: ValidateConfig cannot
 	// see a document that was unknown at plan time.
-	parsed := parseAndValidateTimeSeriesAggregationYAML(plan.TimeSeriesAggregationYaml.ValueString(), &resp.Diagnostics)
+	parseAndValidateTimeSeriesAggregationYAML(plan.TimeSeriesAggregationYaml.ValueString(), &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	warnIfCustomLabelsSet(parsed, "time_series_aggregation_yaml", &resp.Diagnostics)
 
 	// Convert YAML to JSON for the API
 	jsonBody, err := converter.ConvertYAMLToJSON(plan.TimeSeriesAggregationYaml.ValueString())

@@ -33,7 +33,7 @@ resource "dash0_sampling_rule" "keep_production_errors" {
 
 ### Required
 
-- `sampling_rule_yaml` (String) The sampling rule definition in YAML format. The YAML must declare `kind: Dash0Sampling`, an explicit `spec.enabled`, and `spec.conditions`, a tree of `probabilistic`, `ottl`, `error` and `and` conditions. `spec.display.name` and `spec.rateLimit` are optional. `metadata.labels` are ignored during drift detection, so the provider warns when `metadata.labels.custom` is set.
+- `sampling_rule_yaml` (String) The sampling rule definition in YAML format. The YAML must declare `kind: Dash0Sampling`, an explicit `spec.enabled`, and `spec.conditions`, a tree of `probabilistic`, `ottl`, `error` and `and` conditions. `spec.display.name` and `spec.rateLimit` are optional. `metadata.labels.custom` holds your own labels and is covered by drift detection. The other `metadata.labels` keys are server-managed and ignored.
 
 ### Optional
 

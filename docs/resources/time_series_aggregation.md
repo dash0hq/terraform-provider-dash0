@@ -36,7 +36,7 @@ resource "dash0_time_series_aggregation" "http_server_request_duration" {
 
 ### Required
 
-- `time_series_aggregation_yaml` (String) The time series aggregation definition in YAML format. The YAML must declare `kind: Dash0TimeSeriesAggregation`, an explicit `spec.enabled`, and a `spec` describing which metrics to match and how to aggregate them. `spec.priority` is defaulted by the server (to `2`) and is excluded from drift detection when omitted from the configuration. All `metadata.labels` are server-managed and ignored during drift detection.
+- `time_series_aggregation_yaml` (String) The time series aggregation definition in YAML format. The YAML must declare `kind: Dash0TimeSeriesAggregation`, an explicit `spec.enabled`, and a `spec` describing which metrics to match and how to aggregate them. `spec.priority` is defaulted by the server (to `2`) and is excluded from drift detection when omitted from the configuration. `metadata.labels.custom` holds your own labels and is covered by drift detection. The other `metadata.labels` keys are server-managed and ignored.
 
 ### Optional
 

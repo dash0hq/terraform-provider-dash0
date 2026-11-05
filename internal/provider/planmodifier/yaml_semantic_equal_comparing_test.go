@@ -66,3 +66,19 @@ func TestYAMLSemanticEqualComparing_ConditionallyIgnoredFields(t *testing.T) {
 
 	assert.Equal(t, converter.FieldsAbsentFromYAML(configOmittingPermissions, converter.ConditionallyIgnoredFields), gotIgnored)
 }
+
+func TestYAMLSemanticEqualConditionallyComparing(t *testing.T) {
+	config := "spec:\n  name: example\n"
+	state := "spec:\n  name: example\n  priority: 2\n"
+
+	var gotIgnored []string
+	modifier := YAMLSemanticEqualConditionallyComparing([]string{"spec.priority"}, func(_, _ string, additionalIgnoredFields []string) (bool, error) {
+		gotIgnored = additionalIgnoredFields
+		return false, nil
+	})
+
+	plan := runModifier(modifier, config, state)
+
+	assert.Equal(t, []string{"spec.priority"}, gotIgnored, "the resource's own list replaces the shared one")
+	assert.Equal(t, types.StringValue(config), plan, "the comparison function decides")
+}

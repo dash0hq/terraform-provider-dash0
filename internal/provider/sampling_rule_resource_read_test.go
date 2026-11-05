@@ -34,12 +34,33 @@ func (c *testSamplingRuleClient) GetSamplingRule(_ context.Context, _, _ string)
 
 // TestSamplingRuleResource_ReadWithDiffs is the drift-detection table. It
 // exercises Read end to end — the typed round trip, FieldsAbsentFromYAML and
-// ResourceYAMLEquivalent — because that combination decides whether a plan
+// CustomLabelsYAMLEquivalent — because that combination decides whether a plan
 // comes back clean.
 func TestSamplingRuleResource_ReadWithDiffs(t *testing.T) {
 	const configYaml = `kind: Dash0Sampling
 metadata:
   name: keep-production-sample
+spec:
+  enabled: true
+  display:
+    name: Keep a production sample
+  conditions:
+    kind: and
+    spec:
+      conditions:
+        - kind: ottl
+          spec:
+            ottl: resource.attributes["deployment.environment.name"] == "production"
+        - kind: probabilistic
+          spec:
+            rate: 0.333333333
+`
+	const configWithCustomLabelYaml = `kind: Dash0Sampling
+metadata:
+  name: keep-production-sample
+  labels:
+    custom:
+      team: platform
 spec:
   enabled: true
   display:
@@ -100,6 +121,20 @@ spec:
 			serverResponse:    `{"kind":"Dash0Sampling","metadata":{"name":"keep-production-sample",` + serverLabels + `},"spec":{"enabled":true,"display":{"name":"Keep a production sample"},"conditions":` + conditionsJSON + `,"rateLimit":{"rate":100}}}`,
 			expectYamlUpdated: true,
 			why:               "spec.rateLimit is not server-defaulted, so a rate limit the config does not declare is drift",
+		},
+		{
+			name:              "metadata.labels.custom changed out of band - drift",
+			stateYaml:         configWithCustomLabelYaml,
+			serverResponse:    `{"kind":"Dash0Sampling","metadata":{"name":"keep-production-sample","labels":{"custom":{"team":"payments"},"dash0.com/id":"11111111-1111-1111-1111-111111111111","dash0.com/version":"3"}},"spec":{"enabled":true,"display":{"name":"Keep a production sample"},"conditions":` + conditionsJSON + `}}`,
+			expectYamlUpdated: true,
+			why:               "the API stores metadata.labels.custom, so a change to it made outside Terraform is drift",
+		},
+		{
+			name:              "metadata.labels.custom unchanged next to server-managed labels - no drift",
+			stateYaml:         configWithCustomLabelYaml,
+			serverResponse:    `{"kind":"Dash0Sampling","metadata":{"name":"keep-production-sample","labels":{"custom":{"team":"platform"},"dash0.com/id":"11111111-1111-1111-1111-111111111111","dash0.com/version":"3"}},"spec":{"enabled":true,"display":{"name":"Keep a production sample"},"conditions":` + conditionsJSON + `}}`,
+			expectYamlUpdated: false,
+			why:               "matching custom labels must not report drift because of the server-managed keys beside them",
 		},
 	}
 
