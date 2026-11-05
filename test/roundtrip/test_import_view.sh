@@ -35,7 +35,7 @@ IDENTIFIER=""
 gone=""
 
 discover_identifier() {
-  dash0 views list --dataset "$DATASET" -o json --limit 500 \
+  dash0 views list --dataset "$DATASET" -o json --all \
     | python3 -c "
 import json, sys
 items = json.load(sys.stdin)
@@ -223,7 +223,7 @@ info "Step 8b: Verifying server-side deletion via list..."
 # The get endpoint has a longer cache TTL than list; use list (which the test
 # already relies on in step 2) for prompt post-destroy verification.
 assert_gone_from_list "View" "$IDENTIFIER" labels \
-  dash0 views list --dataset "$DATASET" -o json --limit 500
+  dash0 views list --dataset "$DATASET" -o json --all
 gone="yes"
 
 info "=== dash0_view import roundtrip test PASSED ==="

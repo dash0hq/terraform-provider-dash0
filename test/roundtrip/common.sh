@@ -641,6 +641,9 @@ assert_plan_has_changes() {
 #   - a non-empty list in which no item carries the identifier field at all,
 #     which means the response changed shape rather than lost the asset.
 # The same rules as assert_tsa_deleted_via_list.
+# Pass `--all` to a paged list command, so the CLI fetches every page and the
+# check sees every asset. The full-page rule only guards a caller that passes
+# `--limit` instead.
 # Usage: assert_gone_from_list <what> <identifier> <match> <list command...>
 #   match: id             the item's top-level `id` (check rules)
 #          extensions-id  `metadata.dash0Extensions.id` (dashboards)
