@@ -26,7 +26,7 @@ func (c *testTimeSeriesAggregationClient) GetTimeSeriesAggregation(_ context.Con
 
 // TestTimeSeriesAggregationResource_ReadWithDiffs is the drift-detection table.
 // It exercises Read end to end — FieldsAbsentFromYAML plus
-// ResourceYAMLEquivalent against the resource-scoped conditionally-ignored
+// CustomLabelsYAMLEquivalent against the resource-scoped conditionally-ignored
 // field list — because that combination, not either half alone, is what decides
 // whether a plan comes back clean.
 func TestTimeSeriesAggregationResource_ReadWithDiffs(t *testing.T) {

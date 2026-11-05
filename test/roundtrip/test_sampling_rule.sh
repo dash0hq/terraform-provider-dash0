@@ -227,7 +227,10 @@ for labels in "  labels:
   assert_plan_has_changes "$WORK_DIR" "a custom label change"
   TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
   API_OUTPUT="$(sampling_rule_get "$ORIGIN" "$DATASET" 2>&1)"
-  # With no labels configured, a custom label the server kept fails this too.
+  # The YAML check only compares the fields in the file, so with no labels
+  # configured it cannot see a custom label the server kept. assert_idempotent
+  # catches that case: Read compares custom labels, so a kept one shows up as a
+  # planned change.
   assert_yaml_equivalent "${WORK_DIR}/sampling_rule.yaml" "$API_OUTPUT" \
     || fail "API output does not match the configured custom labels"
   assert_idempotent "$WORK_DIR"

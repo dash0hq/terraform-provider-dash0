@@ -218,7 +218,10 @@ for labels in "  labels:
   write_tsa_with_labels "$labels"
   assert_plan_has_changes "$WORK_DIR" "a custom label change"
   TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
-  # With no labels configured, a custom label the server kept fails this too.
+  # The YAML check only compares the fields in the file, so with no labels
+  # configured it cannot see a custom label the server kept. assert_idempotent
+  # catches that case: Read compares custom labels, so a kept one shows up as a
+  # planned change.
   assert_yaml_equivalent_eventually "${WORK_DIR}/tsa.yaml" "dash0 time-series-aggregations" "$ORIGIN" "$DATASET"
   assert_idempotent "$WORK_DIR"
 done
