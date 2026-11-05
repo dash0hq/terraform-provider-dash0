@@ -146,7 +146,7 @@ func TestDashboardResource_Create(t *testing.T) {
 
 // Dataset default-inheritance and plan-modifier behavior (omitted dataset
 // pinning to prior state, explicit changes still requiring replacement) are
-// covered table-driven across all six dataset-scoped resources in
+// covered table-driven across all dataset-scoped resources in
 // dataset_default_test.go, rather than per-resource here.
 
 func TestDashboardResource_Read(t *testing.T) {
