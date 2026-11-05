@@ -31,7 +31,39 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 WORK_DIR="$(mktemp -d)"
-trap 'rm -rf "$WORK_DIR"' EXIT
+# A per-run alert name keeps runs that share the dataset, concurrent or earlier,
+# from finding, importing or deleting each other's check rules. The API stores
+# the rule name as `<group_name> - <alert_name>`, so lookups match a substring.
+# The random part is padded to a fixed width so that one run's name cannot be a
+# substring of another's (`-12` would otherwise match `-123`).
+ALERT_NAME="roundtrip-import-alert-$(date +%s)-$(printf '%05d' "$RANDOM")"
+IDENTIFIER=""
+gone=""
+
+discover_identifier() {
+  dash0 check-rules list --dataset "$DATASET" -o json --limit 500 \
+    | python3 -c "
+import json, sys
+items = json.load(sys.stdin)
+for it in items:
+    if sys.argv[1] in (it.get('name', '') or ''):
+        print(it['id'])
+        break
+" "$ALERT_NAME"
+}
+
+cleanup() {
+  if [[ "$gone" != "yes" ]]; then
+    [[ -n "$IDENTIFIER" ]] || IDENTIFIER="$(discover_identifier 2>/dev/null)" || true
+    if [[ -n "$IDENTIFIER" ]]; then
+      warn "Deleting check rule ${IDENTIFIER} created by this run..."
+      dash0 check-rules delete "$IDENTIFIER" --dataset "$DATASET" --force \
+        || warn "Could not delete check rule ${IDENTIFIER}. Delete it by hand."
+    fi
+  fi
+  rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT
 
 info "=== Roundtrip test: terraform import (dash0_check_rule) ==="
 info "Working directory: ${WORK_DIR}"
@@ -47,9 +79,9 @@ write_provider_tf "$WORK_DIR"
 # The fixture matches the PrometheusRule form the provider ingests — the same
 # one exercised end-to-end by test_check_rule.sh.
 # ---------------------------------------------------------------------------
-info "Step 1: Creating check rule via dash0 CLI..."
+info "Step 1: Creating check rule via dash0 CLI (alert ${ALERT_NAME})..."
 
-cat > "${WORK_DIR}/check_rule.yaml" <<'YAMLEOF'
+cat > "${WORK_DIR}/check_rule.yaml" <<YAMLEOF
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -59,7 +91,7 @@ spec:
     - name: RoundtripImportCheck
       interval: 1m0s
       rules:
-        - alert: roundtrip-import-alert
+        - alert: ${ALERT_NAME}
           expr: vector(1) > 0
           for: 0s
           keep_firing_for: 0s
@@ -83,17 +115,8 @@ info "Check rule created via CLI."
 # ---------------------------------------------------------------------------
 info "Step 2: Discovering identifier via dash0 CLI..."
 
-IDENTIFIER="$(dash0 check-rules list --dataset "$DATASET" -o json --limit 500 \
-  | python3 -c "
-import json, sys
-items = json.load(sys.stdin)
-for it in items:
-    name = it.get('name', '') or ''
-    if 'roundtrip-import' in name:
-        print(it['id'])
-        break
-")"
-[[ -n "$IDENTIFIER" ]] || fail "Could not discover identifier for roundtrip-import check rule"
+IDENTIFIER="$(discover_identifier)"
+[[ -n "$IDENTIFIER" ]] || fail "Could not discover identifier for check rule ${ALERT_NAME}"
 info "Identifier: ${IDENTIFIER}"
 
 # Sanity check: the CLI-created identifier must NOT carry the tf_ prefix — that
@@ -212,28 +235,8 @@ TF_VAR_dataset="$DATASET" tf_destroy "$WORK_DIR"
 info "Step 8b: Verifying server-side deletion via list..."
 # The get endpoint has a longer cache TTL than list; use list (which the test
 # already relies on in step 2) for prompt post-destroy verification.
-gone=""
-for i in $(seq 1 10); do
-  set +e
-  dash0 check-rules list --dataset "$DATASET" -o json --limit 500 \
-    | python3 -c "
-import json, sys
-items = json.load(sys.stdin)
-target = '$IDENTIFIER'
-sys.exit(0 if any(it.get('id') == target for it in items) else 1)
-"
-  found=$?
-  set -e
-  if [[ $found -ne 0 ]]; then
-    info "Server-side deletion confirmed via list (attempt ${i})."
-    gone="yes"
-    break
-  fi
-  if [[ $i -lt 10 ]]; then
-    warn "Check rule still in list (attempt ${i}/10), retrying in 3s..."
-    sleep 3
-  fi
-done
-[[ "$gone" == "yes" ]] || fail "Check rule '${IDENTIFIER}' still returned by list after 10 attempts"
+assert_gone_from_list "Check rule" "$IDENTIFIER" id \
+  dash0 check-rules list --dataset "$DATASET" -o json --limit 500
+gone="yes"
 
 info "=== dash0_check_rule import roundtrip test PASSED ==="

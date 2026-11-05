@@ -148,6 +148,65 @@ spec:
 			m.On("ResolveSLO", mock.Anything, mock.Anything, dataset).Return("test-id", "", nil)
 		},
 	},
+	{
+		name:        "time_series_aggregation",
+		newResource: NewTimeSeriesAggregationResource,
+		yamlAttr:    "time_series_aggregation_yaml",
+		yamlValue: `kind: Dash0TimeSeriesAggregation
+metadata:
+  name: http-server-request-duration
+spec:
+  enabled: true
+  match:
+    metricNameMatcher:
+      operator: is
+      value: http.server.request.duration
+  sample:
+    interval: 5m`,
+		hasURL: false,
+		mockSetup: func(m *MockClient, dataset string) {
+			m.On("CreateTimeSeriesAggregation", mock.Anything, mock.Anything, mock.Anything, dataset).Return(nil)
+			m.On("ResolveTimeSeriesAggregation", mock.Anything, mock.Anything, dataset).Return("test-id", nil)
+		},
+	},
+	{
+		name:        "sampling_rule",
+		newResource: NewSamplingRuleResource,
+		yamlAttr:    "sampling_rule_yaml",
+		yamlValue: `kind: Dash0Sampling
+metadata:
+  name: keep-production-errors
+spec:
+  enabled: true
+  conditions:
+    kind: error
+    spec: {}`,
+		hasURL: false,
+		mockSetup: func(m *MockClient, dataset string) {
+			m.On("CreateSamplingRule", mock.Anything, mock.Anything, mock.Anything, dataset).Return(nil)
+			m.On("ResolveSamplingRule", mock.Anything, mock.Anything, dataset).Return("test-id", nil)
+		},
+	},
+	{
+		name:        "signal_to_metrics",
+		newResource: NewSignalToMetricsResource,
+		yamlAttr:    "signal_to_metrics_yaml",
+		yamlValue: `kind: Dash0SignalToMetrics
+metadata:
+  name: checkout-errors
+spec:
+  enabled: true
+  match:
+    signal: spans
+  output:
+    name: checkout_errors
+    interval: 60s`,
+		hasURL: false,
+		mockSetup: func(m *MockClient, dataset string) {
+			m.On("CreateSignalToMetrics", mock.Anything, mock.Anything, mock.Anything, dataset).Return(nil)
+			m.On("ResolveSignalToMetrics", mock.Anything, mock.Anything, dataset).Return("test-id", nil)
+		},
+	},
 }
 
 // buildOmittedDatasetCreatePlan builds a minimal Create plan for a
@@ -186,11 +245,11 @@ func buildOmittedDatasetCreatePlan(yamlAttr, yamlValue string, hasURL bool) tfsd
 }
 
 // TestDatasetScopedResources_Create_InheritsProviderDefaultDataset covers all
-// seven dataset-scoped resources, verifying each resource's own Create path
+// ten dataset-scoped resources, verifying each resource's own Create path
 // falls back to the provider-level default dataset when the resource omits
 // its own `dataset` attribute. Each resource has a distinct client call, so
 // this cannot be collapsed into a single shared code path -- the table
-// exists precisely to exercise all seven independently.
+// exists precisely to exercise all ten independently.
 func TestDatasetScopedResources_Create_InheritsProviderDefaultDataset(t *testing.T) {
 	const providerDefault = "provider-default-dataset"
 
@@ -242,6 +301,9 @@ var datasetSchemaCases = []datasetSchemaCase{
 	{"synthetic_check", NewSyntheticCheckResource},
 	{"view", NewViewResource},
 	{"slo", NewSLOResource},
+	{"time_series_aggregation", NewTimeSeriesAggregationResource},
+	{"sampling_rule", NewSamplingRuleResource},
+	{"signal_to_metrics", NewSignalToMetricsResource},
 }
 
 // nonNullEmptyObject returns a known (non-null), attribute-less object value,
@@ -275,7 +337,7 @@ func runStringPlanModifiers(ctx context.Context, modifiers []planmodifier.String
 
 // TestDatasetScopedResources_DatasetPlanModifiers exercises the `dataset`
 // attribute's real plan modifiers -- UseStateForUnknown then RequiresReplace
-// -- for all seven dataset-scoped resources, at the planning stage rather than
+// -- for all ten dataset-scoped resources, at the planning stage rather than
 // through Create. This is deliberately independent of any provider-level
 // default: plan modifiers never see the provider configuration, so a
 // resource's own prior state is the only thing an omitted `dataset` can pin

@@ -20,6 +20,7 @@
 #      stays clean — the server default must not read as drift
 #  3d. Change the display name out of band and assert the plan shows it —
 #      the counterpart of 3c: a real change is drift; apply restores it
+#  3e. Add `dash0.com/folder-path` and assert it plans an update and settles
 #   4. Idempotency
 #   5. Destroy
 #   6. Verify deletion
@@ -226,6 +227,51 @@ TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
 signal_to_metrics_get "$ORIGIN" "$DATASET" | grep -q '"name":"Roundtrip Test Signal To Metrics - Updated"' \
   || fail "Apply did not restore the display name"
 info "Apply restored the display name."
+
+# ---------------------------------------------------------------------------
+# Step 3e: dash0.com/folder-path plans an update and then settles.
+#
+# The provider compares the annotation in the plan, so adding it must plan an
+# update. Read compares it only when the API returns it, which Dash0 does not
+# do yet for signal-to-metrics rules: the plan after the apply must be clean
+# either way.
+# ---------------------------------------------------------------------------
+info "Step 3e: Adding dash0.com/folder-path, then asserting it plans an update and settles..."
+
+python3 - "${WORK_DIR}/signal_to_metrics.yaml" <<'PYEOF'
+import sys
+path = sys.argv[1]
+with open(path) as f:
+    text = f.read()
+text = text.replace(
+    "  name: roundtrip-test-signal-to-metrics\n",
+    "  name: roundtrip-test-signal-to-metrics\n  annotations:\n    dash0.com/folder-path: /terraform-roundtrip\n",
+    1,
+)
+with open(path, "w") as f:
+    f.write(text)
+PYEOF
+grep -q '^    dash0.com/folder-path: /terraform-roundtrip$' "${WORK_DIR}/signal_to_metrics.yaml" \
+  || fail "Test setup: could not add dash0.com/folder-path"
+
+set +e
+TF_VAR_dataset="$DATASET" tf_plan_detailed_exitcode "$WORK_DIR"
+PLAN_RC=$?
+set -e
+if [[ "$PLAN_RC" -ne 2 ]]; then
+  fail "Plan after adding dash0.com/folder-path did not report the change (exit ${PLAN_RC}, want 2)."
+fi
+
+TF_VAR_dataset="$DATASET" tf_apply "$WORK_DIR"
+
+set +e
+TF_VAR_dataset="$DATASET" tf_plan_detailed_exitcode "$WORK_DIR"
+PLAN_RC=$?
+set -e
+if [[ "$PLAN_RC" -ne 0 ]]; then
+  fail "Plan after applying dash0.com/folder-path reported changes (exit ${PLAN_RC}) — the annotation is not settling."
+fi
+info "Drift check PASSED: dash0.com/folder-path plans an update and settles."
 
 # ---------------------------------------------------------------------------
 # Step 4: Idempotency
