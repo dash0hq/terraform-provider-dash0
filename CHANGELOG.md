@@ -6,6 +6,67 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.23.0
+
+
+### Breaking Changes
+
+
+- `sampling_rules`: `dash0_sampling_rule` compares `metadata.labels.custom`, so the first apply after upgrading removes custom labels that were added outside Terraform. (#211)
+  To keep such labels, add them to the YAML before you apply.
+  Before, the provider ignored all of `metadata.labels`, so a change to the custom labels alone produced an empty plan and never reached Dash0.
+  The plan now shows that change, and reports a custom label changed outside Terraform as drift.
+  If your YAML declares custom labels that never reached Dash0, the first plan after upgrading applies them.
+  The warning about `metadata.labels.custom` is gone.
+  
+
+- `time_series_aggregations`: `dash0_time_series_aggregation` compares `metadata.labels.custom`, so the first apply after upgrading removes custom labels that were added outside Terraform. (#211)
+  To keep such labels, add them to the YAML before you apply.
+  Before, the provider ignored all of `metadata.labels`, so a change to the custom labels alone produced an empty plan and never reached Dash0.
+  The plan now shows that change, and reports a custom label changed outside Terraform as drift.
+  If your YAML declares custom labels that never reached Dash0, the first plan after upgrading applies them.
+  The warning about `metadata.labels.custom` is gone.
+  
+
+- `spam_filters`: `dash0_spam_filter` treats a filter that omits the `dash0.com/enabled` annotation as enabled, so the first apply after upgrading switches back on any filter that was disabled in the Dash0 UI. (#206)
+  A re-enabled filter starts dropping the telemetry it matches again.
+  To keep a filter disabled, set `dash0.com/enabled: "false"` in its YAML before you apply.
+  The resource can now switch a filter off and on through this annotation, and reports a filter disabled outside Terraform as drift.
+  Before, changing `dash0.com/enabled` from `"true"` to `"false"` produced an empty plan, so a filter could not be disabled after it was created.
+  
+
+
+### New Components
+
+
+- `custom_skills`: Add the `dash0_custom_skill` resource to manage Agent0 custom skills as code. (#201)
+  The resource takes a full `Dash0Skill` document: the skill's files, led by a `SKILL.md`, and optionally `spec.permissions`.
+  Skills managed by Terraform accept read and delete grants only, and can be imported by origin or, for skills created in the Dash0 UI, by id.
+  
+
+- `signal_to_metrics`: `dash0_signal_to_metrics` manages the rules that turn matching spans and logs into metrics at ingestion. (#203)
+  The YAML must set `spec.enabled` to `true` or `false`. Existing rules can be imported with `dataset,identifier`.
+  The `dash0.com/folder-path` and `dash0.com/sharing` annotations are supported. Other labels and annotations, such as `metadata.labels.custom`, are rejected, because Dash0 would drop them.
+
+
+### Enhancements
+
+
+- `docs`: The provider's `dataset` attribute documentation lists SLOs and time series aggregations among the resources that use the default dataset. (#208)
+
+- `spam_filters`: `dash0_spam_filter` checks `spam_filter_yaml` at plan time: it warns that `metadata.labels.custom` is not covered by drift detection, and rejects a `dash0.com/enabled` value other than the quoted strings `"true"` or `"false"`. (#206)
+  An unquoted `dash0.com/enabled: false` used to fail on apply with a JSON decoding error.
+  The resource documentation now lists the `profile_sample` signal type and states that a `v1alpha1` `contexts` list holds exactly one signal type.
+  
+
+
+### Bug Fixes
+
+
+- `datasets`: `dash0_dataset` keeps `spec.privacy.redaction.genAi.conversationName` instead of dropping it on read and write. (#207)
+  A dataset document copied from the API, which now carries this setting, no longer shows a change on every plan.
+  
+
 ## 1.22.0
 
 
