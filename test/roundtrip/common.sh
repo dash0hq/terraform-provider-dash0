@@ -427,6 +427,28 @@ auth_token_preflight() {
   fail "Preflight 'GET /api/auth-tokens' failed for an unexpected reason (exit ${rc})."
 }
 
+# custom_skill_preflight <what>
+#
+# Skips loudly with exit code 77 (counted separately by run_all.sh) when the
+# bundled dash0 CLI has no `agent0 skills` command yet (dash0hq/dash0-cli#337).
+custom_skill_preflight() {
+  local what="$1"
+  if dash0 -X agent0 skills --help >/dev/null 2>&1; then
+    info "Preflight: dash0 CLI supports 'agent0 skills'."
+    return 0
+  fi
+  echo ""
+  echo "############################################################################"
+  echo "## SKIPPED — this test did NOT run:"
+  echo "##   ${what}"
+  echo "##"
+  echo "## The bundled dash0 CLI has no 'agent0 skills' command yet."
+  echo "## This is a KNOWN COVERAGE GAP, not a pass."
+  echo "############################################################################"
+  echo ""
+  exit 77 # skip: counted separately by run_all.sh
+}
+
 # auth_token_get <id-or-origin>
 #
 # The dash0 CLI has no auth-token command, so auth tokens are read through the

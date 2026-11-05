@@ -163,6 +163,26 @@ func (m *MockClient) ResolveNotificationChannel(ctx context.Context, origin stri
 	return args.String(0), args.String(1), args.Error(2)
 }
 
+func (m *MockClient) CreateCustomSkill(ctx context.Context, origin string, skillJSON string) (string, error) {
+	args := m.Called(ctx, origin, skillJSON)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockClient) GetCustomSkill(ctx context.Context, originOrID string) (string, error) {
+	args := m.Called(ctx, originOrID)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockClient) UpdateCustomSkill(ctx context.Context, originOrID string, skillJSON string) error {
+	args := m.Called(ctx, originOrID, skillJSON)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteCustomSkill(ctx context.Context, originOrID string) error {
+	args := m.Called(ctx, originOrID)
+	return args.Error(0)
+}
+
 func (m *MockClient) CreateDataset(ctx context.Context, origin string, datasetJSON string) (string, error) {
 	args := m.Called(ctx, origin, datasetJSON)
 	return args.String(0), args.Error(1)
