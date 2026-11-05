@@ -148,6 +148,8 @@ info "Custom skill destroyed."
 # ---------------------------------------------------------------------------
 info "Step 6: Verifying custom skill is gone..."
 assert_deleted_via_tf "$WORK_DIR"
-assert_custom_skill_deleted "$ORIGIN"
+# A deleted skill still answers a get, so the deletion is checked against a listing.
+assert_gone_from_list "Custom skill" "$ORIGIN" labels \
+  dash0 -X agent0 skills list -o json
 
 info "=== dash0_custom_skill roundtrip test PASSED ==="

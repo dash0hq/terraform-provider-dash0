@@ -199,6 +199,8 @@ TF_VAR_dataset="$DATASET" tf_destroy "$WORK_DIR"
 DESTROYED=1
 
 info "Step 8b: Verifying server-side deletion..."
-assert_custom_skill_deleted "$IDENTIFIER"
+# A deleted skill still answers a get, so the deletion is checked against a listing.
+assert_gone_from_list "Custom skill" "$IDENTIFIER" labels \
+  dash0 -X agent0 skills list -o json
 
 info "=== dash0_custom_skill import roundtrip test PASSED ==="
