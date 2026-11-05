@@ -161,6 +161,38 @@ spec:
 			wantDetail: "defaultEnabled: false",
 		},
 		{name: "invalid yaml is left to create and update", yaml: "spec: ["},
+		{
+			name: "misspelled spec field",
+			yaml: customSkillTestYaml + `
+  permisions:
+    - role: basic_member
+      actions: [custom_skill:read]`,
+			wantErrors: 1,
+			wantDetail: `unknown field "permisions"`,
+		},
+		{
+			name: "misspelled file field",
+			yaml: `kind: Dash0Skill
+spec:
+  files:
+    - relativePath: SKILL.md
+      contents: x`,
+			wantErrors: 1,
+			wantDetail: `unknown field "contents"`,
+		},
+		{
+			name: "exported permittedActions is accepted",
+			yaml: customSkillTestYaml + `
+  permittedActions: [custom_skill:read]`,
+		},
+		{
+			name: "unknown metadata field is accepted",
+			yaml: `kind: Dash0Skill
+metadata:
+  somethingNew: x
+spec:
+  files: []`,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

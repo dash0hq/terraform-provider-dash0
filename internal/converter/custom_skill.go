@@ -7,7 +7,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const customSkillAdminRole = "admin"
+// CustomSkillAdminRole is the role whose grant the server always adds to a
+// custom skill and whose actions it fixes.
+const CustomSkillAdminRole = "admin"
 
 // customSkillAlwaysIgnoredFields are fields of a custom skill the server sets
 // or derives, so they never express user intent. metadata.name is derived
@@ -63,7 +65,7 @@ func alignCustomSkillPermissions(yamlA, yamlB string) (string, error) {
 			desiredByPrincipal[customSkillPrincipal(grant)] = grant
 		}
 	}
-	desiredAdmin, declaresAdmin := desiredByPrincipal["role:"+customSkillAdminRole]
+	desiredAdmin, declaresAdmin := desiredByPrincipal["role:"+CustomSkillAdminRole]
 
 	aligned := make([]interface{}, 0, len(actual))
 	sawAdmin := false
@@ -74,7 +76,7 @@ func alignCustomSkillPermissions(yamlA, yamlB string) (string, error) {
 			continue
 		}
 		principal := customSkillPrincipal(grant)
-		isAdmin := principal == "role:"+customSkillAdminRole
+		isAdmin := principal == "role:"+CustomSkillAdminRole
 		if isAdmin && !declaresAdmin {
 			continue
 		}
@@ -91,7 +93,7 @@ func alignCustomSkillPermissions(yamlA, yamlB string) (string, error) {
 	// default, so a missing admin grant means defaultEnabled: true.
 	if declaresAdmin && !sawAdmin {
 		admin := alignCustomSkillGrant(desiredAdmin, map[string]interface{}{
-			"role":           customSkillAdminRole,
+			"role":           CustomSkillAdminRole,
 			"defaultEnabled": true,
 		}, true)
 		aligned = append(aligned, admin)

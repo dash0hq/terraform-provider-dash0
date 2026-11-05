@@ -124,7 +124,7 @@ func rejectCustomSkillWriteGrants(skillYAML string, diags *diag.Diagnostics) {
 		return
 	}
 	for i, grant := range doc.Spec.Permissions {
-		if grant.Role == "admin" || !slices.Contains(grant.Actions, string(dash0.CustomSkillWrite)) {
+		if grant.Role == converter.CustomSkillAdminRole || !slices.Contains(grant.Actions, string(dash0.CustomSkillWrite)) {
 			continue
 		}
 		diags.AddAttributeError(
@@ -145,6 +145,16 @@ func validateCustomSkillYAML(skillYAML string, diags *diag.Diagnostics) {
 	var doc customSkillDocument
 	if err := yaml.Unmarshal([]byte(skillYAML), &doc); err != nil {
 		return
+	}
+
+	if skillJSON, err := converter.ConvertYAMLToJSON(skillYAML); err == nil {
+		if err := client.ValidateCustomSkillSpec(skillJSON); err != nil {
+			diags.AddAttributeError(
+				path.Root("custom_skill_yaml"),
+				"Invalid custom skill spec",
+				fmt.Sprintf("%s. Check spec for a misspelled field name; an unknown field would otherwise be dropped without an error.", err),
+			)
+		}
 	}
 
 	if doc.Spec.Source != nil {

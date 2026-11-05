@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -96,6 +97,28 @@ func CustomSkillIdentity(skillJSON string) (id string, origin string) {
 		return "", ""
 	}
 	return dash0.GetCustomSkillID(def), dash0.GetCustomSkillOrigin(def)
+}
+
+// ValidateCustomSkillSpec returns an error for an unknown field in spec,
+// such as a misspelled spec.permisions, which a lenient decode would drop
+// and send the skill without.
+func ValidateCustomSkillSpec(skillJSON string) error {
+	// metadata stays lenient: Dash0 manages it and the provider ignores it.
+	var raw struct {
+		Spec json.RawMessage `json:"spec"`
+	}
+	if err := json.Unmarshal([]byte(skillJSON), &raw); err != nil {
+		return fmt.Errorf("error parsing custom skill JSON: %w", err)
+	}
+	if len(raw.Spec) == 0 {
+		return nil
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw.Spec))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&dash0.SkillSpec{}); err != nil {
+		return fmt.Errorf("invalid custom skill spec: %w", err)
+	}
+	return nil
 }
 
 func unmarshalCustomSkill(jsonStr string) (*dash0.SkillDefinition, error) {
