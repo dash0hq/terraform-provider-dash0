@@ -173,11 +173,12 @@ assert_idempotent "$WORK_DIR"
 info "Step 8: Destroying imported channel via Terraform..."
 TF_VAR_dataset="$DATASET" tf_destroy "$WORK_DIR"
 
-info "Step 8b: Verifying server-side deletion..."
-if dash0 -X notification-channels get "$IDENTIFIER" -o yaml >/dev/null 2>&1; then
-  fail "Notification channel '${IDENTIFIER}' still exists after terraform destroy"
-fi
+info "Step 8b: Verifying server-side deletion via list..."
+# A failed `get` cannot tell a deleted channel from a server or network error,
+# so the deletion is checked against a listing that succeeded. The channel list
+# is not paged, so it has no --limit.
+assert_gone_from_list "Notification channel" "$IDENTIFIER" labels \
+  dash0 -X notification-channels list -o json
 gone="yes"
-info "Server-side deletion confirmed."
 
 info "=== dash0_notification_channel import roundtrip test PASSED ==="
