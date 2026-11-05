@@ -26,7 +26,37 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 WORK_DIR="$(mktemp -d)"
-trap 'rm -rf "$WORK_DIR"' EXIT
+# A per-run name keeps runs that share the dataset, concurrent or earlier, from
+# finding, importing or deleting each other's SLOs.
+SLO_NAME="roundtrip-import-slo-$(date +%s)-${RANDOM}"
+IDENTIFIER=""
+gone=""
+
+discover_identifier() {
+  dash0 slos list --dataset "$DATASET" -o json --limit 500 \
+    | python3 -c "
+import json, sys
+items = json.load(sys.stdin)
+for it in items:
+    if it.get('metadata', {}).get('name') == sys.argv[1]:
+        labels = it.get('metadata', {}).get('labels', {}) or {}
+        print(labels.get('dash0.com/origin') or labels.get('dash0.com/id') or '')
+        break
+" "$SLO_NAME"
+}
+
+cleanup() {
+  if [[ "$gone" != "yes" ]]; then
+    [[ -n "$IDENTIFIER" ]] || IDENTIFIER="$(discover_identifier 2>/dev/null)" || true
+    if [[ -n "$IDENTIFIER" ]]; then
+      warn "Deleting SLO ${IDENTIFIER} created by this run..."
+      dash0 slos delete "$IDENTIFIER" --dataset "$DATASET" --force \
+        || warn "Could not delete SLO ${IDENTIFIER}. Delete it by hand."
+    fi
+  fi
+  rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT
 
 info "=== Roundtrip test: terraform import (dash0_slo) ==="
 info "Working directory: ${WORK_DIR}"
@@ -40,13 +70,13 @@ write_provider_tf "$WORK_DIR"
 # ---------------------------------------------------------------------------
 # Step 1: Create SLO via dash0 CLI (out-of-band, no Terraform).
 # ---------------------------------------------------------------------------
-info "Step 1: Creating SLO via dash0 CLI..."
+info "Step 1: Creating SLO via dash0 CLI (name ${SLO_NAME})..."
 
-cat > "${WORK_DIR}/slo.yaml" <<'YAMLEOF'
+cat > "${WORK_DIR}/slo.yaml" <<YAMLEOF
 apiVersion: openslo.com/v1
 kind: SLO
 metadata:
-  name: roundtrip-import-slo
+  name: ${SLO_NAME}
   annotations:
     dash0.com/enabled: "true"
 spec:
@@ -86,17 +116,8 @@ info "SLO created via CLI."
 # ---------------------------------------------------------------------------
 info "Step 2: Discovering identifier via dash0 CLI..."
 
-IDENTIFIER="$(dash0 slos list --dataset "$DATASET" -o json --limit 500 \
-  | python3 -c "
-import json, sys
-items = json.load(sys.stdin)
-for it in items:
-    if it.get('metadata', {}).get('name') == 'roundtrip-import-slo':
-        labels = it.get('metadata', {}).get('labels', {}) or {}
-        print(labels.get('dash0.com/origin') or labels.get('dash0.com/id') or '')
-        break
-")"
-[[ -n "$IDENTIFIER" ]] || fail "Could not discover identifier for roundtrip-import-slo"
+IDENTIFIER="$(discover_identifier)"
+[[ -n "$IDENTIFIER" ]] || fail "Could not discover identifier for ${SLO_NAME}"
 info "Identifier: ${IDENTIFIER}"
 
 if [[ "$IDENTIFIER" == tf_* ]]; then
@@ -190,28 +211,8 @@ TF_VAR_dataset="$DATASET" tf_destroy "$WORK_DIR"
 info "Step 8b: Verifying server-side deletion via list..."
 # The get endpoint has a longer cache TTL than list; use list (which the test
 # already relies on in step 2) for prompt post-destroy verification.
-gone=""
-for i in $(seq 1 10); do
-  set +e
-  dash0 slos list --dataset "$DATASET" -o json --limit 500 \
-    | python3 -c "
-import json, sys
-items = json.load(sys.stdin)
-target = '$IDENTIFIER'
-sys.exit(0 if any((it.get('metadata', {}).get('labels', {}) or {}).get('dash0.com/origin') == target or (it.get('metadata', {}).get('labels', {}) or {}).get('dash0.com/id') == target for it in items) else 1)
-"
-  found=$?
-  set -e
-  if [[ $found -ne 0 ]]; then
-    info "Server-side deletion confirmed via list (attempt ${i})."
-    gone="yes"
-    break
-  fi
-  if [[ $i -lt 10 ]]; then
-    warn "SLO still in list (attempt ${i}/10), retrying in 3s..."
-    sleep 3
-  fi
-done
-[[ "$gone" == "yes" ]] || fail "SLO '${IDENTIFIER}' still returned by list after 10 attempts"
+assert_gone_from_list "SLO" "$IDENTIFIER" labels \
+  dash0 slos list --dataset "$DATASET" -o json --limit 500
+gone="yes"
 
 info "=== dash0_slo import roundtrip test PASSED ==="

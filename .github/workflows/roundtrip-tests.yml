@@ -7,6 +7,17 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Runs of the same pull request wait for each other, so two pushes in quick
+# succession never run the suite twice at once. A running suite is not
+# cancelled, because a cancelled run skips the cleanup that deletes its test
+# assets. GitHub keeps one waiting run per group, so a third push replaces the
+# second push's waiting run, which tests a commit that is already outdated.
+# Every other run (main pushes, manual runs) gets a group of its own, so each
+# one runs and none of them can be replaced while waiting.
+concurrency:
+  group: roundtrip-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+
 jobs:
   roundtrip:
     runs-on: ubuntu-latest

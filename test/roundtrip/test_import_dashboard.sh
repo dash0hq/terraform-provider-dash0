@@ -22,7 +22,36 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 WORK_DIR="$(mktemp -d)"
-trap 'rm -rf "$WORK_DIR"' EXIT
+# A per-run display name keeps runs that share the dataset, concurrent or
+# earlier, from finding, importing or deleting each other's dashboards.
+DASHBOARD_NAME="Roundtrip Import Test Dashboard $(date +%s)-${RANDOM}"
+IDENTIFIER=""
+gone=""
+
+discover_identifier() {
+  dash0 dashboards list --dataset "$DATASET" -o json --limit 500 \
+    | python3 -c "
+import json, sys
+items = json.load(sys.stdin)
+for it in items:
+    if it.get('spec', {}).get('display', {}).get('name') == sys.argv[1]:
+        print(it['metadata']['dash0Extensions']['id'])
+        break
+" "$DASHBOARD_NAME"
+}
+
+cleanup() {
+  if [[ "$gone" != "yes" ]]; then
+    [[ -n "$IDENTIFIER" ]] || IDENTIFIER="$(discover_identifier 2>/dev/null)" || true
+    if [[ -n "$IDENTIFIER" ]]; then
+      warn "Deleting dashboard ${IDENTIFIER} created by this run..."
+      dash0 dashboards delete "$IDENTIFIER" --dataset "$DATASET" --force \
+        || warn "Could not delete dashboard ${IDENTIFIER}. Delete it by hand."
+    fi
+  fi
+  rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT
 
 info "=== Roundtrip test: terraform import (dash0_dashboard) ==="
 info "Working directory: ${WORK_DIR}"
@@ -36,9 +65,9 @@ write_provider_tf "$WORK_DIR"
 # ---------------------------------------------------------------------------
 # Step 1: Create dashboard via dash0 CLI (out-of-band, no Terraform)
 # ---------------------------------------------------------------------------
-info "Step 1: Creating dashboard via dash0 CLI..."
+info "Step 1: Creating dashboard via dash0 CLI (name ${DASHBOARD_NAME})..."
 
-cat > "${WORK_DIR}/dashboard.yaml" <<'DASHEOF'
+cat > "${WORK_DIR}/dashboard.yaml" <<DASHEOF
 apiVersion: perses.dev/v1alpha1
 kind: PersesDashboard
 metadata:
@@ -48,13 +77,13 @@ spec:
   duration: "30m"
   display:
     description: "Roundtrip import test dashboard"
-    name: "Roundtrip Import Test Dashboard"
+    name: "${DASHBOARD_NAME}"
   layouts:
     - kind: Grid
       spec:
         items:
           - content:
-              $ref: "#/spec/panels/panel-1"
+              \$ref: "#/spec/panels/panel-1"
             height: 8
             width: 24
             x: 0
@@ -90,16 +119,8 @@ info "Dashboard created via CLI."
 # ---------------------------------------------------------------------------
 info "Step 2: Discovering identifier via dash0 CLI..."
 
-IDENTIFIER="$(dash0 dashboards list --dataset "$DATASET" -o json --limit 500 \
-  | python3 -c "
-import json, sys
-items = json.load(sys.stdin)
-for it in items:
-    if it.get('spec', {}).get('display', {}).get('name') == 'Roundtrip Import Test Dashboard':
-        print(it['metadata']['dash0Extensions']['id'])
-        break
-")"
-[[ -n "$IDENTIFIER" ]] || fail "Could not discover identifier for roundtrip-import-dashboard"
+IDENTIFIER="$(discover_identifier)"
+[[ -n "$IDENTIFIER" ]] || fail "Could not discover identifier for ${DASHBOARD_NAME}"
 info "Identifier: ${IDENTIFIER}"
 
 # Sanity check: the CLI-created identifier must NOT carry the tf_ prefix — that
@@ -198,27 +219,8 @@ TF_VAR_dataset="$DATASET" tf_destroy "$WORK_DIR"
 info "Step 8b: Verifying server-side deletion via list..."
 # The get endpoint has a longer cache TTL than list; use list (which the test
 # already relies on in step 2) for prompt post-destroy verification.
-gone=""
-for i in $(seq 1 10); do
-  set +e
-  dash0 dashboards list --dataset "$DATASET" -o json --limit 500 \
-    | python3 -c "
-import json, sys
-items = json.load(sys.stdin)
-sys.exit(0 if any(it.get('spec', {}).get('display', {}).get('name') == 'Roundtrip Import Test Dashboard' for it in items) else 1)
-"
-  found=$?
-  set -e
-  if [[ $found -ne 0 ]]; then
-    info "Server-side deletion confirmed via list (attempt ${i})."
-    gone="yes"
-    break
-  fi
-  if [[ $i -lt 10 ]]; then
-    warn "Dashboard still in list (attempt ${i}/10), retrying in 3s..."
-    sleep 3
-  fi
-done
-[[ "$gone" == "yes" ]] || fail "Dashboard 'Roundtrip Import Test Dashboard' still returned by list after 10 attempts"
+assert_gone_from_list "Dashboard" "$IDENTIFIER" extensions-id \
+  dash0 dashboards list --dataset "$DATASET" -o json --limit 500
+gone="yes"
 
 info "=== dash0_dashboard import roundtrip test PASSED ==="

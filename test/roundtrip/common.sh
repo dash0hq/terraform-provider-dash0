@@ -630,6 +630,93 @@ assert_plan_has_changes() {
     || fail "Expected tofu plan to report changes for ${what}, got exit code ${exit_code}."
 }
 
+# Polls a `list -o json` command until the asset with the given identifier is
+# no longer listed, tolerating the list endpoint's caching lag. Only a listing
+# that proves the asset is absent counts as deleted. These are retried, and
+# fail the test after 10 attempts:
+#   - a failed list call;
+#   - output that is not a JSON list of objects (an empty `{}` included);
+#   - a full page, when the command passes `--limit N` and N items come back,
+#     because the asset could be on a later page;
+#   - a non-empty list in which no item carries the identifier field at all,
+#     which means the response changed shape rather than lost the asset.
+# The same rules as assert_tsa_deleted_via_list.
+# Usage: assert_gone_from_list <what> <identifier> <match> <list command...>
+#   match: id             the item's top-level `id` (check rules)
+#          extensions-id  `metadata.dash0Extensions.id` (dashboards)
+#          labels         `metadata.labels` `dash0.com/origin` or `dash0.com/id`
+assert_gone_from_list() {
+  local what="$1" target="$2" match="$3"
+  shift 3
+  local listing list_rc state page_limit=0 prev=""
+  for arg in "$@"; do
+    [[ "$prev" == "--limit" ]] && page_limit="$arg"
+    prev="$arg"
+  done
+  for i in $(seq 1 10); do
+    state="list-failed"
+    set +e
+    listing="$("$@")"
+    list_rc=$?
+    if [[ $list_rc -eq 0 ]]; then
+      state="$(printf '%s' "$listing" | python3 -c '
+import json, sys
+
+target, match, page_limit = sys.argv[1], sys.argv[2], int(sys.argv[3])
+
+def identifiers(item):
+    metadata = item.get("metadata")
+    metadata = metadata if isinstance(metadata, dict) else {}
+    if match == "id":
+        return {item["id"]} if "id" in item else set()
+    if match == "extensions-id":
+        extensions = metadata.get("dash0Extensions")
+        if isinstance(extensions, dict) and "id" in extensions:
+            return {extensions["id"]}
+        return set()
+    labels = metadata.get("labels")
+    labels = labels if isinstance(labels, dict) else {}
+    return {labels[k] for k in ("dash0.com/origin", "dash0.com/id") if k in labels}
+
+try:
+    items = json.load(sys.stdin)
+except Exception:
+    print("unparseable")
+    sys.exit()
+if not isinstance(items, list) or not all(isinstance(it, dict) for it in items):
+    print("not-a-list-of-objects")
+    sys.exit()
+if page_limit and len(items) >= page_limit:
+    print("full-page")
+    sys.exit()
+found = [identifiers(it) for it in items]
+if any(target in ids for ids in found):
+    print("listed")
+elif items and not any(found):
+    print("no-identifiers")
+else:
+    print("gone")
+' "$target" "$match" "$page_limit")"
+      [[ -n "$state" ]] || state="check-failed"
+    fi
+    set -e
+
+    if [[ "$state" == "gone" ]]; then
+      info "Server-side deletion confirmed via list (attempt ${i})."
+      return 0
+    fi
+    if [[ $i -lt 10 ]]; then
+      if [[ "$state" == "listed" ]]; then
+        warn "${what} still in list (attempt ${i}/10), retrying in 3s..."
+      else
+        warn "The listing cannot confirm the ${what} deletion (${state}, attempt ${i}/10), retrying in 3s..."
+      fi
+      sleep 3
+    fi
+  done
+  fail "${what} '${target}' was not confirmed deleted after 10 attempts (last result: ${state})"
+}
+
 # Fails unless the dash0 CLI reports the given dash0.com/enabled value for a
 # spam filter.
 # Usage: assert_spam_filter_enabled_via_cli <origin> <true|false>

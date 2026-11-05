@@ -28,7 +28,37 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 WORK_DIR="$(mktemp -d)"
-trap 'rm -rf "$WORK_DIR"' EXIT
+# A per-run display name keeps runs that share the dataset, concurrent or
+# earlier, from finding, importing or deleting each other's views.
+VIEW_NAME="Roundtrip Import Test View $(date +%s)-${RANDOM}"
+IDENTIFIER=""
+gone=""
+
+discover_identifier() {
+  dash0 views list --dataset "$DATASET" -o json --limit 500 \
+    | python3 -c "
+import json, sys
+items = json.load(sys.stdin)
+for it in items:
+    if it.get('spec', {}).get('display', {}).get('name') == sys.argv[1]:
+        labels = it.get('metadata', {}).get('labels', {}) or {}
+        print(labels.get('dash0.com/origin') or labels.get('dash0.com/id') or '')
+        break
+" "$VIEW_NAME"
+}
+
+cleanup() {
+  if [[ "$gone" != "yes" ]]; then
+    [[ -n "$IDENTIFIER" ]] || IDENTIFIER="$(discover_identifier 2>/dev/null)" || true
+    if [[ -n "$IDENTIFIER" ]]; then
+      warn "Deleting view ${IDENTIFIER} created by this run..."
+      dash0 views delete "$IDENTIFIER" --dataset "$DATASET" --force \
+        || warn "Could not delete view ${IDENTIFIER}. Delete it by hand."
+    fi
+  fi
+  rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT
 
 info "=== Roundtrip test: terraform import (dash0_view) ==="
 info "Working directory: ${WORK_DIR}"
@@ -42,7 +72,7 @@ write_provider_tf "$WORK_DIR"
 # ---------------------------------------------------------------------------
 # Step 1: Create view via dash0 CLI (out-of-band, no Terraform).
 # ---------------------------------------------------------------------------
-info "Step 1: Creating view via dash0 CLI..."
+info "Step 1: Creating view via dash0 CLI (name ${VIEW_NAME})..."
 
 cat > "${WORK_DIR}/view.yaml" <<YAMLEOF
 kind: Dash0View
@@ -52,7 +82,7 @@ metadata:
     "dash0.com/dataset": "${DATASET}"
 spec:
   display:
-    name: Roundtrip Import Test View
+    name: ${VIEW_NAME}
     folder: []
   type: spans
   permissions:
@@ -95,17 +125,8 @@ info "View created via CLI."
 # ---------------------------------------------------------------------------
 info "Step 2: Discovering identifier via dash0 CLI..."
 
-IDENTIFIER="$(dash0 views list --dataset "$DATASET" -o json --limit 500 \
-  | python3 -c "
-import json, sys
-items = json.load(sys.stdin)
-for it in items:
-    if it.get('spec', {}).get('display', {}).get('name') == 'Roundtrip Import Test View':
-        labels = it.get('metadata', {}).get('labels', {}) or {}
-        print(labels.get('dash0.com/origin') or labels.get('dash0.com/id') or '')
-        break
-")"
-[[ -n "$IDENTIFIER" ]] || fail "Could not discover identifier for roundtrip-import-view"
+IDENTIFIER="$(discover_identifier)"
+[[ -n "$IDENTIFIER" ]] || fail "Could not discover identifier for ${VIEW_NAME}"
 info "Identifier: ${IDENTIFIER}"
 
 if [[ "$IDENTIFIER" == tf_* ]]; then
@@ -201,28 +222,8 @@ TF_VAR_dataset="$DATASET" tf_destroy "$WORK_DIR"
 info "Step 8b: Verifying server-side deletion via list..."
 # The get endpoint has a longer cache TTL than list; use list (which the test
 # already relies on in step 2) for prompt post-destroy verification.
-gone=""
-for i in $(seq 1 10); do
-  set +e
-  dash0 views list --dataset "$DATASET" -o json --limit 500 \
-    | python3 -c "
-import json, sys
-items = json.load(sys.stdin)
-target = '$IDENTIFIER'
-sys.exit(0 if any((it.get('metadata', {}).get('labels', {}) or {}).get('dash0.com/origin') == target or (it.get('metadata', {}).get('labels', {}) or {}).get('dash0.com/id') == target for it in items) else 1)
-"
-  found=$?
-  set -e
-  if [[ $found -ne 0 ]]; then
-    info "Server-side deletion confirmed via list (attempt ${i})."
-    gone="yes"
-    break
-  fi
-  if [[ $i -lt 10 ]]; then
-    warn "View still in list (attempt ${i}/10), retrying in 3s..."
-    sleep 3
-  fi
-done
-[[ "$gone" == "yes" ]] || fail "View '${IDENTIFIER}' still returned by list after 10 attempts"
+assert_gone_from_list "View" "$IDENTIFIER" labels \
+  dash0 views list --dataset "$DATASET" -o json --limit 500
+gone="yes"
 
 info "=== dash0_view import roundtrip test PASSED ==="
