@@ -36,6 +36,11 @@ output "stack_id" {
   value = aws_cloudformation_stack.dash0_integration.id
 }
 
+output "integration_id" {
+  description = "The Dash0 AWS integration ID."
+  value       = aws_cloudformation_stack.dash0_integration.outputs["IntegrationId"]
+}
+
 output "stack_outputs" {
   value = aws_cloudformation_stack.dash0_integration.outputs
 }
