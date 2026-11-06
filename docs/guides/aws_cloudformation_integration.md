@@ -55,6 +55,85 @@ The `CAPABILITY_AUTO_EXPAND` capability is required because the v3 template incl
 
 CloudFormation expects `Regions` to be a `CommaDelimitedList`, so the Terraform list variable is joined into a comma-separated string before being passed to the stack.
 
+## CloudFormation outputs
+
+The integration template exposes the following outputs through `aws_cloudformation_stack.dash0_integration.outputs`:
+
+| Output | Description | Availability |
+|--------|-------------|--------------|
+| `IntegrationId` | UUID of the AWS integration registered in Dash0. Use this as `dash0_aws_metric_scrape_config.integration_id`. | Always |
+| `ReadOnlyRoleARN` | ARN of the read-only IAM role used by Dash0. | Always |
+| `ResourcesInstrumentationRoleARN` | ARN of the Lambda instrumentation IAM role. | When `EnableLambdaIntegration` is `"true"` |
+| `RegionalStackSetId` | ID of the StackSet that deploys the per-region Lambda integration resources. | When `EnableLambdaIntegration` is `"true"` |
+| `TemplateVersion` | Version of the deployed onboarding template. | Always |
+
+`IntegrationId` is the Dash0 integration UUID, not the CloudFormation stack ID, AWS account ID, or `TechnicalId` IAM external ID.
+The output key is case-sensitive.
+The example exposes it as a Terraform output:
+
+```terraform
+output "integration_id" {
+  description = "The Dash0 AWS integration ID."
+  value       = aws_cloudformation_stack.dash0_integration.outputs["IntegrationId"]
+}
+```
+
+After applying, read it with `terraform output -raw integration_id`.
+For an existing stack, check the **Outputs** tab in the CloudFormation console for `IntegrationId`.
+If it is missing, update the stack to a template version that exposes this output.
+
+## Configure CloudWatch metric scraping with Terraform
+
+Set `EnableMetricsScraping` to `"true"` on the stack, then use [`dash0_aws_metric_scrape_config`](https://dash0.com/docs/dash0/miscellaneous/tooling/terraform-provider-dash0/resources/aws-metric-scrape-config) to choose the namespaces and metrics to collect.
+Add the Dash0 provider to your existing `required_providers` block alongside the AWS provider:
+
+```terraform
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+    dash0 = {
+      source = "dash0hq/dash0"
+    }
+  }
+}
+
+provider "dash0" {}
+```
+
+Configure the Dash0 provider with `DASH0_API_URL` and `DASH0_AUTH_TOKEN`, as described in the [provider configuration documentation](https://registry.terraform.io/providers/dash0hq/dash0/latest/docs).
+`DASH0_API_URL` is the Dash0 API endpoint, not the regional ingress base URL passed to the CloudFormation template.
+Use credentials for the same Dash0 organization as the stack's `ApiKey`.
+
+Reference the stack output directly instead of copying a UUID:
+
+```terraform
+resource "dash0_aws_metric_scrape_config" "prod" {
+  integration_id               = aws_cloudformation_stack.dash0_integration.outputs["IntegrationId"]
+  aws_metric_scrape_config_yaml = <<-YAML
+    apiVersion: dash0.com/v1alpha1
+    kind: Dash0AwsMetricScrapeConfig
+    spec:
+      namespaces:
+        - namespace: AWS/SQS
+          metrics:
+            - ApproximateAgeOfOldestMessage
+            - NumberOfMessagesSent
+  YAML
+}
+```
+
+This reference makes Terraform wait for the stack to finish registering the integration before applying its scrape configuration.
+No separate `depends_on` or manual UUID lookup is needed when both resources are in the same configuration.
+The scrape configuration belongs to the integration's dataset, selected through the stack's `Dataset` parameter.
+Declare only one scrape configuration per integration, because each apply replaces the complete configuration.
+Destroying the scrape configuration stops scraping but does not delete the integration.
+
+If the stack and scrape configuration are managed in separate Terraform configurations, expose `integration_id` from the stack configuration and pass that value to the configuration managing `dash0_aws_metric_scrape_config`.
+Apply the stack configuration first, because Terraform does not infer dependencies across separate states.
+
 ## CloudFormation Parameters
 
 | Parameter | Description | Required | Default |
