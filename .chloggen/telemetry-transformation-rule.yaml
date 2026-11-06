@@ -1,8 +1,7 @@
 change_type: enhancement
 component: telemetry_transformation_rules
 note: "Manage telemetry transformation rules with `dash0_telemetry_transformation_rule`."
-# TODO: Add the provider PR number when the PR is opened.
-issues: []
+issues: [213]
 subtext: |
   Declare ordered OTTL transformations and stored OTLP/JSON examples in YAML, or import an existing rule with its dataset and origin or ID.
   Set `spec.enabled` explicitly. Changing the dataset replaces the rule with a fresh Terraform origin.
