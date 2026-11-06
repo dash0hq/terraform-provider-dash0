@@ -111,6 +111,7 @@ else
     test_time_series_aggregation.sh
     test_sampling_rule.sh
     test_signal_to_metrics.sh
+    test_telemetry_transformation_rule.sh
     test_aws_metric_scrape_config.sh
     test_import_check_rule.sh
     test_import_dashboard.sh
@@ -126,6 +127,7 @@ else
     test_import_time_series_aggregation.sh
     test_import_sampling_rule.sh
     test_import_signal_to_metrics.sh
+    test_import_telemetry_transformation_rule.sh
     test_import_aws_metric_scrape_config.sh
     test_actions.sh
   )
@@ -140,8 +142,8 @@ FAILED_NAMES=()
 # A test exits SKIP_EXIT_CODE when it cannot run at all: the time series
 # aggregation tests when the credential lacks the organization-admin role, the
 # sampling rule tests when the credential may not manage sampling rules, the
-# signal-to-metrics tests when the credential may not manage signal-to-metrics
-# rules, and the auth token tests when the API does not serve /api/auth-tokens
+# signal-to-metrics and telemetry transformation tests when the credential
+# lacks access to their rules, and the auth token tests when the API does not serve /api/auth-tokens
 # yet or the credential may not manage auth tokens. Skips are counted and named separately so they
 # never read as passes in the summary.
 SKIP_EXIT_CODE=77
@@ -156,6 +158,8 @@ SKIPPABLE_TESTS=(
   test_import_sampling_rule.sh
   test_signal_to_metrics.sh
   test_import_signal_to_metrics.sh
+  test_telemetry_transformation_rule.sh
+  test_import_telemetry_transformation_rule.sh
   test_auth_token.sh
   test_import_auth_token.sh
   test_aws_metric_scrape_config.sh

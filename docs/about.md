@@ -1,6 +1,6 @@
 # About the Dash0 Terraform Provider
 
-The Dash0 Terraform Provider manages Dash0 observability assets — dashboards, alerting rules, saved views, synthetic checks, notification channels, spam filters, time series aggregations, sampling rules, signal-to-metrics rules, teams, datasets, auth tokens, and AWS metric scrape configurations — as Terraform resources.
+The Dash0 Terraform Provider manages Dash0 observability assets as Terraform resources, including dashboards, alerting rules, saved views, synthetic checks, notification channels, spam filters, time series aggregations, sampling rules, signal-to-metrics rules, telemetry transformation rules, teams, datasets, auth tokens, and AWS metric scrape configurations.
 It is published on the [Terraform](https://registry.terraform.io/providers/dash0hq/dash0/latest) and [OpenTofu](https://search.opentofu.org/provider/dash0hq/dash0/latest) registries.
 
 ## Managed assets
@@ -17,11 +17,16 @@ Each Dash0 asset kind is exposed as a Terraform resource whose primary attribute
 - [`dash0_time_series_aggregation`](resources/time-series-aggregation) — metric rollups that cut cardinality and query cost.
 - [`dash0_sampling_rule`](resources/sampling-rule) — trace sampling rules that decide which traces Dash0 keeps.
 - [`dash0_signal_to_metrics`](resources/signal-to-metrics) — rules that turn matching spans and logs into metrics at ingestion.
+- [`dash0_telemetry_transformation_rule`](resources/telemetry-transformation-rule): ordered OTTL transformations of telemetry, with stored OTLP/JSON examples.
 - [`dash0_team`](resources/team) — organization-level teams that group members and own assets.
 - [`dash0_dataset`](resources/dataset) — organization-level datasets with retention, privacy, and redaction settings.
 - [`dash0_auth_token`](resources/auth-token) — organization-level auth tokens for telemetry ingestion and the Dash0 API.
 - [`dash0_slo`](resources/slo) — service level objectives defined using [OpenSLO](https://openslo.com) v1 YAML.
 - [`dash0_aws_metric_scrape_config`](resources/aws-metric-scrape-config) — the CloudWatch namespaces and metrics Dash0 scrapes for an AWS integration.
+
+Telemetry transformation rules use POST to create a rule with a fresh Terraform origin and PUT to update an existing rule, not to upsert it.
+Changing a telemetry transformation rule's dataset replaces it under a new origin.
+See the [import guide](guides/import-existing-assets#import-a-telemetry-transformation-rule) for exporting the full rule, including its examples, before adoption.
 
 ## Actions
 
