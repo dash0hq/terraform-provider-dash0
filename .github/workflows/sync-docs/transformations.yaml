@@ -261,6 +261,11 @@ files:
     tags:
       - terraform
 
+  - source: docs/resources/telemetry_transformation_rule.md
+    target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/telemetry-transformation-rule.md
+    title: dash0_telemetry_transformation_rule
+    description: Terraform resource for Dash0 telemetry transformation rules with ordered OTTL transformations and stored OTLP/JSON examples.
+
   - source: docs/resources/time_series_aggregation.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/time-series-aggregation.md
     title: dash0_time_series_aggregation

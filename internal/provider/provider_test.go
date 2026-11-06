@@ -477,7 +477,7 @@ func TestDash0Provider_DataSources(t *testing.T) {
 func TestDash0Provider_Resources(t *testing.T) {
 	p := &dash0Provider{}
 	resources := p.Resources(context.Background())
-	assert.Len(t, resources, 17)
+	assert.Len(t, resources, 18)
 }
 
 // TestResolveAuthInfo_Precedence pins the precedence order in a single place
