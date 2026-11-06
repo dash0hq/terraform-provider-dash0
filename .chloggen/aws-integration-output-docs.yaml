@@ -1,0 +1,4 @@
+change_type: enhancement
+component: aws_metric_scrape_config
+note: Document how to connect a CloudFormation-deployed AWS integration to its Terraform metric scrape configuration using the IntegrationId stack output.
+issues: [200]
