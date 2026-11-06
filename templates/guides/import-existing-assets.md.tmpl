@@ -2,7 +2,7 @@
 page_title: "Guide: Import existing Dash0 assets into Terraform"
 subcategory: ""
 description: |-
-  Adopt dashboards, check rules, views, synthetic checks, recording rules, notification channels, spam filters, teams, datasets, auth tokens, SLOs, time series aggregations, sampling rules, signal-to-metrics rules, and Agent0 custom skills that already exist in Dash0 into Terraform state, without recreating them.
+  Adopt dashboards, check rules, views, synthetic checks, recording rules, notification channels, spam filters, teams, datasets, auth tokens, SLOs, time series aggregations, sampling rules, signal-to-metrics rules, telemetry transformation rules, and Agent0 custom skills that already exist in Dash0 into Terraform state, without recreating them.
 ---
 
 # Import existing Dash0 assets into Terraform
@@ -25,6 +25,7 @@ Under the JSON list output, the exact field varies by asset kind:
 | Recording rules | `.metadata.labels["dash0.com/id"]` |
 | Sampling rules, signal-to-metrics rules, SLOs, spam filters, synthetic checks, views | `.metadata.labels["dash0.com/origin"]` (API-created) or `.metadata.labels["dash0.com/id"]` (UI-created; the origin label is absent) |
 | Teams | `.id` (top-level; teams have no `metadata` wrapper in the list response) |
+| Telemetry transformation rules | `.metadata.labels["dash0.com/origin"]` when set, or `.metadata.labels["dash0.com/id"]`; either works as the import ID |
 | Time series aggregations | `.metadata.labels["dash0.com/origin"]` (always set; the origin label is mandatory on every aggregation) |
 | Auth tokens | `.metadata.labels["dash0.com/id"]` (a UUID), or `.metadata.labels["dash0.com/origin"]` when set; either works as the import ID |
 | Agent0 custom skills | `.metadata.labels["dash0.com/origin"]` when set, or `.metadata.labels["dash0.com/id"]` (UI-created skills have no origin); either works as the import ID |
@@ -58,6 +59,15 @@ Use the value in the `ORIGIN` column when it is populated; when it is empty (typ
 The same pattern works for every dataset-scoped asset kind — `dash0 views list`, `dash0 check-rules list`, `dash0 synthetic-checks list`, `dash0 recording-rules list`, `dash0 slos list`, `dash0 -X spam-filters list` (experimental commands need `-X` or `--experimental`), and `dash0 tsa list` (the alias for `dash0 time-series-aggregations list`; every time series aggregation command requires the organization-admin role).
 The CLI has no sampling-rules command yet; list sampling rules with the raw API command `dash0 -X api /api/sampling-rules --dataset "$DATASET"`, which prints them under `.samplingRules`.
 The CLI has no signal-to-metrics command yet; list signal-to-metrics rules with the raw API command `dash0 -X api /api/signal-to-metrics --dataset "$DATASET"`, which prints them under `.signalToMetrics`.
+Telemetry transformation rules also use the raw API command, not a dedicated CLI subcommand:
+
+```sh
+dash0 -X api /api/telemetry-transformation-rules --dataset "$DATASET" \
+  | jq -r '.telemetryTransformationRules[] | [.spec.display.name, (.metadata.labels["dash0.com/origin"] // .metadata.labels["dash0.com/id"])] | @tsv'
+```
+
+The list response omits `spec.examples`.
+Use it only to discover identifiers, then export each rule with a full GET as described below.
 Notification channels are organization-scoped, do not accept `--limit`, and do not offer `-o wide`; use `-o json` or `-o table` instead.
 Agent0 custom skills are organization-scoped too; list them with `dash0 -X agent0 skills list -o json`.
 
@@ -134,6 +144,56 @@ For one or a handful of assets, the imperative flow is:
 
 Repeat for each asset.
 
+### Import a telemetry transformation rule
+
+For [`dash0_telemetry_transformation_rule`](../resources/telemetry-transformation-rule), set `$IDENTIFIER` to the rule's origin or server-assigned ID from the list response.
+Export the full rule, including its stored examples, through the raw API command.
+Remove the exported `dash0.com/updated-at` annotation before using the file as managed configuration:
+
+```sh
+dash0 -X api "/api/telemetry-transformation-rules/$IDENTIFIER" --dataset "$DATASET" \
+  | jq 'del(.metadata.annotations["dash0.com/updated-at"])' > telemetry-transformation-rule.yaml
+```
+
+The command writes JSON, which is also valid YAML.
+Keep the `examples[].otlp` values as JSON objects, not JSON-encoded strings.
+The removed annotation is a concurrency token; retaining a copied timestamp can make a later update fail with `superseded_version`.
+
+Declare the resource using the same dataset as the existing rule:
+
+```terraform
+resource "dash0_telemetry_transformation_rule" "normalize_user_id" {
+  dataset                            = "default"
+  telemetry_transformation_rule_yaml = file("${path.module}/telemetry-transformation-rule.yaml")
+}
+```
+
+Import by origin or ID using the `dataset,identifier` format:
+
+```sh
+terraform import dash0_telemetry_transformation_rule.normalize_user_id "$DATASET,$IDENTIFIER"
+```
+
+Check that the imported configuration has no changes before editing it:
+
+```sh
+terraform plan -detailed-exitcode
+```
+
+Keep `kind: Dash0TelemetryTransformationRule` and an explicit `spec.enabled` in the document.
+For a log rule, use `spec.signal: logs` and `spec.context: log`.
+Each entry of `spec.transformations` needs a `name` and an ordered `statements` list.
+Transformations and their statements run in the order written, so do not sort these arrays.
+`spec.conditions` is optional; `spec.priority` defaults to `200` when omitted.
+
+~> **Note:** A PUT replaces the whole spec. Keep `spec.examples` in the managed file to preserve them, change them deliberately to update them, or omit them deliberately to delete them. Never use a list entry as the managed document, because the list omits examples.
+
+Examples are stored configuration, not ingested telemetry, and telemetry retention does not remove them.
+Use synthetic data in examples, and keep test rules disabled with `spec.enabled: false` so they do not change ingestion.
+Terraform creates new rules with POST and a fresh `tf_`-prefixed origin in `metadata.labels`.
+Updates use PUT on an existing origin or ID, never an upsert.
+Changing `dataset` replaces the rule with a fresh origin rather than moving the imported rule.
+
 ## Step 2 (many assets): declarative `import` blocks
 
 For dozens of assets, Terraform 1.5+'s declarative `import` block plus config generation removes the resource-shell boilerplate.
@@ -196,7 +256,7 @@ terraform import dash0_auth_token.ingest "<id-or-origin>"
 terraform import dash0_custom_skill.incident_response "<id-or-origin>"
 ```
 
-Every other asset kind — dashboards, check rules, views, synthetic checks, recording rules, spam filters, SLOs, time series aggregations, sampling rules, and signal-to-metrics rules — uses the `dataset,identifier` shape.
+Every other asset kind, including telemetry transformation rules, uses the `dataset,identifier` shape.
 
 ## Verifying imported resources
 
@@ -206,6 +266,7 @@ Beyond that, three things are worth spot-checking:
 - **Identifier preservation.** `terraform state show dash0_dashboard.checkout_overview` should print the identifier you imported (`origin = "..."`), not a fresh `tf_`-prefixed value.
 - **`id` and `url` attributes.** Both are computed after import — `id` is Dash0's server-assigned UUID, `url` deep-links into the Dash0 web app.
   Neither round-trips into Dash0; they exist so other resources can reference the imported asset.
+  Telemetry transformation rules expose computed `origin` and `id` attributes, but no `url` attribute.
 - **Cross-resource references.** A `dash0_check_rule` that names a `dash0_notification_channel` by its `id` in the `dash0.com/notification-channel-ids` annotation still resolves after an import — the channel's `id` attribute is populated during import, just as it is after a Terraform-driven create.
 - **API-managed `spec.routing.assets` on imported channels.** An imported `dash0_notification_channel` that check rules or synthetic checks bind to shows a populated `spec.routing.assets` — do not copy it into your configuration.
   It is a server-derived back-reference: the API discards any value supplied on write (the provider warns if you set it), and the provider excludes it from drift comparison.

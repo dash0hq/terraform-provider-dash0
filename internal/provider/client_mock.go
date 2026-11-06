@@ -363,6 +363,26 @@ func (m *MockClient) ResolveSignalToMetrics(ctx context.Context, origin string, 
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockClient) CreateTelemetryTransformationRule(ctx context.Context, origin, ruleJSON, dataset string) (string, error) {
+	args := m.Called(ctx, origin, ruleJSON, dataset)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockClient) GetTelemetryTransformationRule(ctx context.Context, originOrID, dataset string) (string, error) {
+	args := m.Called(ctx, originOrID, dataset)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockClient) UpdateTelemetryTransformationRule(ctx context.Context, originOrID, ruleJSON, dataset string) error {
+	args := m.Called(ctx, originOrID, ruleJSON, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteTelemetryTransformationRule(ctx context.Context, originOrID, dataset string) error {
+	args := m.Called(ctx, originOrID, dataset)
+	return args.Error(0)
+}
+
 func (m *MockClient) SendLogEvent(ctx context.Context, event client.LogEvent, dataset string) error {
 	args := m.Called(ctx, event, dataset)
 	return args.Error(0)
