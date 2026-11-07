@@ -473,7 +473,7 @@ func TestDash0Provider_Configure_MaxRetries(t *testing.T) {
 func TestDash0Provider_DataSources(t *testing.T) {
 	p := &dash0Provider{}
 	dataSources := p.DataSources(context.Background())
-	assert.Empty(t, dataSources)
+	assert.Len(t, dataSources, 1)
 }
 
 func TestDash0Provider_Resources(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
+	dash0 "github.com/dash0hq/dash0-api-client-go"
 	"github.com/dash0hq/terraform-provider-dash0/internal/provider/client"
 )
 
@@ -246,6 +247,12 @@ func (m *MockClient) DeleteTeam(ctx context.Context, origin string) error {
 func (m *MockClient) ResolveTeam(ctx context.Context, origin string) (string, error) {
 	args := m.Called(ctx, origin)
 	return args.String(0), args.Error(1)
+}
+
+func (m *MockClient) ListTeams(ctx context.Context) ([]*dash0.TeamsListItem, error) {
+	args := m.Called(ctx)
+	teams, _ := args.Get(0).([]*dash0.TeamsListItem)
+	return teams, args.Error(1)
 }
 
 func (m *MockClient) CreateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error {

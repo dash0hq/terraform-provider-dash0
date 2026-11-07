@@ -48,6 +48,7 @@ coverage:
   include:
     - docs/*.md
     - docs/actions/*.md
+    - docs/data-sources/*.md
     - docs/guides/*.md
     - docs/resources/*.md
   ignore:
@@ -63,6 +64,7 @@ nav:
   title: Dash0 Terraform Provider
   groupTitles:
     resources: Resources
+    data-sources: Data Sources
     actions: Actions
     guides: Guides
 
@@ -96,6 +98,11 @@ files:
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/guides/aws-cloudformation-integration.md
     title: AWS integration via CloudFormation
     description: Deploy the Dash0 AWS integration using Terraform's aws_cloudformation_stack resource with the official Dash0 CloudFormation template.
+
+  - source: docs/data-sources/team.md
+    target: dash0/miscellaneous/tooling/terraform-provider-dash0/data-sources/team.md
+    title: dash0_team
+    description: Terraform data source that looks up a Dash0 team by display name or id, so a team Terraform does not manage, such as one synced from your identity provider, can be granted access to a dataset.
 
   - source: docs/actions/deployment_event.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/actions/deployment-event.md

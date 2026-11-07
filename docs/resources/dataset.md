@@ -71,8 +71,9 @@ spec:
         toolCalls: disabled
         errors: disabled
   permissions:
-    # teamId is the id of a team, for example dash0_team.backend.id.
-    - teamId: 00000000-0000-0000-0000-000000000000
+    # teamId is the id of a team, for example dash0_team.backend.id, or
+    # data.dash0_team.payments.id for a team that Terraform does not manage.
+    - teamId: team_01h455vb4pex5vsknk084sn02q
       actions: [dataset:read, dataset:delete]
     - userId: user_01ABCDEF
       actions: [dataset:read]

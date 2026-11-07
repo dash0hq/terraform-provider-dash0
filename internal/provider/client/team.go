@@ -117,6 +117,18 @@ func (c *dash0Client) ResolveTeam(ctx context.Context, origin string) (string, e
 	return dash0.GetTeamID(def), nil
 }
 
+// ListTeams returns every team in the organization. The API takes no filters
+// and does not paginate, so callers match on the returned items.
+func (c *dash0Client) ListTeams(ctx context.Context) ([]*dash0.TeamsListItem, error) {
+	teams, err := c.inner.ListTeams(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	tflog.Debug(ctx, fmt.Sprintf("Listed %d teams", len(teams)))
+	return teams, nil
+}
+
 // unmarshalTeam parses a JSON string into a TeamDefinitionV1Alpha1.
 func unmarshalTeam(jsonStr string) (*dash0.TeamDefinitionV1Alpha1, error) {
 	var def dash0.TeamDefinitionV1Alpha1

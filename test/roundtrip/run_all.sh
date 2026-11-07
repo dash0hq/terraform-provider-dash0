@@ -106,6 +106,7 @@ else
     test_spam_filter_v1alpha2.sh
     test_spam_filter_concurrent.sh
     test_team.sh
+    test_data_source_team.sh
     test_dataset.sh
     test_auth_token.sh
     test_time_series_aggregation.sh
