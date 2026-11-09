@@ -140,6 +140,11 @@ type Client interface {
 	// Dash0 web app does not expose a per-rule page).
 	ResolveSignalToMetrics(ctx context.Context, origin string, dataset string) (string, error)
 
+	CreateTelemetryTransformationRule(ctx context.Context, origin string, ruleJSON string, dataset string) (string, error)
+	GetTelemetryTransformationRule(ctx context.Context, originOrID string, dataset string) (string, error)
+	UpdateTelemetryTransformationRule(ctx context.Context, originOrID string, ruleJSON string, dataset string) error
+	DeleteTelemetryTransformationRule(ctx context.Context, originOrID string, dataset string) error
+
 	// SendLogEvent emits a single log record to the Dash0 OTLP/HTTP ingress
 	// endpoint. Unlike every other method on this interface it does not manage
 	// an asset: log events are point-in-time telemetry with no identity, no

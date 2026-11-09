@@ -1,0 +1,40 @@
+kind: Dash0TelemetryTransformationRule
+metadata:
+  name: normalize-user-id
+spec:
+  # Keep disabled until the transformations have been checked against your telemetry.
+  enabled: false
+  display:
+    name: Normalize user IDs in logs
+  signal: logs
+  context: log
+  priority: 200
+  conditions:
+    - 'attributes["userId"] != nil'
+  transformations:
+    - name: Copy the user ID
+      statements:
+        - 'set(attributes["user.id"], attributes["userId"])'
+        - 'set(attributes["user.id.normalized"], true)'
+    - name: Remove the legacy attribute
+      statements:
+        - 'delete_key(attributes, "userId")'
+  examples:
+    - name: Log with a legacy user ID
+      otlp:
+        resourceLogs:
+          - resource:
+              attributes:
+                - key: service.name
+                  value:
+                    stringValue: example-service
+            scopeLogs:
+              - scope:
+                  name: example
+                logRecords:
+                  - body:
+                      stringValue: Example log
+                    attributes:
+                      - key: userId
+                        value:
+                          stringValue: example-user
