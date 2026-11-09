@@ -33,6 +33,7 @@ The valid actions are:
 | `ingest:metrics` | | Ingestion of metrics |
 | `ingest:spans` | | Ingestion of spans |
 | `ingest:profiles` | | Ingestion of profiles |
+| `ingest:session-replays` | | Ingestion of session replays from the Dash0 web SDK |
 
 There are two ways to limit the signals of an ingestion token:
 
@@ -40,6 +41,9 @@ There are two ways to limit the signals of an ingestion token:
 - Use `ingest:*` with `spec.scope.signals`, as in the example above. This is the **Signal types** field in the Dash0 UI.
 
 Profiles need `ingest:profiles` or `ingest:*`.
+
+Session replays need `ingest:session-replays` or `ingest:*`; `ingest:logs` does not cover them.
+A token that restricts `spec.scope.signals` also needs `sessionReplays` in its signal types.
 
 ~> **Note:** A token without the action for a signal drops that signal's data without an error.
 
