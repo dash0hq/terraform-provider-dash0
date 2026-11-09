@@ -19,7 +19,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 WORK_DIR="$(mktemp -d)"
-TEAM_DISPLAY_NAME="roundtrip-ds-team-$$-$RANDOM"
+# Not a slug on purpose: the CLI sets metadata.name to the slug of the display
+# name, so a slug-shaped name would hide a lookup on the wrong field.
+TEAM_DISPLAY_NAME="Roundtrip DS Team $$-$RANDOM"
 IDENTIFIER=""
 gone="no"
 
