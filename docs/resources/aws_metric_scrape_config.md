@@ -35,6 +35,11 @@ See [About AWS Monitoring](https://dash0.com/docs/dash0/infrastructure/aws/about
 #
 # Destroying this resource clears the scrape configuration (Dash0 stops
 # scraping CloudWatch metrics for the integration); the integration stays.
+#
+# For an integration deployed with aws_cloudformation_stack, replace the UUID
+# below with aws_cloudformation_stack.dash0_integration.outputs["IntegrationId"].
+# IntegrationId is a Dash0 UUID, not the stack ID or TechnicalId IAM external ID.
+# See the AWS integration via CloudFormation guide for the complete setup.
 resource "dash0_aws_metric_scrape_config" "prod" {
   integration_id                = "27755ed0-0009-422d-8c11-19c6dd72df98"
   aws_metric_scrape_config_yaml = <<-YAML
