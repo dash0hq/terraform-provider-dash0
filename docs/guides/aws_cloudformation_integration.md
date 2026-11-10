@@ -172,6 +172,82 @@ Apply the stack configuration first, because Terraform does not infer dependenci
    terraform destroy
    ```
 
+## Avoid repeated API-key changes
+
+CloudFormation hides the integration's API key when Terraform reads the stack, returning `****` instead of the token.
+As a result, Terraform can report an API-key change even when you have not changed the token.
+This is a [known AWS provider issue](https://github.com/hashicorp/terraform-provider-aws/issues/29405).
+
+To suppress this change during routine applies, add the following block inside `aws_cloudformation_stack.dash0_integration`:
+
+```terraform
+lifecycle {
+  ignore_changes = [parameters["ApiKey"]]
+}
+```
+
+This rule suppresses the API-key diff, not changes to the rest of the stack.
+It also prevents Terraform from applying a new API key, including one updated in Secrets Manager.
+
+~> **Note:** Before applying any change to this stack, temporarily remove the API-key ignore rule and supply a valid token. Otherwise, Terraform can send the masked value `****` as the API key and the update can fail. This applies to region changes, tags, template updates, and token rotation.
+
+### Update the stack: add a region
+
+Use this sequence whenever you need to update a stack that has the ignore rule above.
+For example, to add `eu-central-1` while keeping `eu-west-1`:
+
+1. **Temporarily remove the API-key ignore rule.**
+   Remove `parameters["ApiKey"]` from `ignore_changes`.
+   If it is the only entry, remove the entire `lifecycle` block shown above.
+   Do not remove `ApiKey` from the `parameters` map.
+
+2. **Make sure Terraform has a valid API key.**
+   Check the value supplied through `api_key` or your secret source, such as Secrets Manager.
+   Use the actual token, not the masked value `****`.
+
+3. **Add the region to your configuration.**
+   Keep the existing regions and append the new one:
+
+   ```hcl
+   regions = ["eu-west-1", "eu-central-1"]
+   ```
+
+4. **Review a fresh plan.**
+   Do not reuse a plan saved before removing the ignore rule.
+
+   ```shell
+   terraform plan
+   ```
+
+   Expect an in-place update to `Regions` and an API-key change, which Terraform normally hides as a sensitive value.
+   The API-key change is expected even if you are reusing the same valid token.
+
+5. **Apply and verify the update.**
+
+   ```shell
+   terraform apply
+   ```
+
+   Wait for the parent CloudFormation stack to reach `UPDATE_COMPLETE`.
+   If the Lambda integration is enabled, also check that the StackSet instance in the added region is `CURRENT` with a detailed status of `SUCCEEDED`.
+
+6. **Restore the API-key ignore rule.**
+   Add the `lifecycle` block above back to the stack resource, then check the plan again:
+
+   ```shell
+   terraform plan
+   ```
+
+   With no other configuration changes, Terraform should now report no changes to this stack.
+   Keep this rule in your configuration for routine applies, and remove it again before the next stack update.
+
+### Rotate the API key
+
+Follow the same sequence, but replace the token in step 2 instead of changing the regions in step 3.
+Keep the old token valid until the stack update completes and you have verified that the integration works with the replacement.
+Then revoke the old token and restore the ignore rule.
+Updating the token in Secrets Manager alone does not update the integration while the rule is enabled.
+
 ## Notes
 
 - The `api_key` variable is marked as `sensitive` so Terraform will not display its value in plan or apply output.
