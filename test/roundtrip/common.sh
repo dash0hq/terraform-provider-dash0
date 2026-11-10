@@ -1249,3 +1249,55 @@ sys.exit(0 if annotations.get("dash0.com/deleted-at") else 1)
 
   fail "Signal-to-metrics rule ${id} still live after ${max_retries} attempts."
 }
+
+# ---------------------------------------------------------------------------
+# Generative AI evaluation helpers.
+# ---------------------------------------------------------------------------
+
+# eval_get <origin-or-id> <dataset>
+#
+# Prints the eval JSON (valid YAML). A soft-deleted eval is still printed, with
+# a dash0.com/deleted-at annotation; only an eval that is gone entirely exits
+# non-zero (404).
+eval_get() {
+  dash0 -X evals get "$1" --dataset "$2" -o json
+}
+
+# assert_eval_deleted <origin-or-id> <dataset>
+#
+# Eval deletes are soft. Succeeds on a tombstone (dash0.com/deleted-at) or a
+# 404; a live eval, or any other failure, fails the test. Retries up to 10
+# times with 3s delay to tolerate eventual consistency.
+assert_eval_deleted() {
+  local id="$1" dataset="$2"
+  local i output rc
+
+  for i in $(seq 1 10); do
+    set +e
+    output="$(eval_get "$id" "$dataset" 2>&1)"
+    rc=$?
+    set -e
+
+    if [[ "$rc" -ne 0 ]]; then
+      if echo "$output" | grep -q "status: 404"; then
+        info "Eval confirmed deleted via API: 404 (attempt ${i})."
+        return 0
+      fi
+      echo "$output"
+      fail "Could not verify deletion of eval ${id}: API call failed with something other than 404 (exit ${rc})."
+    fi
+
+    if printf '%s' "$output" | python3 -c '
+import json, sys
+annotations = (json.load(sys.stdin).get("metadata") or {}).get("annotations") or {}
+sys.exit(0 if annotations.get("dash0.com/deleted-at") else 1)
+'; then
+      info "Eval confirmed deleted via API: tombstone (attempt ${i})."
+      return 0
+    fi
+    warn "Eval still live (attempt ${i}/10), retrying in 3s..."
+    sleep 3
+  done
+
+  fail "Eval ${id} still live after 10 attempts."
+}

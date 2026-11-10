@@ -112,6 +112,7 @@ else
     test_time_series_aggregation.sh
     test_sampling_rule.sh
     test_signal_to_metrics.sh
+    test_eval.sh
     test_aws_metric_scrape_config.sh
     test_custom_skill.sh
     test_import_check_rule.sh
@@ -128,6 +129,7 @@ else
     test_import_time_series_aggregation.sh
     test_import_sampling_rule.sh
     test_import_signal_to_metrics.sh
+    test_import_eval.sh
     test_import_aws_metric_scrape_config.sh
     test_import_custom_skill.sh
     test_actions.sh
