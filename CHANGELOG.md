@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 <!-- next version -->
 
+## 1.24.0
+
+
+### New Components
+
+
+- `evals`: `dash0_eval` manages generative AI evaluations (evals), which use an LLM judge to score GenAI spans. (#218)
+  Changing `metadata.name` or the kind of `spec.judge.output` replaces the eval. Existing evals can be imported with `dataset,identifier`.
+  
+
+- `teams`: Add the `dash0_team` data source to look up a team by display name or id. (#214)
+  Use it to reference a team that Terraform does not manage, such as a team synced from your identity provider, for example as the `teamId` of a grant in a `dash0_dataset`.
+  The lookup fails when no team or more than one team has the display name. Look the team up by id in that case.
+  
+
+
+### Enhancements
+
+
+- `aws_metric_scrape_config`: Document how to connect a CloudFormation-deployed AWS integration to its Terraform metric scrape configuration using the IntegrationId stack output. (#200)
+
 ## 1.23.0
 
 
