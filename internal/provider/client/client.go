@@ -143,6 +143,15 @@ type Client interface {
 	// Dash0 web app does not expose a per-rule page).
 	ResolveSignalToMetrics(ctx context.Context, origin string, dataset string) (string, error)
 
+	CreateEval(ctx context.Context, origin string, evaluationJSON string, dataset string) error
+	GetEval(ctx context.Context, origin string, dataset string) (string, error)
+	UpdateEval(ctx context.Context, origin string, evaluationJSON string, dataset string) error
+	DeleteEval(ctx context.Context, origin string, dataset string) error
+	// ResolveEval returns the server-assigned id of the
+	// generative AI evaluation with the given origin (no deep-link URL — the
+	// Dash0 web app does not expose a per-evaluation page by id).
+	ResolveEval(ctx context.Context, origin string, dataset string) (string, error)
+
 	// SendLogEvent emits a single log record to the Dash0 OTLP/HTTP ingress
 	// endpoint. Unlike every other method on this interface it does not manage
 	// an asset: log events are point-in-time telemetry with no identity, no

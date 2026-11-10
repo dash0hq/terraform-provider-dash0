@@ -163,6 +163,11 @@ files:
     title: dash0_signal_to_metrics
     description: Terraform resource for Dash0 signal-to-metrics rules that turn matching spans and logs into metrics at ingestion.
 
+  - source: docs/resources/eval.md
+    target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/eval.md
+    title: dash0_eval
+    description: Terraform resource for Dash0 generative AI evaluations (evals) that score GenAI spans with an LLM judge.
+
   - source: docs/resources/slo.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/slo.md
     title: dash0_slo

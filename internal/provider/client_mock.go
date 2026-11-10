@@ -370,6 +370,31 @@ func (m *MockClient) ResolveSignalToMetrics(ctx context.Context, origin string, 
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockClient) CreateEval(ctx context.Context, origin string, evaluationJSON string, dataset string) error {
+	args := m.Called(ctx, origin, evaluationJSON, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) GetEval(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockClient) UpdateEval(ctx context.Context, origin string, evaluationJSON string, dataset string) error {
+	args := m.Called(ctx, origin, evaluationJSON, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteEval(ctx context.Context, origin string, dataset string) error {
+	args := m.Called(ctx, origin, dataset)
+	return args.Error(0)
+}
+
+func (m *MockClient) ResolveEval(ctx context.Context, origin string, dataset string) (string, error) {
+	args := m.Called(ctx, origin, dataset)
+	return args.String(0), args.Error(1)
+}
+
 func (m *MockClient) SendLogEvent(ctx context.Context, event client.LogEvent, dataset string) error {
 	args := m.Called(ctx, event, dataset)
 	return args.Error(0)

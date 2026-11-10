@@ -1,0 +1,23 @@
+kind: Dash0GenerativeAiEvaluation
+metadata:
+  # Identifies the eval in its dataset. Changing it replaces the eval.
+  name: answer-relevance
+spec:
+  enabled: true
+  display:
+    name: Answer relevance
+    description: Judges whether the answer addresses the user's question.
+  match:
+    filters:
+      # Required: evals judge only GenAI spans.
+      - key: gen_ai.operation.name
+        operator: is_set
+  sample:
+    rate: 0.1
+  judge:
+    model: light
+    systemPrompt: You judge whether an answer is relevant to the question it replies to.
+    userPrompt: "Question: {{ gen_ai.input.messages }}\nAnswer: {{ gen_ai.output.messages }}"
+    output:
+      # Changing the output kind replaces the eval.
+      kind: boolean
