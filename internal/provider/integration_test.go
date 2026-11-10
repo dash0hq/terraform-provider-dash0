@@ -868,6 +868,112 @@ func TestIntegration_SignalToMetrics_CRUD(t *testing.T) {
 	assert.NotEmpty(t, deletes, "expected at least one DELETE to /api/signal-to-metrics/")
 }
 
+func evalIntegrationConfig(name, outputKind, threshold string) string {
+	output := "kind: " + outputKind
+	if threshold != "" {
+		output += "\n          spec:\n            threshold: " + threshold
+	}
+	return fmt.Sprintf(`
+provider "dash0" {}
+resource "dash0_eval" "test" {
+  dataset = "terraform-test"
+  eval_yaml = <<-EOT
+    kind: Dash0GenerativeAiEvaluation
+    metadata:
+      name: %s
+    spec:
+      enabled: true
+      display:
+        name: Answer relevance
+      match:
+        filters:
+          - key: gen_ai.operation.name
+            operator: is_set
+      sample:
+        rate: 0.25
+      judge:
+        model: light
+        systemPrompt: You judge answers.
+        userPrompt: "{{ gen_ai.input.messages }}"
+        output:
+          %s
+  EOT
+}`, name, output)
+}
+
+// TestIntegration_Eval_ImmutableFieldsReplace runs the
+// resource through Terraform: the API refuses to change metadata.name or the
+// judge output kind, so those changes must plan a replacement, while any other
+// change stays an in-place update under the same origin.
+func TestIntegration_Eval_ImmutableFieldsReplace(t *testing.T) {
+	mock, factories := setupIntegrationTest(t)
+	const address = "dash0_eval.test"
+	var origin string
+
+	sameOrigin := func(s *terraform.State) error {
+		if got := s.RootModule().Resources[address].Primary.Attributes["origin"]; got != origin {
+			return fmt.Errorf("expected origin %s to be kept, got %s", origin, got)
+		}
+		return nil
+	}
+	newOrigin := func(s *terraform.State) error {
+		got := s.RootModule().Resources[address].Primary.Attributes["origin"]
+		if got == origin {
+			return fmt.Errorf("expected a new origin after the replacement, got the old one %s", origin)
+		}
+		if deletes := mock.getRequests(http.MethodDelete, "/api/generative-ai-evaluations/"+origin); len(deletes) != 1 {
+			return fmt.Errorf("expected one DELETE of the replaced eval %s, got %d", origin, len(deletes))
+		}
+		origin = got
+		return nil
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: factories,
+		Steps: []resource.TestStep{
+			{
+				Config: evalIntegrationConfig("answer-relevance", "numeric", "0.5"),
+				Check: func(s *terraform.State) error {
+					origin = s.RootModule().Resources[address].Primary.Attributes["origin"]
+					if !strings.HasPrefix(origin, "tf_") {
+						return fmt.Errorf("expected a tf_ origin, got %q", origin)
+					}
+					return nil
+				},
+			},
+			{
+				Config:   evalIntegrationConfig("answer-relevance", "numeric", "0.5"),
+				PlanOnly: true,
+			},
+			{
+				Config: evalIntegrationConfig("answer-relevance", "numeric", "0.7"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(address, plancheck.ResourceActionUpdate)},
+				},
+				Check: sameOrigin,
+			},
+			{
+				Config: evalIntegrationConfig("answer-quality", "numeric", "0.7"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(address, plancheck.ResourceActionReplace)},
+				},
+				Check: newOrigin,
+			},
+			{
+				Config: evalIntegrationConfig("answer-quality", "boolean", ""),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(address, plancheck.ResourceActionReplace)},
+				},
+				Check: newOrigin,
+			},
+			{
+				Config:   evalIntegrationConfig("answer-quality", "boolean", ""),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
 // TestIntegration_SignalToMetrics_OutOfBandDatasetMoveReplaces covers a rule
 // moved to another dataset outside Terraform. The mock stores resources by
 // path, so like the real backend it finds the rule by origin whatever dataset
