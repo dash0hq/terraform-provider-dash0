@@ -24,6 +24,12 @@ Each Dash0 asset kind is exposed as a Terraform resource whose primary attribute
 - [`dash0_aws_metric_scrape_config`](resources/aws-metric-scrape-config) — the CloudWatch namespaces and metrics Dash0 scrapes for an AWS integration.
 - [`dash0_custom_skill`](resources/custom-skill) — organization-level Agent0 custom skills: a `SKILL.md` with its reference files, and who may read or delete them.
 
+## Data sources
+
+Data sources read Dash0 assets that Terraform does not manage, so other resources can reference them.
+
+- [`dash0_team`](data-sources/team) — looks up a team by display name or id, for example a team synced from your identity provider, to grant it access to a dataset.
+
 ## Actions
 
 Not everything worth doing from Terraform is an asset to reconcile.

@@ -97,6 +97,9 @@ type Client interface {
 	// origin (no deep-link URL — the Dash0 web app does not currently expose
 	// a per-team page distinct from the settings screen).
 	ResolveTeam(ctx context.Context, origin string) (string, error)
+	// ListTeams returns every team in the organization as typed list items,
+	// for data sources that match on fields rather than pass a body through.
+	ListTeams(ctx context.Context) ([]*dash0.TeamsListItem, error)
 
 	CreateSpamFilter(ctx context.Context, origin string, filterJSON string, dataset string) error
 	GetSpamFilter(ctx context.Context, origin string, dataset string) (string, error)
