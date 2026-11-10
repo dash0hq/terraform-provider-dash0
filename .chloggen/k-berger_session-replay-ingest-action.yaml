@@ -1,0 +1,4 @@
+change_type: enhancement
+component: docs
+note: The `dash0_auth_token` docs list the `ingest:session-replays` action and explain that session replays also need the `sessionReplays` signal type on a token with restricted signals.
+issues: [216]
