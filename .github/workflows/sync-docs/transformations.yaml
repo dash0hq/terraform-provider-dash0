@@ -78,122 +78,201 @@ files:
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/about.md
     title: About the Dash0 Terraform Provider
     description: Introduction to the Dash0 Terraform Provider — who it's for, the assets it manages, its design principles, and how it relates to the Dash0 Operator and CLI.
+    tags:
+      - terraform
 
   - source: docs/quickstart.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/quickstart.md
     title: Quickstart
     description: A five-minute walkthrough — declare the Dash0 Terraform Provider, authenticate, apply your first dash0_check_rule, and verify it in Dash0.
+    tags:
+      - terraform
 
   - source: docs/configuration.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/configuration.md
     title: Configuration
     description: Configure the Dash0 Terraform Provider — the provider-block schema, supported environment variables, credential resolution order, and OAuth-enabled Dash0 CLI profiles.
+    tags:
+      - terraform
 
   - source: docs/guides/import-existing-assets.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/guides/import-existing-assets.md
     title: Import existing Dash0 assets into Terraform
     description: Adopt UI- or CLI-created Dash0 assets into Terraform state without recreating them, using imperative terraform import for individual resources or declarative import blocks with config generation for bulk adoption.
+    tags:
+      - terraform
 
   - source: docs/guides/aws_cloudformation_integration.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/guides/aws-cloudformation-integration.md
     title: AWS integration via CloudFormation
     description: Deploy the Dash0 AWS integration using Terraform's aws_cloudformation_stack resource with the official Dash0 CloudFormation template.
+    tags:
+      - terraform
+      - aws-cloudformation
+      - aws
 
   - source: docs/data-sources/team.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/data-sources/team.md
     title: dash0_team
     description: Terraform data source that looks up a Dash0 team by display name or id, so a team Terraform does not manage, such as one synced from your identity provider, can be granted access to a dataset.
+    tags:
+      - terraform
+      - access-control
 
   - source: docs/actions/deployment_event.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/actions/deployment-event.md
     title: dash0_deployment_event
     description: Terraform action that emits a dash0.deployment event, marking when a service was deployed so the deployment can be overlaid on charts as a dashboard annotation.
+    tags:
+      - terraform
+      - logging
 
   - source: docs/actions/log_event.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/actions/log-event.md
     title: dash0_log_event
     description: Terraform action that sends an arbitrary log event to Dash0 via OTLP — the general-purpose counterpart to dash0_deployment_event, mirroring the dash0 logs send CLI command.
+    tags:
+      - terraform
+      - logging
 
   - source: docs/resources/auth_token.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/auth-token.md
     title: dash0_auth_token
     description: Terraform resource for Dash0 auth tokens — organization-level credentials for telemetry ingestion and the Dash0 API, with the secret exposed as a sensitive attribute.
+    tags:
+      - terraform
+      - auth-tokens
 
   - source: docs/resources/aws_metric_scrape_config.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/aws-metric-scrape-config.md
     title: dash0_aws_metric_scrape_config
     description: Terraform resource for the CloudWatch metric scrape configuration of a Dash0 AWS integration.
+    tags:
+      - terraform
+      - aws-cloudwatch
+      - telemetry-pipelines
+      - metrics
 
   - source: docs/resources/check_rule.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/check-rule.md
     title: dash0_check_rule
     description: Terraform resource for Dash0 check rules — PromQL-based alerting conditions defined in the Prometheus Rule format.
+    tags:
+      - terraform
+      - alerting
 
   - source: docs/resources/custom_skill.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/custom-skill.md
     title: dash0_custom_skill
     description: Terraform resource for Agent0 custom skills — organization-level skill files led by a SKILL.md, with read and delete grants for roles, teams, and users.
+    tags:
+      - terraform
+      - agent0
+      - agent-skills
 
   - source: docs/resources/dashboard.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/dashboard.md
     title: dash0_dashboard
     description: Terraform resource for Dash0 dashboards defined in the Perses Dashboard format.
+    tags:
+      - terraform
+      - dashboards
 
   - source: docs/resources/dataset.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/dataset.md
     title: dash0_dataset
     description: Terraform resource for Dash0 datasets — declaratively manage retention, geolocation and IP address storage, sensitive-data redaction, and semantic convention upgrades.
+    tags:
+      - terraform
 
   - source: docs/resources/notification_channel.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/notification-channel.md
     title: dash0_notification_channel
     description: Terraform resource for Dash0 notification channels — Slack, email, PagerDuty, Opsgenie, webhooks, Microsoft Teams, Discord, Google Chat, and routing rules.
+    tags:
+      - terraform
+      - alerting
+      - alert-routing
 
   - source: docs/resources/recording_rule.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/recording-rule.md
     title: dash0_recording_rule
     description: Terraform resource for Dash0 recording rule groups defined in the Prometheus Rule format.
+    tags:
+      - terraform
+      - prometheus
+      - metrics
 
   - source: docs/resources/sampling_rule.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/sampling-rule.md
     title: dash0_sampling_rule
     description: Terraform resource for Dash0 sampling rules that decide which traces Dash0 keeps, based on errors, OTTL conditions, or a probabilistic share.
+    tags:
+      - terraform
+      - trace-sampling
+      - signalcontrol
   - source: docs/resources/signal_to_metrics.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/signal-to-metrics.md
     title: dash0_signal_to_metrics
     description: Terraform resource for Dash0 signal-to-metrics rules that turn matching spans and logs into metrics at ingestion.
+    tags:
+      - terraform
+      - telemetry-pipelines
+      - signalcontrol
+      - metrics
 
   - source: docs/resources/eval.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/eval.md
     title: dash0_eval
     description: Terraform resource for Dash0 generative AI evaluations (evals) that score GenAI spans with an LLM judge.
+    tags:
+      - terraform
+      - llm-evaluation
 
   - source: docs/resources/slo.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/slo.md
     title: dash0_slo
     description: Terraform resource for Dash0 service level objectives (SLOs) defined in the OpenSLO format.
+    tags:
+      - terraform
+      - service-level-objectives
 
   - source: docs/resources/spam_filter.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/spam-filter.md
     title: dash0_spam_filter
     description: Terraform resource for Dash0 spam filters that drop matching telemetry before ingestion.
+    tags:
+      - terraform
+      - telemetry-pipelines
+      - signalcontrol
 
   - source: docs/resources/synthetic_check.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/synthetic-check.md
     title: dash0_synthetic_check
     description: Terraform resource for Dash0 synthetic checks — HTTP-based availability and correctness probes with configurable schedules, retries, and notifications.
+    tags:
+      - terraform
+      - synthetic-monitoring
 
   - source: docs/resources/team.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/team.md
     title: dash0_team
     description: Terraform resource for Dash0 teams — declaratively manage the technical name, display attributes, and membership of a team via the Dash0Team CRD envelope.
+    tags:
+      - terraform
 
   - source: docs/resources/time_series_aggregation.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/time-series-aggregation.md
     title: dash0_time_series_aggregation
     description: Terraform resource for Dash0 time series aggregations — metric rollups that reduce cardinality and query cost while keeping the dimensions you care about.
+    tags:
+      - terraform
+      - signalcontrol
+      - metrics
 
   - source: docs/resources/view.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/view.md
     title: dash0_view
     description: Terraform resource for Dash0 views — saved telemetry queries backed by a YAML view definition.
+    tags:
+      - terraform
