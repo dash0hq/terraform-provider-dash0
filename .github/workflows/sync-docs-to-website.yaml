@@ -13,10 +13,11 @@ name: Synchronize docs to dash0.com/docs
 #
 #   - full sync (workflow_call from release.yml, or workflow_dispatch with dry-run unchecked):
 #     runs sync-docs-action end-to-end and opens/updates a PR on the target repository. Requires
-#     three secrets: SYNC_DOCUMENTATION_TARGET_REPOSITORY (owner/name of the target repo),
-#     SYNC_DOCUMENTATION_TARGET_DIRECTORY (path within the target repo the sync writes into), and
-#     DOCS_WEBSITE_PR_TOKEN (fine-grained PAT with `contents:write` and `pull-requests:write` on
-#     the target repository).
+#     the secrets SYNC_DOCUMENTATION_TARGET_REPOSITORY (owner/name of the target repo) and
+#     SYNC_DOCUMENTATION_TARGET_DIRECTORY (path within the target repo the sync writes into). The
+#     token for the target repository is a short-lived installation token of the GitHub App
+#     "Dash0 Docs Sync" (dash0-docs-sync), minted per run from the DOCS_SYNC_APP_CLIENT_ID
+#     organization variable and the DOCS_SYNC_APP_PRIVATE_KEY organization secret.
 
 on:
   workflow_dispatch:
@@ -38,8 +39,8 @@ on:
       SYNC_DOCUMENTATION_TARGET_DIRECTORY:
         description: Path within the target repository the sync writes into. Only required when dry-run is false.
         required: false
-      DOCS_WEBSITE_PR_TOKEN:
-        description: Fine-grained PAT with contents+pull-requests write on the target documentation repository. Only required when dry-run is false.
+      DOCS_SYNC_APP_PRIVATE_KEY:
+        description: Private key of the GitHub App that opens the pull request in the documentation repository. Only required when dry-run is false.
         required: false
 
 jobs:
@@ -52,6 +53,17 @@ jobs:
       - name: checkout terraform-provider-dash0
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: create GitHub App token for the documentation repository
+        id: app-token
+        if: ${{ !inputs.dry-run }}
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.DOCS_SYNC_APP_CLIENT_ID }}
+          private-key: ${{ secrets.DOCS_SYNC_APP_PRIVATE_KEY }}
+          repositories: ${{ secrets.SYNC_DOCUMENTATION_TARGET_REPOSITORY }}
+          permission-contents: write
+          permission-pull-requests: write
+
       # One invocation serves both modes; `dry-run` decides. `source-root` and `transformations-file`
       # inherit their defaults (`.` and `.github/workflows/sync-docs/transformations.yaml`).
       - name: sync docs to dash0.com/docs
@@ -60,7 +72,7 @@ jobs:
           dry-run: ${{ inputs.dry-run }}
           target-repository: ${{ secrets.SYNC_DOCUMENTATION_TARGET_REPOSITORY }}
           target-directory: ${{ secrets.SYNC_DOCUMENTATION_TARGET_DIRECTORY }}
-          target-github-token: ${{ secrets.DOCS_WEBSITE_PR_TOKEN }}
+          target-github-token: ${{ steps.app-token.outputs.token }}
           pr-branch: sync-terraform-provider-dash0-docs
           pr-title: 'docs: synchronize terraform-provider-dash0 documentation'
           pr-body: |
