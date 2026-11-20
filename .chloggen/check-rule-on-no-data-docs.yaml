@@ -1,0 +1,6 @@
+change_type: enhancement
+component: check_rules
+note: "The `dash0_check_rule` documentation describes the `dash0.com/on-no-data` annotation, which makes a check rule report a degraded or critical failed check when its query returns no data."
+issues: [225]
+subtext: |
+  Set it under `metadata.annotations` to apply it to the rule of the document, or under the rule's own `annotations`; the rule's value wins when both are set.
