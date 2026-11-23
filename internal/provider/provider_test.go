@@ -707,7 +707,8 @@ func TestResolveDataset_Precedence(t *testing.T) {
 	t.Run("already-loaded profile supplies the dataset when attribute and env are omitted", func(t *testing.T) {
 		clearCredentialEnv(t)
 		cfg := &providerConfigModel{}
-		profileCfg := &dash0Profiles.Configuration{Dataset: "from-profile"}
+		profileCfg, err := dash0Profiles.ResolveConfigurationWithOtlp("https://api.example.com", "auth_profile", "", "from-profile", dash0Profiles.WithConfigDir(t.TempDir()))
+		require.NoError(t, err)
 		assert.Equal(t, "from-profile", resolveDataset(ctx, cfg, profileCfg))
 	})
 
