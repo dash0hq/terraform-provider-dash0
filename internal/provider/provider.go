@@ -473,6 +473,7 @@ func (p *dash0Provider) Resources(_ context.Context) []func() resource.Resource 
 		NewSignalToMetricsResource,
 		NewEvalResource,
 		NewAwsMetricScrapeConfigResource,
+		NewAwsLogGroupPolicyResource,
 		NewCustomSkillResource,
 	}
 }

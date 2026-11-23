@@ -114,6 +114,7 @@ else
     test_signal_to_metrics.sh
     test_eval.sh
     test_aws_metric_scrape_config.sh
+    test_aws_log_group_policy.sh
     test_custom_skill.sh
     test_import_check_rule.sh
     test_import_dashboard.sh
@@ -131,6 +132,7 @@ else
     test_import_signal_to_metrics.sh
     test_import_eval.sh
     test_import_aws_metric_scrape_config.sh
+    test_import_aws_log_group_policy.sh
     test_import_custom_skill.sh
     test_actions.sh
   )
@@ -148,7 +150,9 @@ FAILED_NAMES=()
 # signal-to-metrics tests when the credential may not manage signal-to-metrics
 # rules, the auth token tests when the API does not serve /api/auth-tokens
 # yet or the credential may not manage auth tokens, and the custom skill tests
-# when the bundled dash0 CLI has no `agent0 skills` command yet. Skips are counted and named separately so they
+# when the bundled dash0 CLI has no `agent0 skills` command yet, and the AWS
+# tests when DASH0_AWS_INTEGRATION_ID is unset (the log-group policy tests also
+# when that integration has not reported log-group instrumentation support). Skips are counted and named separately so they
 # never read as passes in the summary.
 SKIP_EXIT_CODE=77
 SKIPPED=0
@@ -166,6 +170,8 @@ SKIPPABLE_TESTS=(
   test_import_auth_token.sh
   test_aws_metric_scrape_config.sh
   test_import_aws_metric_scrape_config.sh
+  test_aws_log_group_policy.sh
+  test_import_aws_log_group_policy.sh
   test_custom_skill.sh
   test_import_custom_skill.sh
 )

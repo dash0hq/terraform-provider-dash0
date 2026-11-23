@@ -143,6 +143,16 @@ files:
       - terraform
       - auth-tokens
 
+  - source: docs/resources/aws_log_group_policy.md
+    target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/aws-log-group-policy.md
+    title: dash0_aws_log_group_policy
+    description: Terraform resource for the tag-based log-group instrumentation policy of a Dash0 AWS integration.
+    tags:
+      - terraform
+      - aws-cloudwatch
+      - telemetry-pipelines
+      - logs
+
   - source: docs/resources/aws_metric_scrape_config.md
     target: dash0/miscellaneous/tooling/terraform-provider-dash0/resources/aws-metric-scrape-config.md
     title: dash0_aws_metric_scrape_config

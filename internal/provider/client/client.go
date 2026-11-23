@@ -117,6 +117,14 @@ type Client interface {
 	UpdateAwsMetricScrapeConfig(ctx context.Context, integrationID string, origin string, cfgJSON string) error
 	DeleteAwsMetricScrapeConfig(ctx context.Context, integrationID string) error
 
+	// AWS log-group policies are addressed by AWS integration id; there is at
+	// most one per integration. GetAwsLogGroupPolicy returns the definition
+	// JSON without labels and annotations, the dash0.com/origin label, and
+	// whether the policy is a deletion tombstone.
+	GetAwsLogGroupPolicy(ctx context.Context, integrationID string) (definitionJSON string, origin string, deleted bool, err error)
+	UpdateAwsLogGroupPolicy(ctx context.Context, integrationID string, origin string, policyJSON string) error
+	DeleteAwsLogGroupPolicy(ctx context.Context, integrationID string, disposition string) error
+
 	CreateTimeSeriesAggregation(ctx context.Context, origin string, tsaJSON string, dataset string) error
 	GetTimeSeriesAggregation(ctx context.Context, origin string, dataset string) (string, error)
 	UpdateTimeSeriesAggregation(ctx context.Context, origin string, tsaJSON string, dataset string) error
