@@ -1301,3 +1301,135 @@ sys.exit(0 if annotations.get("dash0.com/deleted-at") else 1)
 
   fail "Eval ${id} still live after 10 attempts."
 }
+
+# ---------------------------------------------------------------------------
+# AWS log-group policy helpers.
+#
+# The dash0 CLI in the test image has no command for log-group policies yet,
+# so they are read and written through its raw API command. Like scrape
+# configs, a policy is addressed by the AWS integration id alone, and the
+# tests reuse the integration in DASH0_AWS_INTEGRATION_ID and restore its
+# original policy when they finish. Every fixture matches a tag value no log
+# group carries and every delete keeps forwarding, so no log group changes.
+# ---------------------------------------------------------------------------
+
+AWS_LGP_PATH="/api/aws-log-group-instrumentation-policies/${AWS_INTEGRATION_ID}"
+
+# aws_lgp_get — prints the policy JSON, including a deletion tombstone. Fails
+# when the integration never had a policy.
+aws_lgp_get() {
+  dash0 -X api "$AWS_LGP_PATH" --dataset ""
+}
+
+# aws_lgp_put <json_file> — creates or replaces the policy.
+aws_lgp_put() {
+  dash0 -X api PUT "$AWS_LGP_PATH" --dataset "" -f "$1"
+}
+
+# aws_lgp_delete — deletes the policy and keeps forwarding its log groups.
+aws_lgp_delete() {
+  dash0 -X api DELETE "${AWS_LGP_PATH}?disposition=keep" --dataset "" >/dev/null
+}
+
+# aws_lgp_field <python-expression over doc>
+aws_lgp_field() {
+  aws_lgp_get | python3 -c "import json, sys; doc = json.load(sys.stdin); print($1)"
+}
+
+# aws_lgp_state — prints active, deleted, or none.
+aws_lgp_state() {
+  local doc
+  if ! doc="$(aws_lgp_get 2>&1)"; then
+    [[ "$doc" == *"404"* ]] && { echo none; return 0; }
+    echo "$doc" >&2
+    return 1
+  fi
+  echo "$doc" | python3 -c "
+import json, sys
+doc = json.load(sys.stdin)
+print('deleted' if (doc['metadata'].get('annotations') or {}).get('dash0.com/deleted-at') else 'active')"
+}
+
+# aws_lgp_preflight <what> <save_file>
+#
+# Skips with exit code 77 when DASH0_AWS_INTEGRATION_ID is unset or the
+# integration has not reported log-group instrumentation support, which only
+# its CloudFormation stack can provide. Otherwise saves the current policy to
+# <save_file> (empty when there is none) for aws_lgp_restore.
+aws_lgp_preflight() {
+  local what="$1" save="$2" reason=""
+  if [[ -z "$AWS_INTEGRATION_ID" ]]; then
+    reason="Set DASH0_AWS_INTEGRATION_ID to the id of an AWS integration whose log-group policy the test may replace (it is restored afterwards)."
+  else
+    local state
+    state="$(aws_lgp_state)" || fail "Could not read the log-group policy of ${AWS_INTEGRATION_ID}"
+    if [[ "$state" == "active" ]]; then
+      aws_lgp_get | python3 -c "
+import json, sys
+doc = json.load(sys.stdin)
+json.dump({'apiVersion': doc['apiVersion'], 'kind': doc['kind'], 'metadata': {}, 'spec': doc['spec']}, sys.stdout)
+" > "$save"
+    else
+      : > "$save"
+    fi
+    # Probe with the policy that is already there, or a policy that matches nothing.
+    local probe="${save}.probe" out
+    if [[ -s "$save" ]]; then
+      cp "$save" "$probe"
+    else
+      aws_lgp_fixture_json "never-matches-probe" > "$probe"
+    fi
+    if ! out="$(aws_lgp_put "$probe" 2>&1)"; then
+      if [[ "$out" == *"has not reported log-group instrumentation support"* ]]; then
+        reason="Integration ${AWS_INTEGRATION_ID} has not reported log-group instrumentation support. Point DASH0_AWS_INTEGRATION_ID at an integration whose stack enables it."
+      else
+        echo "$out"
+        fail "Probe PUT of the log-group policy of ${AWS_INTEGRATION_ID} failed"
+      fi
+    fi
+    rm -f "$probe"
+    [[ -n "$reason" || -s "$save" ]] || aws_lgp_delete || fail "Could not delete the probe policy"
+  fi
+  if [[ -n "$reason" ]]; then
+    echo ""
+    echo "############################################################################"
+    echo "## SKIPPED — this test did NOT run:"
+    echo "##   ${what}"
+    echo "##"
+    echo "## ${reason}"
+    echo "## This is a KNOWN COVERAGE GAP, not a pass."
+    echo "############################################################################"
+    echo ""
+    exit 77 # skip: counted separately by run_all.sh
+  fi
+}
+
+# aws_lgp_fixture_json <tag value> — a policy matching only log groups tagged
+# dash0-roundtrip=<tag value>.
+aws_lgp_fixture_json() {
+  cat <<JSONEOF
+{"apiVersion": "dash0.com/v1alpha1", "kind": "Dash0AwsLogGroupInstrumentationPolicy", "metadata": {},
+ "spec": {"onNoLongerMatching": "keep", "rules": [{"conditions": [
+   {"key": "dash0.cloud.tags.dash0-roundtrip", "operator": "is", "value": "$1"}]}]}}
+JSONEOF
+}
+
+# aws_lgp_restore <save_file> — puts back the policy saved by
+# aws_lgp_preflight, or deletes the policy (keeping forwarding) when there was
+# no active one.
+aws_lgp_restore() {
+  if [[ -s "$1" ]]; then
+    aws_lgp_put "$1" >/dev/null
+  elif [[ "$(aws_lgp_state)" == "active" ]]; then
+    aws_lgp_delete
+  fi
+}
+
+# assert_aws_lgp_deleted_with <disposition> — the policy must be a tombstone
+# deleted with that disposition.
+assert_aws_lgp_deleted_with() {
+  local got
+  got="$(aws_lgp_field "(doc['metadata'].get('annotations') or {}).get('dash0.com/deleted-at', '') != '' and (doc['metadata'].get('annotations') or {}).get('dash0.com/deletion-disposition', '')")"
+  [[ "$got" == "$1" ]] || fail "Expected a policy deleted with disposition '$1', got '${got}'"
+  info "Policy confirmed deleted with disposition $1 via the API."
+}

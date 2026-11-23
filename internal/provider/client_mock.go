@@ -295,6 +295,21 @@ func (m *MockClient) DeleteAwsMetricScrapeConfig(ctx context.Context, integratio
 	return args.Error(0)
 }
 
+func (m *MockClient) GetAwsLogGroupPolicy(ctx context.Context, integrationID string) (string, string, bool, error) {
+	args := m.Called(ctx, integrationID)
+	return args.String(0), args.String(1), args.Bool(2), args.Error(3)
+}
+
+func (m *MockClient) UpdateAwsLogGroupPolicy(ctx context.Context, integrationID string, origin string, policyJSON string) error {
+	args := m.Called(ctx, integrationID, origin, policyJSON)
+	return args.Error(0)
+}
+
+func (m *MockClient) DeleteAwsLogGroupPolicy(ctx context.Context, integrationID string, disposition string) error {
+	args := m.Called(ctx, integrationID, disposition)
+	return args.Error(0)
+}
+
 func (m *MockClient) CreateTimeSeriesAggregation(ctx context.Context, origin string, tsaJSON string, dataset string) error {
 	args := m.Called(ctx, origin, tsaJSON, dataset)
 	return args.Error(0)
