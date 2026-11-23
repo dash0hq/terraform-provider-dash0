@@ -1,6 +1,6 @@
 change_type: new_component
 component: aws_log_group_policy
 note: "The new `dash0_aws_log_group_policy` resource manages the tag-based policy that decides which CloudWatch log groups Dash0 forwards for an AWS integration."
-issues: []
+issues: [231]
 subtext: |
   Destroying the resource keeps the matched log groups forwarding unless `deletion_disposition` is set to `remove`.
