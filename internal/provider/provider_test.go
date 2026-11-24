@@ -13,8 +13,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	dash0Profiles "github.com/dash0hq/dash0-api-client-go/profiles"
 )
 
 // profilesFixture is a small set of profiles used by tests that exercise the
@@ -707,7 +705,10 @@ func TestResolveDataset_Precedence(t *testing.T) {
 	t.Run("already-loaded profile supplies the dataset when attribute and env are omitted", func(t *testing.T) {
 		clearCredentialEnv(t)
 		cfg := &providerConfigModel{}
-		profileCfg := &dash0Profiles.Configuration{Dataset: "from-profile"}
+		setupCLIConfigDir(t, "loaded", `{"profiles":[{"name":"loaded","configuration":{"apiUrl":"https://api.example.com","authToken":"auth_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","dataset":"from-profile"}}]}`)
+		profileCfg, err := loadProfileConfiguration(ctx, "")
+		require.NoError(t, err)
+		setupCLIConfigDir(t, "other", `{"profiles":[{"name":"other","configuration":{"apiUrl":"https://api.example.com","authToken":"auth_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","dataset":"from-other-profile"}}]}`)
 		assert.Equal(t, "from-profile", resolveDataset(ctx, cfg, profileCfg))
 	})
 

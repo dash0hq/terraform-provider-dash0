@@ -124,7 +124,7 @@ func getEnvURL() string {
 // lets the client refresh its OAuth access token per request. A hand-rolled
 // search through GetProfiles drops that, leaving a configuration that can only
 // serve whatever token happens to sit on disk.
-func loadProfileConfiguration(ctx context.Context, profileName string) (*dash0Profiles.Configuration, error) {
+func loadProfileConfiguration(ctx context.Context, profileName string) (*dash0Profiles.ResolvedConfiguration, error) {
 	store, err := dash0Profiles.NewStore()
 	if err != nil {
 		return nil, err
@@ -160,7 +160,7 @@ type authInfo struct {
 	token      string
 	otlpURL    string
 	isOAuth    bool
-	profileCfg *dash0Profiles.Configuration
+	profileCfg *dash0Profiles.ResolvedConfiguration
 }
 
 // tokenProvider returns how the API client should authenticate.
@@ -254,13 +254,13 @@ func resolveAuthInfo(ctx context.Context, cfg *providerConfigModel) (authInfo, e
 	// could be paired with a different profile's OTLP endpoint for another.
 	urlFromProfile := url == ""
 	if url == "" {
-		url = profileCfg.ApiUrl
+		url = profileCfg.ApiUrl()
 	}
 	if authToken == "" {
-		authToken = profileCfg.AuthToken
+		authToken = profileCfg.Token()
 	}
 	if otlpURL == "" && urlFromProfile {
-		otlpURL = profileCfg.OtlpUrl
+		otlpURL = profileCfg.OtlpUrl()
 	}
 	// isOAuth is derived from the final resolved token's own prefix rather
 	// than from profileCfg.OAuth, so it stays correct regardless of whether
@@ -290,7 +290,7 @@ func resolveAuthInfo(ctx context.Context, cfg *providerConfigModel) (authInfo, e
 // as a best-effort second attempt. Unlike resolveAuthInfo, a profile load
 // failure here is silently ignored: dataset resolution never fails provider
 // configuration, it just falls through to "default".
-func resolveDataset(ctx context.Context, cfg *providerConfigModel, profileCfg *dash0Profiles.Configuration) string {
+func resolveDataset(ctx context.Context, cfg *providerConfigModel, profileCfg *dash0Profiles.ResolvedConfiguration) string {
 	var attrDataset string
 	if !cfg.Dataset.IsNull() && !cfg.Dataset.IsUnknown() {
 		attrDataset = cfg.Dataset.ValueString()
@@ -306,8 +306,8 @@ func resolveDataset(ctx context.Context, cfg *providerConfigModel, profileCfg *d
 		}
 		profileCfg, _ = loadProfileConfiguration(ctx, profileName)
 	}
-	if profileCfg != nil && profileCfg.Dataset != "" {
-		return profileCfg.Dataset
+	if profileCfg != nil && profileCfg.Dataset() != "" {
+		return profileCfg.Dataset()
 	}
 
 	return "default"
