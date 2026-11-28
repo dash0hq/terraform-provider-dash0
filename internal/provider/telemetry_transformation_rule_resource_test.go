@@ -156,7 +156,10 @@ func TestTelemetryTransformationRuleResourceImport(t *testing.T) {
 }
 
 func TestTelemetryTransformationRuleResourceValidation(t *testing.T) {
-	for _, document := range []string{"", "null", "[]", "kind: Other", "invalid: [", strings.Replace(telemetryTransformationRuleYAML, "  enabled: false\n", "", 1), strings.Replace(telemetryTransformationRuleYAML, "enabled: false", "enabled: null", 1)} {
+	for _, document := range []string{"", "null", "[]", "kind: Other", "invalid: [", strings.Replace(telemetryTransformationRuleYAML, "  enabled: false\n", "", 1), strings.Replace(telemetryTransformationRuleYAML, "enabled: false", "enabled: null", 1),
+		"apiVersion: operator.dash0.com/v1alpha1\n" + telemetryTransformationRuleYAML,
+		strings.Replace(telemetryTransformationRuleYAML, "  name: normalize-logs\n", "  name: normalize-logs\n  labels:\n    team: platform\n", 1),
+		strings.Replace(telemetryTransformationRuleYAML, "  signal: logs\n", "  signal: logs\n  signals: logs\n", 1)} {
 		r := &TelemetryTransformationRuleResource{}
 		model := transformationRuleTestModel()
 		model.TelemetryTransformationRuleYAML = types.StringValue(document)
@@ -165,6 +168,64 @@ func TestTelemetryTransformationRuleResourceValidation(t *testing.T) {
 		r.ValidateConfig(t.Context(), resource.ValidateConfigRequest{Config: tfsdk.Config{Raw: state.Raw, Schema: state.Schema}}, &resp)
 		require.True(t, resp.Diagnostics.HasError(), document)
 	}
+}
+
+func TestTelemetryTransformationRuleResourceValidationAcceptsRule(t *testing.T) {
+	r := &TelemetryTransformationRuleResource{}
+	state := transformationRuleTestState(t, transformationRuleTestModel())
+	resp := resource.ValidateConfigResponse{}
+	r.ValidateConfig(t.Context(), resource.ValidateConfigRequest{Config: tfsdk.Config{Raw: state.Raw, Schema: state.Schema}}, &resp)
+	require.False(t, resp.Diagnostics.HasError(), "%v", resp.Diagnostics)
+}
+
+func TestTelemetryTransformationRuleResourceCreateErrorNamesOrigin(t *testing.T) {
+	c := &MockClient{}
+	c.On("CreateTelemetryTransformationRule", mock.Anything, mock.AnythingOfType("string"), mock.Anything, "production").Return("", &dash0.APIError{StatusCode: 500})
+	r := &TelemetryTransformationRuleResource{client: c}
+	model := transformationRuleTestModel()
+	model.Origin = types.StringUnknown()
+	model.ID = types.StringUnknown()
+	state := transformationRuleTestState(t, model)
+	resp := resource.CreateResponse{State: state}
+	r.Create(t.Context(), resource.CreateRequest{Plan: tfsdk.Plan{Raw: state.Raw, Schema: state.Schema}}, &resp)
+	require.True(t, resp.Diagnostics.HasError())
+	origin := c.Calls[0].Arguments.String(1)
+	assert.True(t, strings.HasPrefix(origin, "tf_"), origin)
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), origin)
+}
+
+func TestTelemetryTransformationRuleResourceDelete(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		err     error
+		failure bool
+	}{
+		{"deleted", nil, false},
+		{"already gone", &dash0.APIError{StatusCode: 404}, false},
+		{"server error", &dash0.APIError{StatusCode: 500}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &MockClient{}
+			c.On("DeleteTelemetryTransformationRule", mock.Anything, "tf_origin", "production").Return(tc.err)
+			r := &TelemetryTransformationRuleResource{client: c}
+			state := transformationRuleTestState(t, transformationRuleTestModel())
+			resp := resource.DeleteResponse{State: state}
+			r.Delete(t.Context(), resource.DeleteRequest{State: state}, &resp)
+			assert.Equal(t, tc.failure, resp.Diagnostics.HasError(), "%v", resp.Diagnostics)
+			c.AssertExpectations(t)
+		})
+	}
+}
+
+func TestTelemetryTransformationRuleResourceImportRejectsDeletedRule(t *testing.T) {
+	deleted := strings.Replace(telemetryTransformationRuleAPIJSON, `"annotations":{`, `"annotations":{"dash0.com/deleted-at":"2026-11-03T00:00:00Z",`, 1)
+	c := &MockClient{}
+	c.On("GetTelemetryTransformationRule", mock.Anything, "tf_origin", "production").Return(deleted, nil)
+	r := &TelemetryTransformationRuleResource{client: c}
+	resp := resource.ImportStateResponse{State: transformationRuleTestState(t, telemetryTransformationRuleModel{})}
+	r.ImportState(t.Context(), resource.ImportStateRequest{ID: "production,tf_origin"}, &resp)
+	require.True(t, resp.Diagnostics.HasError())
+	assert.Contains(t, resp.Diagnostics.Errors()[0].Detail(), "deleted")
 }
 
 func TestTelemetryTransformationRuleResourcePlanPreservesOrder(t *testing.T) {
