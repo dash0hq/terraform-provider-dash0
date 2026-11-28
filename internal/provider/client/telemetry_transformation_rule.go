@@ -10,7 +10,7 @@ import (
 )
 
 func (c *dash0Client) CreateTelemetryTransformationRule(ctx context.Context, origin, ruleJSON, dataset string) (string, error) {
-	rule, err := unmarshalTelemetryTransformationRule(ruleJSON)
+	rule, err := ParseTelemetryTransformationRule(ruleJSON)
 	if err != nil {
 		return "", err
 	}
@@ -42,7 +42,7 @@ func (c *dash0Client) GetTelemetryTransformationRule(ctx context.Context, origin
 }
 
 func (c *dash0Client) UpdateTelemetryTransformationRule(ctx context.Context, originOrID, ruleJSON, dataset string) error {
-	rule, err := unmarshalTelemetryTransformationRule(ruleJSON)
+	rule, err := ParseTelemetryTransformationRule(ruleJSON)
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func (c *dash0Client) DeleteTelemetryTransformationRule(ctx context.Context, ori
 	return c.inner.DeleteTelemetryTransformationRule(ctx, originOrID, nil, &dataset)
 }
 
-func unmarshalTelemetryTransformationRule(ruleJSON string) (*dash0.TelemetryTransformationRuleDefinition, error) {
+func ParseTelemetryTransformationRule(ruleJSON string) (*dash0.TelemetryTransformationRuleDefinition, error) {
 	var rule dash0.TelemetryTransformationRuleDefinition
 	decoder := json.NewDecoder(strings.NewReader(ruleJSON))
 	decoder.DisallowUnknownFields()

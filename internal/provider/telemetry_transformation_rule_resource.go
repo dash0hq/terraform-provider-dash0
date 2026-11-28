@@ -131,6 +131,16 @@ func validateTelemetryTransformationRuleYAML(document string, diags *diag.Diagno
 		return
 	}
 	errorIfEnabledAbsent(parsed, telemetryTransformationRuleYAMLAttribute, "telemetry transformation rule", diags)
+	if diags.HasError() {
+		return
+	}
+	body, err := converter.ConvertYAMLToJSON(document)
+	if err == nil {
+		_, err = client.ParseTelemetryTransformationRule(body)
+	}
+	if err != nil {
+		diags.AddAttributeError(path.Root(telemetryTransformationRuleYAMLAttribute), "Invalid telemetry transformation rule YAML", err.Error())
+	}
 }
 
 func telemetryTransformationRuleJSON(document string, diags *diag.Diagnostics) string {
