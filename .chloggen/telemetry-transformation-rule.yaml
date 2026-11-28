@@ -1,4 +1,4 @@
-change_type: enhancement
+change_type: new_component
 component: telemetry_transformation_rules
 note: "Manage telemetry transformation rules with `dash0_telemetry_transformation_rule`."
 issues: [213]
