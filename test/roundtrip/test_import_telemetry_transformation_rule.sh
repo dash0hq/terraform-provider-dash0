@@ -5,7 +5,17 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 WORK_DIR="$(mktemp -d)"
-trap 'rm -rf "$WORK_DIR"' EXIT
+OOB_ORIGIN=""
+
+cleanup() {
+  if [[ -n "$OOB_ORIGIN" ]]; then
+    warn "Deleting telemetry transformation rule ${OOB_ORIGIN} created by this run..."
+    dash0 -X api DELETE "/api/telemetry-transformation-rules/${OOB_ORIGIN}" --dataset "$DATASET" >/dev/null \
+      || warn "Could not delete telemetry transformation rule ${OOB_ORIGIN}. Delete it by hand."
+  fi
+  rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT
 
 rule_get() {
   dash0 -X api "/api/telemetry-transformation-rules/$1" --dataset "$DATASET"
@@ -210,6 +220,7 @@ PYEOF
 
   TF_VAR_dataset="$DATASET" tf_destroy "$CASE_DIR"
   assert_rule_deleted "$IDENTIFIER"
+  OOB_ORIGIN=""
 done
 
 info "=== dash0_telemetry_transformation_rule import roundtrip test PASSED ==="

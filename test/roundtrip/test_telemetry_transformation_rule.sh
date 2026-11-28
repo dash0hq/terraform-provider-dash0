@@ -199,6 +199,7 @@ assert_idempotent "$WORK_DIR"
 
 info "An explicit default priority must not cause drift..."
 sed -i '/^  enabled: false$/a\  priority: 200' "${WORK_DIR}/rule.yaml"
+grep -qx '  priority: 200' "${WORK_DIR}/rule.yaml" || fail "Could not add an explicit priority to the rule YAML"
 assert_idempotent "$WORK_DIR"
 
 info "A dataset change must plan a replacement, without creating another dataset..."
