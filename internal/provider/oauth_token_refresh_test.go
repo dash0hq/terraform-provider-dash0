@@ -100,7 +100,7 @@ func TestResolveAuthInfo_RecordsProfileName(t *testing.T) {
 		auth, err := resolveAuthInfo(ctx, &providerConfigModel{})
 		require.NoError(t, err)
 		require.NotNil(t, auth.profileCfg)
-		assert.Equal(t, "oauth-profile", auth.profileCfg.ProfileName)
+		assert.Equal(t, "oauth-profile", auth.profileCfg.ProfileName())
 	})
 
 	t.Run("named profile", func(t *testing.T) {
@@ -112,7 +112,7 @@ func TestResolveAuthInfo_RecordsProfileName(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotNil(t, auth.profileCfg)
-		assert.Equal(t, "oauth-profile", auth.profileCfg.ProfileName)
+		assert.Equal(t, "oauth-profile", auth.profileCfg.ProfileName())
 	})
 }
 
